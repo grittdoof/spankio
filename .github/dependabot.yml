@@ -1,0 +1,24 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    # Les versions sont pinnées : Dependabot doit mettre à jour package.json.
+    versioning-strategy: increase
+    groups:
+      types:
+        patterns: ['@types/*']
+      testing:
+        patterns: ['vitest', '@vitest/*', '@testing-library/*', 'jsdom', 'axe-core']
+      lint:
+        patterns: ['eslint', 'eslint-*', 'typescript-eslint', '@eslint/*', 'globals']
+    labels: ['dependencies']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: ['ci']

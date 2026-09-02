@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Aucun job n'a besoin d'écrire dans le dépôt.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Valeurs factices : la CI ne parle à aucun service réel.
+  NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+  NEXT_PUBLIC_SITE_URL: http://localhost:3000
+  SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+
+jobs:
+  quality:
+    name: Types, lint, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `npm ci` échoue si le lockfile a dérivé du package.json : garde-fou
+      # contre les dépendances non pinnées / non committées.
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérification des types
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # unit + integration (API) + rls (isolation multi-tenant) + a11y (axe-core)
+      - name: Tests
+        run: npm run test
+
+      - name: Build de production
+        run: npm run build
+
+  audit:
+    name: Audit des dépendances
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: npm audit (bloquant à partir de « high »)
+        run: npm audit --audit-level=high
+
+  secrets:
+    name: Scan de secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Historique complet : gitleaks analyse aussi les commits passés.
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

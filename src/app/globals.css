@@ -1,0 +1,571 @@
+/* ==========================================================================
+   Design system — tokens & composants préfixés `sp-`
+   Charte : marine #042F64 / azur #2F6FDB / rouge #E00114 / gris-bg #F2F3F7
+   Contrastes vérifiés par tests/unit/design-tokens.test.ts (WCAG 2.1 AA).
+   App LIGHT-FIRST : `color-scheme: light`, aucun câblage prefers-color-scheme.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- Couleurs de charte (oklch dérivé des hex de référence) ------------ */
+  --sp-marine: oklch(31.27% 0.1039 256.76); /* #042F64 — titres */
+  --sp-marine-soft: oklch(41.91% 0.1384 256.84); /* #0B4A96 */
+  --sp-accent: oklch(56.08% 0.1782 260.27); /* #2F6FDB — surfaces accent */
+  --sp-accent-hover: oklch(49.76% 0.1677 261.16); /* #255CC0 */
+  --sp-accent-text: oklch(49.76% 0.1677 261.16); /* liens : AA sur blanc ET gris */
+  --sp-accent-light: oklch(95.64% 0.0178 261.34); /* #EAF1FD — fonds tintés */
+  --sp-danger: oklch(57.03% 0.2325 27.6); /* #E00114 — destructif */
+  --sp-danger-hover: oklch(49.21% 0.2007 27.31); /* #B80010 */
+  --sp-danger-text: oklch(49.21% 0.2007 27.31);
+  --sp-danger-light: oklch(96.12% 0.0163 12.78); /* #FDEEEF */
+  --sp-success-text: oklch(47.45% 0.1128 155.27); /* #0B6E3F */
+  --sp-success-light: oklch(97.30% 0.0132 159.92); /* #EFF9F3 */
+  --sp-warning-text: oklch(48.86% 0.1081 63.01); /* #8A5008 */
+  --sp-warning-light: oklch(97.21% 0.0187 83.06); /* #FCF5E8 */
+
+  /* --- Neutres ---------------------------------------------------------- */
+  --sp-bg: oklch(96.45% 0.0054 274.97); /* #F2F3F7 */
+  --sp-surface: oklch(100% 0 0); /* cartes : blanc pur */
+  --sp-surface-muted: oklch(98.57% 0.0026 286.35); /* #FAFAFC */
+  --sp-text: oklch(23.18% 0.018 270.53); /* #1A1D26 */
+  --sp-text-muted: oklch(49.55% 0.029 265.37); /* #5A6273 */
+  --sp-border: oklch(90.93% 0.013 266.69); /* #DDE1EA */
+  --sp-border-strong: oklch(63.88% 0.0322 264.32); /* #828CA0 — 3:1 mini (WCAG 1.4.11) */
+  --sp-on-accent: oklch(100% 0 0); /* texte des boutons pleins : blanc */
+
+  /* --- Typographie ------------------------------------------------------ */
+  --sp-font: var(--font-montserrat), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sp-text-body: 0.9375rem; /* 15px */
+  --sp-leading: 1.5;
+
+  /* --- Forme ------------------------------------------------------------ */
+  --sp-radius-lg: 16px;
+  --sp-radius: 10px;
+  --sp-radius-sm: 8px;
+  --sp-radius-pill: 999px;
+
+  /* --- Ombres douces (~6 %) --------------------------------------------- */
+  --sp-shadow-sm: 0 1px 2px oklch(23.18% 0.018 270.53 / 6%);
+  --sp-shadow: 0 2px 8px oklch(23.18% 0.018 270.53 / 6%);
+  --sp-shadow-lg: 0 8px 24px oklch(23.18% 0.018 270.53 / 6%);
+  --sp-ring: 0 0 0 3px oklch(56.08% 0.1782 260.27 / 22%);
+  --sp-ring-danger: 0 0 0 3px oklch(57.03% 0.2325 27.6 / 22%);
+
+  /* --- Mouvement & layout ---------------------------------------------- */
+  --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --sp-transition: 0.15s var(--sp-ease);
+  --sp-sidebar-w: 248px;
+  --sp-tap: 44px; /* zone tactile minimale */
+  --sp-content-w: 44rem;
+}
+
+/* Thème sombre présent mais NON câblé sur prefers-color-scheme (light-first).
+   Il ne s'active que si `data-theme="dark"` est posé explicitement. */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --sp-bg: oklch(20% 0.014 265);
+  --sp-surface: oklch(25% 0.016 265);
+  --sp-surface-muted: oklch(28% 0.016 265);
+  --sp-text: oklch(96% 0.004 265);
+  --sp-text-muted: oklch(76% 0.016 265);
+  --sp-border: oklch(34% 0.016 265);
+  --sp-border-strong: oklch(44% 0.018 265);
+  --sp-marine: oklch(88% 0.05 256);
+  --sp-accent-text: oklch(78% 0.1 260);
+  --sp-accent-light: oklch(31% 0.05 261);
+  --sp-danger-text: oklch(76% 0.14 27);
+  --sp-danger-light: oklch(30% 0.07 27);
+  --sp-success-text: oklch(78% 0.11 155);
+  --sp-success-light: oklch(29% 0.06 158);
+  --sp-warning-text: oklch(80% 0.1 70);
+  --sp-warning-light: oklch(30% 0.06 70);
+}
+
+/* ==========================================================================
+   Reset minimal
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--sp-font);
+  font-size: var(--sp-text-body);
+  line-height: var(--sp-leading);
+  color: var(--sp-text);
+  background: var(--sp-bg);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--sp-marine);
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(1.625rem, 1.2rem + 2vw, 2.25rem);
+}
+h2 {
+  font-size: 1.375rem;
+}
+h3 {
+  font-size: 1.125rem;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--sp-accent-text);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--sp-accent-hover);
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sp-accent);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Boutons — `sp-btn` + variantes / tailles
+   Texte des boutons pleins toujours blanc.
+   ========================================================================== */
+
+.sp-btn {
+  --_bg: var(--sp-accent);
+  --_bg-hover: var(--sp-accent-hover);
+  --_fg: var(--sp-on-accent);
+  --_bd: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--sp-tap);
+  min-width: var(--sp-tap);
+  padding: 0.625rem 1.125rem;
+  border: 1px solid var(--_bd);
+  border-radius: var(--sp-radius);
+  background: var(--_bg);
+  color: var(--_fg);
+  font-size: var(--sp-text-body);
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--sp-transition),
+    border-color var(--sp-transition),
+    color var(--sp-transition),
+    box-shadow var(--sp-transition),
+    transform var(--sp-transition);
+}
+
+.sp-btn:hover:not(:disabled) {
+  background: var(--_bg-hover);
+}
+
+.sp-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.sp-btn:disabled,
+.sp-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sp-btn--outline {
+  --_bg: transparent;
+  --_bg-hover: var(--sp-accent-light);
+  --_fg: var(--sp-accent-text);
+  --_bd: var(--sp-border-strong);
+}
+
+.sp-btn--outline:hover:not(:disabled) {
+  --_bd: var(--sp-accent);
+}
+
+.sp-btn--ghost {
+  --_bg: transparent;
+  --_bg-hover: var(--sp-accent-light);
+  --_fg: var(--sp-accent-text);
+  --_bd: transparent;
+}
+
+.sp-btn--danger {
+  --_bg: var(--sp-danger);
+  --_bg-hover: var(--sp-danger-hover);
+  --_fg: var(--sp-on-accent);
+}
+
+.sp-btn--danger:focus-visible {
+  outline-color: var(--sp-danger);
+}
+
+.sp-btn--sm {
+  min-height: 36px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: var(--sp-radius-sm);
+}
+
+.sp-btn--lg {
+  min-height: 52px;
+  padding: 0.875rem 1.75rem;
+  font-size: 1rem;
+  border-radius: var(--sp-radius);
+}
+
+.sp-btn--block {
+  width: 100%;
+}
+
+/* Les tailles réduites restent tactiles sur mobile. */
+@media (pointer: coarse) {
+  .sp-btn--sm {
+    min-height: var(--sp-tap);
+  }
+}
+
+/* ==========================================================================
+   Cartes
+   ========================================================================== */
+
+.sp-card {
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-lg);
+  box-shadow: var(--sp-shadow);
+  padding: 1.5rem;
+}
+
+.sp-card--flat {
+  box-shadow: none;
+}
+
+.sp-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sp-card__title {
+  font-size: 1.0625rem;
+}
+
+/* ==========================================================================
+   Badges (pill)
+   ========================================================================== */
+
+.sp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.1875rem 0.625rem;
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface-muted);
+  border: 1px solid var(--sp-border);
+  color: var(--sp-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.sp-badge--accent {
+  background: var(--sp-accent-light);
+  border-color: transparent;
+  color: var(--sp-accent-text);
+}
+
+.sp-badge--success {
+  background: var(--sp-success-light);
+  border-color: transparent;
+  color: var(--sp-success-text);
+}
+
+.sp-badge--warning {
+  background: var(--sp-warning-light);
+  border-color: transparent;
+  color: var(--sp-warning-text);
+}
+
+.sp-badge--danger {
+  background: var(--sp-danger-light);
+  border-color: transparent;
+  color: var(--sp-danger-text);
+}
+
+/* ==========================================================================
+   Champs de formulaire — focus = bordure accent + halo
+   ========================================================================== */
+
+.sp-field {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.sp-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  color: var(--sp-marine);
+  font-weight: 600;
+}
+
+.sp-hint {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--sp-text-muted);
+  font-size: 0.875rem;
+}
+
+.sp-error {
+  display: block;
+  margin-top: 0.375rem;
+  color: var(--sp-danger-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.sp-input,
+.sp-textarea,
+.sp-select {
+  width: 100%;
+  min-height: var(--sp-tap);
+  padding: 0.625rem 0.75rem;
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border-strong);
+  border-radius: var(--sp-radius-sm);
+  color: var(--sp-text);
+  transition:
+    border-color var(--sp-transition),
+    box-shadow var(--sp-transition);
+}
+
+.sp-textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+/* Vraie <select> native, simplement habillée. */
+.sp-select {
+  appearance: none;
+  padding-right: 2.25rem;
+  background-image: linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position:
+    right 1.125rem center,
+    right 0.75rem center;
+  background-size:
+    0.375rem 0.375rem,
+    0.375rem 0.375rem;
+  background-repeat: no-repeat;
+}
+
+.sp-input:focus,
+.sp-textarea:focus,
+.sp-select:focus {
+  outline: none;
+  border-color: var(--sp-accent);
+  box-shadow: var(--sp-ring);
+}
+
+.sp-input[aria-invalid='true'],
+.sp-textarea[aria-invalid='true'],
+.sp-select[aria-invalid='true'] {
+  border-color: var(--sp-danger);
+}
+
+.sp-input[aria-invalid='true']:focus,
+.sp-textarea[aria-invalid='true']:focus,
+.sp-select[aria-invalid='true']:focus {
+  box-shadow: var(--sp-ring-danger);
+}
+
+.sp-input:disabled,
+.sp-textarea:disabled,
+.sp-select:disabled {
+  background: var(--sp-surface-muted);
+  color: var(--sp-text-muted);
+  cursor: not-allowed;
+}
+
+/* Cases / radios en cartes cliquables (zone tactile large). */
+.sp-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: var(--sp-tap);
+  padding: 0.75rem 1rem;
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border-strong);
+  border-radius: var(--sp-radius);
+  cursor: pointer;
+  transition:
+    border-color var(--sp-transition),
+    background-color var(--sp-transition),
+    box-shadow var(--sp-transition);
+}
+
+.sp-choice:hover {
+  border-color: var(--sp-accent);
+  background: var(--sp-accent-light);
+}
+
+.sp-choice:has(input:checked) {
+  border-color: var(--sp-accent);
+  background: var(--sp-accent-light);
+  box-shadow: var(--sp-shadow-sm);
+}
+
+.sp-choice:has(input:focus-visible) {
+  outline: 2px solid var(--sp-accent);
+  outline-offset: 2px;
+}
+
+.sp-choice input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+  accent-color: var(--sp-accent);
+}
+
+.sp-choice__label {
+  font-weight: 600;
+  color: var(--sp-text);
+}
+
+.sp-choice__desc {
+  display: block;
+  color: var(--sp-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+/* ==========================================================================
+   Utilitaires
+   ========================================================================== */
+
+.sp-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sp-skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.625rem 1rem;
+  background: var(--sp-surface);
+  border-radius: var(--sp-radius-sm);
+  box-shadow: var(--sp-shadow-lg);
+  transition: top var(--sp-transition);
+}
+
+.sp-skip-link:focus {
+  top: 0.5rem;
+}
+
+.sp-stack > * + * {
+  margin-top: var(--sp-stack-gap, 1rem);
+}
+
+.sp-muted {
+  color: var(--sp-text-muted);
+}
+
+.sp-container {
+  width: 100%;
+  max-width: var(--sp-content-w);
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+/* ==========================================================================
+   Barres fixes : respect des encoches (env safe-area)
+   ========================================================================== */
+
+.sp-sticky-bottom {
+  position: sticky;
+  bottom: 0;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+  background: var(--sp-surface);
+  border-top: 1px solid var(--sp-border);
+}
+
+.sp-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding-top: env(safe-area-inset-top);
+  background: var(--sp-surface);
+}
+
+/* ==========================================================================
+   prefers-reduced-motion : on neutralise toute animation
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
