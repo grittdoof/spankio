@@ -77,13 +77,23 @@ seulement par organisation.
 **Ce que la politique de confidentialité affirme doit correspondre exactement à
 ce que le code collecte.**
 
-- Aucune adresse IP, aucun user-agent stocké en base. L'IP n'existe que dans le
-  store de rate-limit (haché, TTL court), jamais dans une table applicative.
-  C'est la condition pour pouvoir écrire honnêtement « réponses anonymes ».
+- Aucune adresse IP, aucun user-agent, aucun identifiant de session stocké en
+  base. L'IP n'existe que dans le store de rate-limit (hachée, TTL court),
+  jamais dans une table applicative.
+- **Vocabulaire interdit : « réponses anonymes ».** La plateforme n'ajoute
+  aucun identifiant technique, mais une réponse contient exactement les champs
+  que l'organisation a décidé de collecter — parfois un email, un téléphone, un
+  nom. L'interface et les pages légales disent donc ce qui est vrai dans tous
+  les cas : « aucune donnée technique de traçage n'est collectée ; les données
+  personnelles enregistrées sont celles des champs du formulaire ».
 - Consentement : si `require_consent`, on stocke `consent_given` **et**
   `consent_text` (snapshot du texte affiché — preuve auditable).
-- Anti-doublon : appliqué par une contrainte d'unicité réelle, jamais une
-  colonne décorative.
+- Anti-doublon : appliqué par une contrainte d'unicité réelle
+  (`survey_responses_dedup_uniq`), jamais une colonne décorative. La clé stockée
+  est une empreinte SHA-256 salée par sondage (`public.dedup_hash`) : l'unicité
+  et le rattachement d'une demande d'effacement fonctionnent sans conserver une
+  seconde copie en clair de la donnée, et aucun recoupement entre deux sondages
+  n'est possible.
 - Les pages légales sont alimentées par `platform_settings` (singleton), jamais
   par des valeurs en dur.
 - Base légale **choisie par l'organisation**, aucune valeur imposée par la
@@ -120,7 +130,11 @@ npm run build       # build de production
 - [x] Étape 1 — socle : dépendances pinnées, TS strict, ESLint, Vitest (4
       projets), CI bloquante, Dependabot, design system + tests de charte et de
       contraste, accès typé aux variables d'environnement.
-- [ ] Étape 2 — migrations SQL + harnais PGlite + tests RLS/isolation.
+- [x] Étape 2 — 17 migrations idempotentes (tables, RLS, fonctions SECURITY
+      DEFINER, triggers anti-escalade, vues, RPC, purges, storage), harnais
+      PGlite rejouant les migrations réelles, et 105 tests de sécurité :
+      isolation A/B table par table, escalade de privilèges, modules par
+      utilisateur, accès anonyme, anti-doublon, immuabilité, purges.
 - [ ] Étape 3 — auth, profils, demandes de rattachement, modules par utilisateur.
 - [ ] Étape 4 — `src/lib` pur : validation de schéma/réponse, ICS, CSV.
 - [ ] Étape 5 — renderer public + consentement + API de soumission.

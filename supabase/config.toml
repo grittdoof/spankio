@@ -1,0 +1,61 @@
+# Configuration Supabase CLI.
+# Les migrations sont la SEULE source de vérité du schéma : aucun SQL n'est
+# appliqué à la main en production (cf. README, section déploiement).
+
+project_id = "spankio"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public"]
+# Plafond de lignes renvoyées par PostgREST : garde-fou contre les exports
+# involontairement massifs depuis le client.
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+# Capture des emails en local : aucun envoi réel depuis un poste de dev.
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+# Bannières d'événements : une image, pas une archive.
+file_size_limit = "5MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+# L'inscription est ouverte, mais un compte créé est INERTE : rôle viewer,
+# statut pending, aucune organisation. Seule une demande de rattachement
+# validée par un super_admin lui donne des droits.
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+
+[auth.email.template.invite]
+subject = "Invitation à rejoindre la plateforme"
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
