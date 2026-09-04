@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { authErrorCodeFor, classifyAuthFailure } from '@/lib/auth/failures';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textField, textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { logger } from '@/lib/logger';
@@ -54,12 +55,14 @@ export async function signIn(formData: FormData): Promise<void> {
   });
 
   if (error) {
-    logger.warn('auth.sign_in_failed', 'Échec de connexion.', { reason: error.message });
-    redirect(
-      error.message.toLowerCase().includes('confirm')
-        ? '/connexion?erreur=emailNotConfirmed'
-        : '/connexion?erreur=invalidCredentials',
-    );
+    const kind = classifyAuthFailure(error);
+    logger.warn('auth.sign_in_failed', 'Échec de connexion.', {
+      reason: error.message,
+      kind,
+    });
+    // Un refus d'identifiants reste indifférencié ; une panne de plateforme
+    // ou un excès de tentatives est dit franchement.
+    redirect(`/connexion?erreur=${authErrorCodeFor(kind) ?? 'invalidCredentials'}`);
   }
 
   redirect('/admin');
@@ -93,11 +96,19 @@ export async function signUp(formData: FormData): Promise<void> {
   });
 
   if (error) {
-    logger.warn('auth.sign_up_failed', "Échec de création de compte.", {
+    const kind = classifyAuthFailure(error);
+    logger.warn('auth.sign_up_failed', 'Échec de création de compte.', {
       reason: error.message,
+      kind,
     });
-    // Message identique qu'un compte existe déjà ou non : on n'énumère pas.
-    redirect('/inscription?ok=confirmation');
+
+    const code = authErrorCodeFor(kind);
+    // Une adresse déjà utilisée donne la MÊME réponse qu'une inscription
+    // réussie : l'inverse permettrait d'énumérer les comptes. En revanche une
+    // panne d'envoi de courriels ne renseigne sur personne, et annoncer
+    // « ouvrez le message de confirmation » alors qu'aucun message ne partira
+    // ferait mentir l'écran.
+    redirect(code === null ? '/inscription?ok=confirmation' : `/inscription?erreur=${code}`);
   }
 
   redirect('/inscription?ok=confirmation');
@@ -115,12 +126,21 @@ export async function requestPasswordReset(formData: FormData): Promise<void> {
     redirectTo: `${siteUrl()}/auth/callback?suite=/nouveau-mot-de-passe`,
   });
   if (error) {
+    const kind = classifyAuthFailure(error);
     logger.warn('auth.reset_request_failed', 'Échec de demande de réinitialisation.', {
       reason: error.message,
+      kind,
     });
+
+    const code = authErrorCodeFor(kind);
+    // Adresse inconnue → réponse invariable, elle ne dit pas qui est inscrit.
+    // Panne d'envoi → on le dit, sinon la personne attend un courriel qui ne
+    // viendra jamais.
+    if (code !== null) {
+      redirect(`/mot-de-passe-oublie?erreur=${code}`);
+    }
   }
 
-  // Réponse invariable : elle ne dit pas si l'adresse est connue.
   redirect('/mot-de-passe-oublie?ok=envoye');
 }
 

@@ -115,6 +115,8 @@ export const fr = {
     unexpected: 'Une erreur inattendue s’est produite. Merci de réessayer.',
     emailNotConfirmed:
       'Votre adresse n’est pas encore confirmée. Ouvrez le message de confirmation reçu par courriel.',
+    emailServiceUnavailable:
+      'L’envoi de courriels est momentanément indisponible : votre demande n’a pas pu aboutir. Merci de réessayer dans quelques minutes, ou de contacter l’administrateur de la plateforme.',
   },
 
   common: {
