@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { authErrorCodeFor, classifyAuthFailure } from '@/lib/auth/failures';
+import { checkNewPassword, checkSubmittedPassword } from '@/lib/auth/password';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textField, textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { logger } from '@/lib/logger';
@@ -23,10 +24,7 @@ import {
  * finiraient dans les journaux du proxy et dans l'historique du navigateur.
  */
 
-const MIN_PASSWORD_LENGTH = 12;
-
 const emailSchema = z.string().trim().min(1).email();
-const passwordSchema = z.string().min(MIN_PASSWORD_LENGTH);
 
 async function callerIdentifier(): Promise<string> {
   return clientIdentifier(await headers());
@@ -38,12 +36,12 @@ function siteUrl(): string {
 
 export async function signIn(formData: FormData): Promise<void> {
   const email = emailSchema.safeParse(textField(formData, 'email'));
-  const password = passwordSchema.safeParse(textField(formData, 'password'));
+  const password = textField(formData, 'password') ?? '';
 
   if (!email.success) redirect('/connexion?erreur=emailInvalid');
-  // Un mot de passe trop court côté saisie n'est pas une erreur de validation
-  // à afficher : il ne correspondra simplement à aucun compte.
-  if (!password.success) redirect('/connexion?erreur=invalidCredentials');
+  // Champ vide : rien à vérifier, réponse indifférenciée. AUCUNE exigence de
+  // longueur ici — voir src/lib/auth/password.ts.
+  if (checkSubmittedPassword(password) !== 'ok') redirect('/connexion?erreur=invalidCredentials');
 
   const limit = await checkRateLimit('auth', await callerIdentifier());
   if (!limit.allowed) redirect('/connexion?erreur=tooManyAttempts');
@@ -51,7 +49,7 @@ export async function signIn(formData: FormData): Promise<void> {
   const client = await createSupabaseServerClient();
   const { error } = await client.auth.signInWithPassword({
     email: email.data,
-    password: password.data,
+    password,
   });
 
   if (error) {
@@ -76,11 +74,11 @@ export async function signUp(formData: FormData): Promise<void> {
     .max(160)
     .safeParse(textField(formData, 'fullName'));
   const email = emailSchema.safeParse(textField(formData, 'email'));
-  const password = passwordSchema.safeParse(textField(formData, 'password'));
+  const password = textField(formData, 'password') ?? '';
 
   if (!fullName.success) redirect('/inscription?erreur=fullNameRequired');
   if (!email.success) redirect('/inscription?erreur=emailInvalid');
-  if (!password.success) redirect('/inscription?erreur=passwordTooShort');
+  if (checkNewPassword(password) !== 'ok') redirect('/inscription?erreur=passwordTooShort');
 
   const limit = await checkRateLimit('auth', await callerIdentifier());
   if (!limit.allowed) redirect('/inscription?erreur=tooManyAttempts');
@@ -88,7 +86,7 @@ export async function signUp(formData: FormData): Promise<void> {
   const client = await createSupabaseServerClient();
   const { error } = await client.auth.signUp({
     email: email.data,
-    password: password.data,
+    password,
     options: {
       data: { full_name: fullName.data },
       emailRedirectTo: `${siteUrl()}/auth/callback`,
@@ -145,14 +143,14 @@ export async function requestPasswordReset(formData: FormData): Promise<void> {
 }
 
 export async function updatePassword(formData: FormData): Promise<void> {
-  const password = passwordSchema.safeParse(textField(formData, 'password'));
+  const password = textField(formData, 'password') ?? '';
   const confirmation = textField(formData, 'passwordConfirmation');
 
-  if (!password.success) redirect('/nouveau-mot-de-passe?erreur=passwordTooShort');
-  if (password.data !== confirmation) redirect('/nouveau-mot-de-passe?erreur=passwordMismatch');
+  if (checkNewPassword(password) !== 'ok') redirect('/nouveau-mot-de-passe?erreur=passwordTooShort');
+  if (password !== confirmation) redirect('/nouveau-mot-de-passe?erreur=passwordMismatch');
 
   const client = await createSupabaseServerClient();
-  const { error } = await client.auth.updateUser({ password: password.data });
+  const { error } = await client.auth.updateUser({ password });
   if (error) {
     logger.warn('auth.password_update_failed', 'Échec de mise à jour du mot de passe.', {
       reason: error.message,
