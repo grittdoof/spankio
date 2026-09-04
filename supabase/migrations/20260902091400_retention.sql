@@ -33,7 +33,7 @@ declare
 begin
   -- `auth.uid()` nul = contexte serveur de confiance (cron, tâche planifiée).
   if auth.uid() is not null and not public.is_super_admin() then
-    raise exception 'Réservé au super administrateur' using errcode = 'SV403';
+    raise exception 'Réservé au super administrateur' using errcode = 'PT403';
   end if;
 
   delete from public.survey_responses
@@ -77,7 +77,7 @@ declare
   v_count integer := 0;
 begin
   if auth.uid() is not null and not public.is_super_admin() then
-    raise exception 'Réservé au super administrateur' using errcode = 'SV403';
+    raise exception 'Réservé au super administrateur' using errcode = 'PT403';
   end if;
 
   delete from public.surveys

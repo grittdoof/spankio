@@ -150,7 +150,7 @@ describe('accès public', () => {
           null,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV404');
+      expect(sqlErrorCode(error)).toBe('PT404');
     });
 
     it('refuse un brouillon et un sondage fermé', async () => {
@@ -158,7 +158,7 @@ describe('accès public', () => {
         const error = await expectError(
           db.query(ANON, submit, [target, JSON.stringify({}), false, null, null]),
         );
-        expect(sqlErrorCode(error)).toBe('SV423');
+        expect(sqlErrorCode(error)).toBe('PT423');
       }
     });
 
@@ -172,7 +172,7 @@ describe('accès public', () => {
       const error = await expectError(
         db.query(ANON, submit, [past, JSON.stringify({}), false, null, null]),
       );
-      expect(sqlErrorCode(error)).toBe('SV423');
+      expect(sqlErrorCode(error)).toBe('PT423');
     });
 
     it('exige le consentement quand le sondage le demande', async () => {
@@ -186,14 +186,14 @@ describe('accès public', () => {
         sqlErrorCode(
           await expectError(db.query(ANON, submit, [survey, JSON.stringify({}), false, null, null])),
         ),
-      ).toBe('SV412');
+      ).toBe('PT412');
 
       // Cocher la case sans texte affiché ne suffit pas : la preuve doit exister.
       expect(
         sqlErrorCode(
           await expectError(db.query(ANON, submit, [survey, JSON.stringify({}), true, '', null])),
         ),
-      ).toBe('SV412');
+      ).toBe('PT412');
 
       const ok = await db.query<{ id: string }>(ANON, submit, [
         survey,
@@ -225,7 +225,7 @@ describe('accès public', () => {
       const error = await expectError(
         db.query(ANON, submit, [survey, JSON.stringify({ a: 2 }), false, null, null]),
       );
-      expect(sqlErrorCode(error)).toBe('SV429');
+      expect(sqlErrorCode(error)).toBe('PT429');
     });
 
     it('refuse un payload anormalement gros (anti-DoS)', async () => {
@@ -238,14 +238,14 @@ describe('accès public', () => {
           null,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV413');
+      expect(sqlErrorCode(error)).toBe('PT413');
     });
 
     it('refuse un payload qui n’est pas un objet', async () => {
       const error = await expectError(
         db.query(ANON, submit, [published, JSON.stringify(['a', 'b']), false, null, null]),
       );
-      expect(sqlErrorCode(error)).toBe('SV400');
+      expect(sqlErrorCode(error)).toBe('PT400');
     });
   });
 
@@ -264,7 +264,7 @@ describe('accès public', () => {
       const error = await expectError(
         db.query(ANON, submit, [dedupSurvey, JSON.stringify({}), false, null, null]),
       );
-      expect(sqlErrorCode(error)).toBe('SV400');
+      expect(sqlErrorCode(error)).toBe('PT400');
     });
 
     it('refuse une seconde soumission avec la même valeur', async () => {
@@ -286,7 +286,7 @@ describe('accès public', () => {
           '  JEAN@exemple.test ',
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV409');
+      expect(sqlErrorCode(error)).toBe('PT409');
     });
 
     it('ne stocke pas la valeur en clair mais une empreinte salée par sondage', async () => {

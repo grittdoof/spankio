@@ -274,7 +274,7 @@ describe('isolation multi-tenant', () => {
       const error = await expectError(
         db.query(asUser(a.admin), 'select public.apply_erasure($1, false)', [request!.id]),
       );
-      expect(sqlErrorCode(error)).toBe('SV403');
+      expect(sqlErrorCode(error)).toBe('PT403');
     });
 
     it("l'admin de A ne peut pas éditer les réglages de plateforme", async () => {
@@ -295,7 +295,7 @@ describe('isolation multi-tenant', () => {
           request!.id,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV403');
+      expect(sqlErrorCode(error)).toBe('PT403');
     });
   });
 

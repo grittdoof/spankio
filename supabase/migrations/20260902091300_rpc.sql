@@ -10,7 +10,9 @@
 -- Chaque fonction SECURITY DEFINER ci-dessous :
 --   * pose `search_path = ''` et qualifie tous les objets ;
 --   * revérifie elle-même les droits de l'appelant ;
---   * lève une erreur avec un SQLSTATE dédié, que l'API traduit en statut HTTP.
+--   * lève une erreur avec un SQLSTATE dédié de la forme `PTxxx`, que PostgREST
+--     traduit automatiquement en statut HTTP xxx (PT404 → 404, PT409 → 409…),
+--     et que l'API retraduit en code d'erreur applicatif.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -68,13 +70,13 @@ declare
   v_id uuid;
 begin
   if jsonb_typeof(coalesce(p_data, 'null'::jsonb)) <> 'object' then
-    raise exception 'Payload invalide' using errcode = 'SV400';
+    raise exception 'Payload invalide' using errcode = 'PT400';
   end if;
 
   -- Plafond de taille : garde-fou anti-DoS, doublon volontaire de la
   -- vérification faite dans la route API.
   if pg_column_size(p_data) > 65536 then
-    raise exception 'Payload trop volumineux' using errcode = 'SV413';
+    raise exception 'Payload trop volumineux' using errcode = 'PT413';
   end if;
 
   select s.id, s.status, s.deleted_at, s.opens_at, s.closes_at, s.response_limit,
@@ -87,20 +89,20 @@ begin
     and o.is_active;
 
   if v_survey.id is null then
-    raise exception 'Sondage introuvable' using errcode = 'SV404';
+    raise exception 'Sondage introuvable' using errcode = 'PT404';
   end if;
 
   if v_survey.status <> 'published'
      or (v_survey.opens_at is not null and v_survey.opens_at > now())
      or (v_survey.closes_at is not null and v_survey.closes_at <= now())
   then
-    raise exception 'Sondage fermé' using errcode = 'SV423';
+    raise exception 'Sondage fermé' using errcode = 'PT423';
   end if;
 
   if v_survey.require_consent
      and (p_consent_given is not true or btrim(coalesce(p_consent_text, '')) = '')
   then
-    raise exception 'Consentement requis' using errcode = 'SV412';
+    raise exception 'Consentement requis' using errcode = 'PT412';
   end if;
 
   if v_survey.response_limit is not null then
@@ -110,7 +112,7 @@ begin
       and r.deleted_at is null;
 
     if v_live_count >= v_survey.response_limit then
-      raise exception 'Nombre maximal de réponses atteint' using errcode = 'SV429';
+      raise exception 'Nombre maximal de réponses atteint' using errcode = 'PT429';
     end if;
   end if;
 
@@ -119,7 +121,7 @@ begin
   if v_survey.dedup_field is not null then
     v_dedup_key := public.dedup_hash(p_survey_id, p_dedup_value);
     if v_dedup_key is null then
-      raise exception 'Valeur de dédoublonnage manquante' using errcode = 'SV400';
+      raise exception 'Valeur de dédoublonnage manquante' using errcode = 'PT400';
     end if;
   end if;
 
@@ -138,7 +140,7 @@ begin
     returning id into v_id;
   exception
     when unique_violation then
-      raise exception 'Réponse déjà enregistrée' using errcode = 'SV409';
+      raise exception 'Réponse déjà enregistrée' using errcode = 'PT409';
   end;
 
   return v_id;
@@ -172,12 +174,12 @@ declare
   v_module text;
 begin
   if not public.is_super_admin() then
-    raise exception 'Réservé au super administrateur' using errcode = 'SV403';
+    raise exception 'Réservé au super administrateur' using errcode = 'PT403';
   end if;
 
   if p_role = 'super_admin' then
     raise exception 'Un rattachement ne peut pas accorder le rôle super_admin'
-      using errcode = 'SV400';
+      using errcode = 'PT400';
   end if;
 
   select * into v_request
@@ -186,11 +188,11 @@ begin
   for update;
 
   if v_request.id is null then
-    raise exception 'Demande introuvable' using errcode = 'SV404';
+    raise exception 'Demande introuvable' using errcode = 'PT404';
   end if;
 
   if v_request.status <> 'pending' then
-    raise exception 'Demande déjà traitée' using errcode = 'SV409';
+    raise exception 'Demande déjà traitée' using errcode = 'PT409';
   end if;
 
   -- Organisation existante, ou création à la volée depuis le nom demandé.
@@ -199,7 +201,7 @@ begin
   else
     if p_organisation_slug is null then
       raise exception 'Un identifiant d''organisation est requis pour créer l''organisation'
-        using errcode = 'SV400';
+        using errcode = 'PT400';
     end if;
 
     insert into public.organisations (slug, name)
@@ -211,7 +213,7 @@ begin
   foreach v_module in array coalesce(p_module_keys, '{}'::text[])
   loop
     if not exists (select 1 from public.modules m where m.key = v_module) then
-      raise exception 'Module inconnu : %', v_module using errcode = 'SV400';
+      raise exception 'Module inconnu : %', v_module using errcode = 'PT400';
     end if;
 
     insert into public.organisation_modules (organisation_id, module_key, granted_by)
@@ -278,7 +280,7 @@ declare
   v_request record;
 begin
   if not public.is_super_admin() then
-    raise exception 'Réservé au super administrateur' using errcode = 'SV403';
+    raise exception 'Réservé au super administrateur' using errcode = 'PT403';
   end if;
 
   select * into v_request
@@ -287,11 +289,11 @@ begin
   for update;
 
   if v_request.id is null then
-    raise exception 'Demande introuvable' using errcode = 'SV404';
+    raise exception 'Demande introuvable' using errcode = 'PT404';
   end if;
 
   if v_request.status <> 'pending' then
-    raise exception 'Demande déjà traitée' using errcode = 'SV409';
+    raise exception 'Demande déjà traitée' using errcode = 'PT409';
   end if;
 
   update public.membership_requests
@@ -333,7 +335,7 @@ declare
   v_id uuid;
 begin
   if btrim(coalesce(p_identifier, '')) = '' then
-    raise exception 'Identifiant requis' using errcode = 'SV400';
+    raise exception 'Identifiant requis' using errcode = 'PT400';
   end if;
 
   select s.organisation_id into v_org
@@ -342,7 +344,7 @@ begin
     and s.deleted_at is null;
 
   if v_org is null then
-    raise exception 'Sondage introuvable' using errcode = 'SV404';
+    raise exception 'Sondage introuvable' using errcode = 'PT404';
   end if;
 
   insert into public.erasure_requests (organisation_id, survey_id, identifier, claim)
@@ -384,18 +386,18 @@ begin
   for update;
 
   if v_request.id is null then
-    raise exception 'Demande introuvable' using errcode = 'SV404';
+    raise exception 'Demande introuvable' using errcode = 'PT404';
   end if;
 
   if not (
     public.is_super_admin()
     or (public.is_org_admin() and v_request.organisation_id = public.my_org_id())
   ) then
-    raise exception 'Droits insuffisants' using errcode = 'SV403';
+    raise exception 'Droits insuffisants' using errcode = 'PT403';
   end if;
 
   if v_request.status <> 'pending' then
-    raise exception 'Demande déjà traitée' using errcode = 'SV409';
+    raise exception 'Demande déjà traitée' using errcode = 'PT409';
   end if;
 
   v_key := public.dedup_hash(v_request.survey_id, v_request.identifier);

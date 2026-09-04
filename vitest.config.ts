@@ -22,6 +22,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
+          setupFiles: ['./tests/helpers/setup-node.ts'],
           include: ['tests/unit/**/*.test.ts'],
         },
       },
@@ -30,6 +31,7 @@ export default defineConfig({
         test: {
           name: 'integration',
           environment: 'node',
+          setupFiles: ['./tests/helpers/setup-node.ts'],
           include: ['tests/integration/**/*.test.ts'],
           testTimeout: 30_000,
           hookTimeout: 60_000,
@@ -40,6 +42,7 @@ export default defineConfig({
         test: {
           name: 'rls',
           environment: 'node',
+          setupFiles: ['./tests/helpers/setup-node.ts'],
           include: ['tests/rls/**/*.test.ts'],
           testTimeout: 30_000,
           hookTimeout: 60_000,

@@ -179,7 +179,7 @@ export async function createTestDb(): Promise<TestDb> {
 
 /**
  * Erreur SQL telle que remontée par PGlite, avec son SQLSTATE : les tests
- * vérifient les codes applicatifs (SV404, SV409…) et non des messages.
+ * vérifient les codes applicatifs (PT404, PT409…) et non des messages.
  */
 export function sqlErrorCode(error: unknown): string | undefined {
   if (error && typeof error === 'object' && 'code' in error) {

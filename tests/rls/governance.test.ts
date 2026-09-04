@@ -229,7 +229,7 @@ describe('demandes de rattachement', () => {
           requestId,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV403');
+      expect(sqlErrorCode(error)).toBe('PT403');
     });
 
     it('refuse d’accorder le rôle super_admin', async () => {
@@ -238,7 +238,7 @@ describe('demandes de rattachement', () => {
           requestId,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV400');
+      expect(sqlErrorCode(error)).toBe('PT400');
     });
 
     it('refuse un module inconnu', async () => {
@@ -249,7 +249,7 @@ describe('demandes de rattachement', () => {
           [requestId],
         ),
       );
-      expect(sqlErrorCode(error)).toBe('SV400');
+      expect(sqlErrorCode(error)).toBe('PT400');
     });
 
     it('refuse une seconde décision sur la même demande', async () => {
@@ -261,7 +261,7 @@ describe('demandes de rattachement', () => {
           requestId,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV409');
+      expect(sqlErrorCode(error)).toBe('PT409');
     });
 
     it('enregistre un refus motivé', async () => {
@@ -310,7 +310,7 @@ describe('demandes de rattachement', () => {
           requestId,
         ]),
       );
-      expect(sqlErrorCode(error)).toBe('SV400');
+      expect(sqlErrorCode(error)).toBe('PT400');
     });
   });
 });
@@ -356,7 +356,7 @@ describe('droit à l’effacement', () => {
           db.query(ANON, 'select public.request_erasure($1, $2, null)', [survey, '   ']),
         ),
       ),
-    ).toBe('SV400');
+    ).toBe('PT400');
 
     expect(
       sqlErrorCode(
@@ -367,7 +367,7 @@ describe('droit à l’effacement', () => {
           ]),
         ),
       ),
-    ).toBe('SV404');
+    ).toBe('PT404');
   });
 
   it("efface logiquement les réponses de la personne, et seulement les siennes", async () => {
@@ -422,7 +422,7 @@ describe('droit à l’effacement', () => {
     const error = await expectError(
       db.query(asUser(editor), 'select public.apply_erasure($1, false)', [requestId]),
     );
-    expect(sqlErrorCode(error)).toBe('SV403');
+    expect(sqlErrorCode(error)).toBe('PT403');
   });
 
   it('permet un effacement définitif tracé', async () => {
@@ -551,10 +551,10 @@ describe('purges de conservation', () => {
   it("n'est pas exécutable par un admin d'organisation", async () => {
     expect(
       sqlErrorCode(await expectError(db.query(asUser(admin), 'select public.purge_expired_responses()'))),
-    ).toBe('SV403');
+    ).toBe('PT403');
     expect(
       sqlErrorCode(await expectError(db.query(asUser(admin), 'select public.purge_deleted_surveys()'))),
-    ).toBe('SV403');
+    ).toBe('PT403');
   });
 
   it('est exécutable en contexte serveur de confiance (cron)', async () => {
