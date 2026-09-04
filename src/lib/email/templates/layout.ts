@@ -38,8 +38,8 @@ export interface EmailBranding {
  * N'accepte qu'un hexadécimal : empêche l'injection de CSS arbitraire dans
  * l'attribut `style` via le branding d'une organisation.
  */
-export function safeHexColor(value: unknown, fallback: string): string {
-  const raw = String(value ?? '').trim();
+export function safeHexColor(value: string | null | undefined, fallback: string): string {
+  const raw = (value ?? '').trim();
   return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw) ? raw : fallback;
 }
 

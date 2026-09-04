@@ -11,6 +11,15 @@ import { resetLogSink, setLogSink, type LogRecord } from '@/lib/logger';
 
 const store = { url: 'https://kv.exemple.test', token: 'jeton' };
 
+/** Le corps envoyé au store doit être une chaîne JSON : on le vérifie ici. */
+function jsonBody(init: RequestInit | undefined): string {
+  const body = init?.body;
+  if (typeof body !== 'string') {
+    throw new Error('Corps de requête attendu sous forme de chaîne JSON');
+  }
+  return body;
+}
+
 function pipelineResponse(count: number, pttl = 60_000): Response {
   return new Response(
     JSON.stringify([{ result: count }, { result: 1 }, { result: pttl }]),
@@ -76,7 +85,7 @@ describe('store distribué', () => {
     const fetchMock = vi.fn().mockResolvedValue(pipelineResponse(1));
     await checkRateLimit('auth', '203.0.113.7', { store, fetch: fetchMock });
 
-    const body = String((fetchMock.mock.calls[0]?.[1] as RequestInit).body);
+    const body = jsonBody(fetchMock.mock.calls[0]?.[1] as RequestInit);
     expect(body).not.toContain('203.0.113.7');
     expect(body).toContain('rl:auth:');
   });
@@ -85,7 +94,7 @@ describe('store distribué', () => {
     const fetchMock = vi.fn().mockResolvedValue(pipelineResponse(1));
     await checkRateLimit('erasureRequest', '1.1.1.1', { store, fetch: fetchMock });
 
-    const body = String((fetchMock.mock.calls[0]?.[1] as RequestInit).body);
+    const body = jsonBody(fetchMock.mock.calls[0]?.[1] as RequestInit);
     expect(body).toContain(`"EXPIRE"`);
     expect(body).toContain(String(RATE_LIMITS.erasureRequest.windowSeconds));
   });

@@ -43,12 +43,31 @@ export function resetLogSink(): void {
   sink = defaultSink;
 }
 
+/**
+ * Décrit une valeur non typée sans jamais produire « [object Object] », qui
+ * rendrait le journal inutile au moment où on en a le plus besoin.
+ */
+function describeUnknown(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  if (value === null) return 'null';
+  if (typeof value === 'symbol') return value.toString();
+  if (typeof value === 'function') return `[function ${value.name || 'anonyme'}]`;
+  try {
+    return JSON.stringify(value) ?? 'valeur non sérialisable';
+  } catch {
+    return 'valeur non sérialisable';
+  }
+}
+
 function normaliseError(error: unknown): LogRecord['error'] {
   if (error instanceof Error) {
     return { name: error.name, message: error.message, ...(error.stack ? { stack: error.stack } : {}) };
   }
   if (error === undefined) return undefined;
-  return { name: 'NonError', message: String(error) };
+  return { name: 'NonError', message: describeUnknown(error) };
 }
 
 function emit(

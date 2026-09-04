@@ -13,7 +13,10 @@ const HTML_ENTITIES: Readonly<Record<string, string>> = {
   "'": '&#39;',
 };
 
-export function escapeHtml(value: unknown): string {
+/** Valeurs qu'il est légitime d'insérer dans du texte : jamais un objet. */
+export type Printable = string | number | boolean | null | undefined;
+
+export function escapeHtml(value: Printable): string {
   return String(value ?? '').replace(/[&<>"']/g, (char) => HTML_ENTITIES[char] ?? char);
 }
 
@@ -21,8 +24,8 @@ export function escapeHtml(value: unknown): string {
  * N'autorise que des URL http(s) ou mailto. Renvoie null pour tout le reste,
  * ce qui neutralise `javascript:` et `data:` dans un lien d'email.
  */
-export function safeUrl(value: unknown): string | null {
-  const raw = String(value ?? '').trim();
+export function safeUrl(value: string | null | undefined): string | null {
+  const raw = (value ?? '').trim();
   if (raw === '') return null;
   try {
     const url = new URL(raw);

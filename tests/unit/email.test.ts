@@ -80,7 +80,8 @@ describe('sendEmail : dégradation silencieuse', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.resend.com/emails');
     expect((init.headers as Record<string, string>).authorization).toBe('Bearer re_test');
-    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(typeof init.body).toBe('string');
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
     expect(body.from).toBe(configured.from);
     expect(body.to).toEqual(['destinataire@exemple.test']);
     expect(body.reply_to).toBe('contact@exemple.test');
