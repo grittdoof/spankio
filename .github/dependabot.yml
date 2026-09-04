@@ -26,10 +26,14 @@ updates:
       # TypeScript 7 (portage natif) : hors stack validée.
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
-      # Doit rester aligné sur la version de Node exécutée (22.x).
+      # Doit rester aligné sur la version de Node exécutée : 24.x, celle de
+      # `.nvmrc` (CI) et du projet Vercel.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
-      # jsdom >= 30 exige Node >= 22.22 ; .nvmrc est en 22.20.
+      # jsdom >= 30 exige Node ^22.22.2 || ^24.15.0 || >=26. La CI (24.20) le
+      # satisfait, mais pas le poste de développement actuel (22.17), et
+      # `engine-strict` fait échouer l'installation. À lever quand le poste
+      # sera aligné sur 24.
       - dependency-name: jsdom
         update-types: ['version-update:semver-major']
       # R7 : `postcss` est figé par un override tant que Next 15 est imposé.

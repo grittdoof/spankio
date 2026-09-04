@@ -20,6 +20,14 @@ son branding ; la plateforme est revendable.
 **Dépendances pinnées** (versions exactes, `save-exact=true`), lockfile
 committé, Dependabot hebdomadaire.
 
+**Version de Node** : `.nvmrc` fixe **24.20.0**, et la CI le lit
+(`node-version-file`). C'est la version que Vercel exécute — un test qui
+passerait sur un moteur que la production n'utilise pas ne prouverait pas
+grand-chose. Attention au couplage : la version de Vercel est un réglage de
+projet, pas une lecture de `.nvmrc` ; changer l'un sans l'autre les fait
+diverger à nouveau. `engines` reste à `>=22.11.0`, qui est le plancher
+réellement supporté (et la version du poste de développement actuel).
+
 ## 2. Principe fondateur : schéma flexible
 
 Le schéma d'un sondage vit dans `surveys.schema` (`jsonb`). Créer un nouveau
