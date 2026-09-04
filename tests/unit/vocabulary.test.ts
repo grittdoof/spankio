@@ -24,7 +24,15 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = fileURLToPath(new URL('../../src', import.meta.url));
 
-const SCANNED_DIRS = ['app', 'components', 'lib/i18n', 'lib/email'];
+const SCANNED_DIRS = [
+  'app',
+  'components',
+  'lib/i18n',
+  'lib/email',
+  // Les modèles de sondages contiennent des libellés affichés au public.
+  'lib/event',
+  'lib/survey',
+];
 
 /** Mots dont la présence dans un texte affiché serait un mensonge. */
 const FORBIDDEN_CLAIMS = [/\banonym\w*/i];

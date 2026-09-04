@@ -66,6 +66,24 @@ seulement par organisation.
 ## 4. Conventions de code
 
 - `src/lib/**` : logique **pure et testable**, aucun accès réseau implicite.
+- **Une seule implémentation des conditions.** `src/lib/survey/conditions.ts`
+  sert au rendu public (quel écran afficher) ET à la validation serveur (quel
+  champ est requis). Deux implémentations divergeraient, et le serveur finirait
+  par exiger un champ jamais affiché — ou accepter un champ masqué.
+- **Validation des soumissions en liste blanche.** Une clé inconnue du schéma
+  est refusée, pas ignorée ; un champ masqué par une condition est retiré sans
+  erreur (un répondant qui change d'avis laisse des valeurs devenues
+  inapplicables) ; et aucune valeur n'est recopiée telle quelle — chacune est
+  reconstruite depuis le schéma.
+- **Rien n'est inventé dans les données sortantes.** Un événement sans heure de
+  fin ne reçoit pas un `DTEND` d'une heure ; un `ORGANIZER` sans adresse est
+  omis plutôt qu'émis invalide ; une page légale affiche « Non renseigné ».
+- **Les exports CSV neutralisent les formules.** Une réponse commençant par
+  `=`, `+`, `-` ou `@` est préfixée d'une apostrophe : dans un tableur, une
+  telle valeur est du code exécuté, pas un problème d'affichage.
+- **Aucun caractère de contrôle littéral dans les sources.** Les plages
+  interdites sont exprimées en points de code numériques : un source contenant
+  de vrais caractères invisibles est illisible et se corrompt au copier-coller.
 - Accès aux secrets exclusivement via `serverEnv()` (`src/lib/config/env.ts`),
   qui lève une erreur s'il est appelé côté client.
 - `dangerouslySetInnerHTML` est **interdit par ESLint** (anti-XSS stocké) :
@@ -199,7 +217,12 @@ npm run build       # build de production
       appelable anonymement (forge d'entrées d'audit) et annuaire des
       organisations lisible sans compte — les deux causées par les *default
       privileges* de Supabase.
-- [ ] Étape 4 — `src/lib` pur : validation de schéma/réponse, ICS, CSV.
+- [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
+      (11 types de champs, conditions bornées), validation serveur des
+      soumissions en liste blanche, évaluation des conditions partagée entre
+      rendu et validation, assainissement Unicode, ICS RFC 5545, liens agenda
+      et itinéraire, export CSV avec neutralisation des formules, 4 modèles en
+      TypeScript. 570 tests dont 370 unitaires.
 - [ ] Étape 5 — renderer public + consentement + API de soumission.
 - [ ] Étape 6 — builder visuel, tableau de bord, statistiques, exports.
 - [ ] Étape 7 — module événement (bannière, Leaflet, agenda, itinéraire).
