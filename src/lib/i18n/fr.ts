@@ -115,6 +115,10 @@ export const fr = {
     unexpected: 'Une erreur inattendue s’est produite. Merci de réessayer.',
     emailNotConfirmed:
       'Votre adresse n’est pas encore confirmée. Ouvrez le message de confirmation reçu par courriel.',
+    linkExpired:
+      'Ce lien a expiré. Les liens envoyés par courriel ne sont valables qu’une heure et ne servent qu’une fois : demandez-en un nouveau ci-dessous.',
+    linkInvalid:
+      'Ce lien n’est plus valable. Il a peut-être déjà été utilisé, ou un lien plus récent l’a remplacé. Demandez-en un nouveau ci-dessous.',
     emailServiceUnavailable:
       'L’envoi de courriels est momentanément indisponible : votre demande n’a pas pu aboutir. Merci de réessayer dans quelques minutes, ou de contacter l’administrateur de la plateforme.',
   },

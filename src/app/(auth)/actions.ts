@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { authErrorCodeFor, classifyAuthFailure } from '@/lib/auth/failures';
+import { CALLBACK_KEYS, callbackUrl } from '@/lib/auth/callback';
 import { checkNewPassword, checkSubmittedPassword } from '@/lib/auth/password';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textField, textFieldOrEmpty, trimmedField } from '@/lib/api/form';
@@ -89,7 +90,7 @@ export async function signUp(formData: FormData): Promise<void> {
     password,
     options: {
       data: { full_name: fullName.data },
-      emailRedirectTo: `${siteUrl()}/auth/callback`,
+      emailRedirectTo: callbackUrl(siteUrl(), CALLBACK_KEYS.admin),
     },
   });
 
@@ -121,7 +122,9 @@ export async function requestPasswordReset(formData: FormData): Promise<void> {
 
   const client = await createSupabaseServerClient();
   const { error } = await client.auth.resetPasswordForEmail(email.data, {
-    redirectTo: `${siteUrl()}/auth/callback?suite=/nouveau-mot-de-passe`,
+    // URL fixe, sans chaîne de requête : la liste d'autorisations de Supabase
+    // compare des URL entières.
+    redirectTo: callbackUrl(siteUrl(), CALLBACK_KEYS.newPassword),
   });
   if (error) {
     const kind = classifyAuthFailure(error);
