@@ -16,7 +16,7 @@ export interface RequestContext {
   readonly email: string | null;
 }
 
-export type RequestContextFactory = (request: Request) => Promise<RequestContext>;
+export type RequestContextFactory = (request?: Request) => Promise<RequestContext>;
 
 let testFactory: RequestContextFactory | null = null;
 
@@ -37,7 +37,12 @@ export function setRequestContextFactoryForTests(factory: RequestContextFactory 
   testFactory = factory;
 }
 
-export async function resolveRequestContext(request: Request): Promise<RequestContext> {
+/**
+ * `request` est optionnel : les routes API le fournissent, les actions serveur
+ * n'en ont pas — dans les deux cas l'identité vient du cookie de session
+ * validé par `auth.getUser()`, jamais de la requête elle-même.
+ */
+export async function resolveRequestContext(request?: Request): Promise<RequestContext> {
   if (testFactory) return testFactory(request);
 
   const client = await createSupabaseServerClient();

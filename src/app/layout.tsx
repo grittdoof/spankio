@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Montserrat } from 'next/font/google';
+import { fr } from '@/lib/i18n/fr';
 import './globals.css';
 
 const montserrat = Montserrat({
@@ -11,11 +12,10 @@ const montserrat = Montserrat({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Plateforme de sondages et d’inscriptions',
-    template: '%s — Plateforme de sondages et d’inscriptions',
+    default: fr.platform.name,
+    template: `%s — ${fr.platform.name}`,
   },
-  description:
-    'Recensez des besoins, sondez un public, gérez des inscriptions à des événements.',
+  description: fr.platform.tagline,
   robots: { index: false, follow: false },
 };
 
@@ -33,7 +33,7 @@ export default function RootLayout({
     <html lang="fr" className={montserrat.variable}>
       <body>
         <a className="sp-skip-link" href="#contenu">
-          Aller au contenu principal
+          {fr.nav.skipToContent}
         </a>
         {children}
       </body>

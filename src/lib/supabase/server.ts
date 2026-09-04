@@ -9,8 +9,12 @@ import { publicEnv } from '@/lib/config/env';
  * chemin par défaut de toute l'application. Aucune clé de service ici.
  */
 export async function createSupabaseServerClient() {
-  const env = publicEnv();
+  // `cookies()` d'abord : la lecture des cookies marque la route comme
+  // dynamique. Lire l'environnement avant reviendrait à exiger les variables
+  // Supabase au moment du build, pour une page qui ne peut de toute façon pas
+  // être prérendue.
   const cookieStore = await cookies();
+  const env = publicEnv();
 
   return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     cookies: {

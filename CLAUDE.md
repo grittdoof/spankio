@@ -67,10 +67,28 @@ seulement par organisation.
   `src/lib/design/tokens.ts` et **un test échoue si le CSS dérive** de la charte
   ou si un contraste descend sous WCAG AA.
 - Les listes déroulantes sont de vraies `<select>` natives.
+- Les formulaires d'authentification sont des `<form action={serverAction}>` :
+  ils **fonctionnent sans JavaScript**. Un écran de connexion qui dépend d'un
+  bundle devient inutilisable dès que celui-ci échoue.
 - Modules Leaflet : `await import(...)` dans un effet (sinon crash SSR).
 - Migrations SQL **toujours idempotentes** : `create or replace`,
   `drop policy if exists`, `create index if not exists`,
   `on conflict do nothing`.
+- **Les routes ne connaissent pas Supabase.** Elles reçoivent un port étroit
+  (`src/lib/data/port.ts`) implémenté deux fois : sur `@supabase/ssr` en
+  production, sur PGlite en test. C'est ce qui permet d'exécuter les vraies
+  routes contre les vraies policies. Convention associée : toute fonction
+  appelée par `rpc` renvoie un scalaire ou du `jsonb`, jamais un ensemble de
+  lignes (le comportement diffèrerait entre les deux adaptateurs).
+- **Sémantique de refus** : une ressource que le RLS masque renvoie `404` — un
+  `403` confirmerait son existence. Une ressource visible mais interdite
+  renvoie `403`.
+- `FormData.get()` n'est jamais converti directement : il peut renvoyer un
+  `File`. Passer par `src/lib/api/form.ts`, qui refuse ce cas au lieu de le
+  déguiser en `[object File]`.
+- Les chaînes d'interface vivent dans `src/lib/i18n/fr.ts`. **Exception
+  assumée** : la prose longue des pages légales reste dans la page, l'i18n
+  étant hors périmètre (R8). Un test de vocabulaire balaye les deux.
 
 ## 5. RGPD — règle d'or
 
@@ -80,7 +98,9 @@ ce que le code collecte.**
 - Aucune adresse IP, aucun user-agent, aucun identifiant de session stocké en
   base. L'IP n'existe que dans le store de rate-limit (hachée, TTL court),
   jamais dans une table applicative.
-- **Vocabulaire interdit : « réponses anonymes ».** La plateforme n'ajoute
+- **Vocabulaire interdit : « réponses anonymes »** — et le mot est refusé par
+  un test qui balaye les sources de l'interface (`tests/unit/vocabulary.test.ts`),
+  au même titre que tout terme sectoriel. La plateforme n'ajoute
   aucun identifiant technique, mais une réponse contient exactement les champs
   que l'organisation a décidé de collecter — parfois un email, un téléphone, un
   nom. L'interface et les pages légales disent donc ce qui est vrai dans tous
@@ -108,7 +128,7 @@ figure, avec sa raison et sa condition de lever.
 | - | -------------- | ------ | ----------- |
 | R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. | Le HMR de Next exige `eval`. | N/A (limite du framework). |
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
-| R3 | **a11y automatisée en jsdom** (axe-core) et non dans un vrai navigateur : le contraste calculé et l'ordre de focus réel ne sont pas couverts par axe. Les contrastes sont vérifiés par un test dédié sur les tokens ; la navigation clavier est testée par `user-event`. | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
+| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert. | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
 | R5 | **`pg_cron`** : les migrations tolèrent l'absence de l'extension ; les purges restent appelables en RPC et via une route cron signée. | L'extension n'est pas disponible sur tous les plans Supabase ni sous PGlite (tests). | À l'activation de pg_cron sur le projet cible. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16. |
@@ -135,7 +155,13 @@ npm run build       # build de production
       PGlite rejouant les migrations réelles, et 105 tests de sécurité :
       isolation A/B table par table, escalade de privilèges, modules par
       utilisateur, accès anonyme, anti-doublon, immuabilité, purges.
-- [ ] Étape 3 — auth, profils, demandes de rattachement, modules par utilisateur.
+- [x] Étape 3 — authentification (connexion, inscription, réinitialisation de
+      mot de passe, retour de courriel), demandes de rattachement, validation
+      par le super administrateur avec choix du rôle ET des modules, emails
+      chartés Resend, rate-limit distribué, port de données à deux
+      implémentations, 8 routes API, middleware de session, premières pages
+      légales alimentées par `platform_settings`. 354 tests dont 59
+      d'intégration exécutant les vraies routes contre le vrai RLS.
 - [ ] Étape 4 — `src/lib` pur : validation de schéma/réponse, ICS, CSV.
 - [ ] Étape 5 — renderer public + consentement + API de soumission.
 - [ ] Étape 6 — builder visuel, tableau de bord, statistiques, exports.

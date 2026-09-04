@@ -11,6 +11,14 @@ export async function expectNoA11yViolations(
 ): Promise<AxeResults> {
   const results = await axe.run(container, {
     runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
+    rules: {
+      // Désactivée EXPLICITEMENT et non laissée en échec silencieux : jsdom n'a
+      // pas de moteur de rendu, donc axe ne peut pas calculer un contraste réel
+      // (il tente d'utiliser un canvas absent). Les contrastes sont vérifiés
+      // pour de vrai par tests/unit/design-tokens.test.ts, sur les tokens de la
+      // charte. Limite assumée : risque R3 de CLAUDE.md.
+      'color-contrast': { enabled: false },
+    },
     ...options,
   });
 
