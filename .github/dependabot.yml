@@ -16,6 +16,24 @@ updates:
       lint:
         patterns: ['eslint', 'eslint-*', 'typescript-eslint', '@eslint/*', 'globals']
     labels: ['dependencies']
+    # Majeures volontairement bloquées, chacune documentée comme risque
+    # accepté dans CLAUDE.md. Sans ces exclusions, Dependabot rouvrirait
+    # indéfiniment des PR qui ne peuvent pas passer la CI.
+    ignore:
+      # R6 : eslint-config-next@15 ne déclare pas ESLint 10.
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      # TypeScript 7 (portage natif) : hors stack validée.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # Doit rester aligné sur la version de Node exécutée (22.x).
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # jsdom >= 30 exige Node >= 22.22 ; .nvmrc est en 22.20.
+      - dependency-name: jsdom
+        update-types: ['version-update:semver-major']
+      # R7 : `postcss` est figé par un override tant que Next 15 est imposé.
+      - dependency-name: postcss
 
   - package-ecosystem: github-actions
     directory: /

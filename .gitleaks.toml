@@ -1,0 +1,14 @@
+# Configuration gitleaks : règles par défaut + exclusion des répertoires qui ne
+# sont jamais committés. Sans cette exclusion, un scan de l'arbre de travail
+# remonte les faux positifs des artéfacts de build de Next et des dépendances.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Artéfacts de build, dépendances et couverture : hors périmètre."
+paths = [
+  '''^\.next/''',
+  '''^node_modules/''',
+  '''^coverage/''',
+  '''^\.vercel/''',
+]
