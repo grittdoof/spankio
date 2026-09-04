@@ -198,7 +198,7 @@ describe('restriction des modules par utilisateur', () => {
   it('le module core est toujours autorisé', async () => {
     const rows = await db.query<{ ok: boolean }>(
       asUser(editorWithoutEvent),
-      "select public.can_use_module('core') as ok",
+      "select app.can_use_module('core') as ok",
     );
     expect(rows[0]?.ok).toBe(true);
   });
@@ -206,13 +206,13 @@ describe('restriction des modules par utilisateur', () => {
   it('la surcharge utilisateur prime sur l’activation de l’organisation', async () => {
     const denied = await db.query<{ ok: boolean }>(
       asUser(editorWithoutEvent),
-      "select public.can_use_module('event') as ok",
+      "select app.can_use_module('event') as ok",
     );
     expect(denied[0]?.ok).toBe(false);
 
     const allowed = await db.query<{ ok: boolean }>(
       asUser(editorWithEvent),
-      "select public.can_use_module('event') as ok",
+      "select app.can_use_module('event') as ok",
     );
     expect(allowed[0]?.ok).toBe(true);
   });
@@ -222,14 +222,14 @@ describe('restriction des modules par utilisateur', () => {
     await activateMember(db, neutral, orgId, 'editor');
     const rows = await db.query<{ ok: boolean }>(
       asUser(neutral),
-      "select public.can_use_module('event') as ok",
+      "select app.can_use_module('event') as ok",
     );
     expect(rows[0]?.ok).toBe(true);
 
     await grantModule(db, orgId, 'event', false);
     const afterDisable = await db.query<{ ok: boolean }>(
       asUser(neutral),
-      "select public.can_use_module('event') as ok",
+      "select app.can_use_module('event') as ok",
     );
     expect(afterDisable[0]?.ok).toBe(false);
     await grantModule(db, orgId, 'event', true);

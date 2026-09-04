@@ -218,7 +218,7 @@ describe('demandes de rattachement', () => {
       // Le core reste utilisable : il n'est jamais interdit.
       const core = await db.query<{ ok: boolean }>(
         asUser(candidate),
-        "select public.can_use_module('core') as ok",
+        "select app.can_use_module('core') as ok",
       );
       expect(core[0]?.ok).toBe(true);
     });
@@ -443,7 +443,7 @@ describe('droit à l’effacement', () => {
     const remaining = await db.query(
       OWNER,
       `select id from public.survey_responses
-        where survey_id = $1 and dedup_key = public.dedup_hash($1, 'autre@exemple.test')`,
+        where survey_id = $1 and dedup_key = app.dedup_hash($1, 'autre@exemple.test')`,
       [survey],
     );
     expect(remaining).toEqual([]);

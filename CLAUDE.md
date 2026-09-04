@@ -74,6 +74,25 @@ seulement par organisation.
 - Migrations SQL **toujours idempotentes** : `create or replace`,
   `drop policy if exists`, `create index if not exists`,
   `on conflict do nothing`.
+- **Aucune fonction interne dans le schéma `public`.** PostgREST publie
+  automatiquement toute fonction de `public` que le rôle appelant peut
+  exécuter, et Supabase accorde `EXECUTE` à `anon`/`authenticated` sur toute
+  nouvelle fonction via ses *default privileges* — un `revoke ... from public`
+  ne suffit pas. Les fonctions internes vivent donc dans le schéma **`app`**,
+  hors de la liste exposée par l'API. `public` ne contient que les 8 fonctions
+  réellement appelées par le réseau, et un test échoue si une neuvième
+  apparaît (`tests/rls/exposed-surface.test.ts`).
+- **Tout nouvel objet naît sans droits.** Les *default privileges* de Supabase
+  ont été révoqués (`alter default privileges ... revoke`) : une table, une vue
+  ou une fonction ajoutée n'est accessible à personne tant qu'un `grant`
+  explicite n'a pas été écrit. Plus verbeux, et volontairement : un oubli
+  devient une absence d'accès, pas une fuite.
+- **Une policy RLS s'exécute avec les droits de l'appelant.** Conséquence
+  vérifiée par l'expérience : les fonctions appelées dans une policy doivent
+  rester exécutables par `authenticated`. Ce sont les 9 fonctions de `app` qui
+  reçoivent `EXECUTE` ; les autres (dont `write_audit` et `dedup_hash`) n'en
+  ont pas besoin, car elles ne sont appelées que depuis une autre fonction
+  `SECURITY DEFINER` ou depuis un trigger.
 - **Les routes ne connaissent pas Supabase.** Elles reçoivent un port étroit
   (`src/lib/data/port.ts`) implémenté deux fois : sur `@supabase/ssr` en
   production, sur PGlite en test. C'est ce qui permet d'exécuter les vraies
@@ -130,11 +149,13 @@ figure, avec sa raison et sa condition de lever.
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
 | R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert. | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
-| R5 | **`pg_cron`** : les migrations tolèrent l'absence de l'extension ; les purges restent appelables en RPC et via une route cron signée. | L'extension n'est pas disponible sur tous les plans Supabase ni sous PGlite (tests). | À l'activation de pg_cron sur le projet cible. |
+| R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16. |
 | R7 | **`postcss` surchargé** en 8.5.26 via `overrides` : Next 15 épingle 8.4.31, vulnérable (GHSA sourceMappingURL / XSS de stringify). Correctif amont = Next 16 (majeure). | Conserver Next 15 tout en gardant `npm audit` à zéro. `postcss` n'est utilisé qu'au build. | À la migration Next 16. |
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région. | Périmètre MVP. | Sur demande client. |
-| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. Les policies et les contraintes testées sont en revanche le SQL réel de production. | Aucune dépendance à Docker ni à un projet Supabase : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à la remise des accès. |
+| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 21 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
+| R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
+| R11 | **8 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 
 ## 7. Commandes
 
@@ -162,6 +183,14 @@ npm run build       # build de production
       implémentations, 8 routes API, middleware de session, premières pages
       légales alimentées par `platform_settings`. 354 tests dont 59
       d'intégration exécutant les vraies routes contre le vrai RLS.
+- [x] Déploiement (4 septembre 2026) — 21 migrations appliquées sur le projet
+      Supabase `spankio` (PostgreSQL 17.6, `eu-west-2`), historique aligné sur
+      les fichiers locaux, `pg_cron` actif, bucket des bannières créé. Vercel
+      relié au dépôt, trois déploiements de production réussis, protection SSO
+      active. **Deux failles corrigées, invisibles sous PGlite** : `write_audit`
+      appelable anonymement (forge d'entrées d'audit) et annuaire des
+      organisations lisible sans compte — les deux causées par les *default
+      privileges* de Supabase.
 - [ ] Étape 4 — `src/lib` pur : validation de schéma/réponse, ICS, CSV.
 - [ ] Étape 5 — renderer public + consentement + API de soumission.
 - [ ] Étape 6 — builder visuel, tableau de bord, statistiques, exports.

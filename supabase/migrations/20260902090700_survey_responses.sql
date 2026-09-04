@@ -2,10 +2,12 @@
 -- Réponses aux sondages.
 --
 -- MINIMISATION ASSUMÉE : cette table ne stocke NI adresse IP (même hachée), NI
--- user-agent, NI identifiant de session. C'est ce qui permet à l'interface et à
--- la politique de confidentialité d'affirmer que les réponses sont anonymes
--- sans mentir. La limitation de débit s'appuie sur un store externe (KV) où
--- l'IP est hachée et expire ; elle n'atterrit jamais ici.
+-- user-agent, NI identifiant de session. La plateforme n'ajoute donc AUCUNE
+-- donnée de traçage à une réponse — mais elle ne prétend pas pour autant que
+-- les réponses sont sans identité : `data` contient exactement les champs que
+-- l'organisation a décidé de collecter, parfois un nom ou un courriel. La
+-- limitation de débit s'appuie sur un store externe (KV) où l'IP est hachée et
+-- expire ; elle n'atterrit jamais ici.
 --
 -- Suppression : `deleted_at` (soft-delete). TOUT agrégat, compteur ou vue doit
 -- exclure les lignes supprimées.
@@ -38,7 +40,7 @@ create table if not exists public.survey_responses (
 );
 
 comment on table public.survey_responses is
-  'Réponses. Aucune IP ni user-agent : la minimisation annoncée est réelle. Soft-delete via deleted_at.';
+  'Réponses. Aucune IP, aucun user-agent, aucun identifiant de session : la minimisation annoncée est réelle. Soft-delete via deleted_at.';
 comment on column public.survey_responses.consent_text is
   'Snapshot du texte de consentement affiché : preuve auditable, indépendante des modifications ultérieures du sondage.';
 

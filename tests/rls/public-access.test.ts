@@ -301,8 +301,8 @@ describe('accès public', () => {
       // Le même email sur un autre sondage donne une empreinte différente.
       const other = await db.queryOne<{ a: string; b: string }>(
         OWNER,
-        `select public.dedup_hash($1, 'jean@exemple.test') as a,
-                public.dedup_hash($2, 'jean@exemple.test') as b`,
+        `select app.dedup_hash($1, 'jean@exemple.test') as a,
+                app.dedup_hash($2, 'jean@exemple.test') as b`,
         [dedupSurvey, published],
       );
       expect(other?.a).not.toBe(other?.b);
