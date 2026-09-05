@@ -34,6 +34,66 @@ const LEGAL_BASIS_LABELS: Readonly<Record<LegalBasis, string>> = {
   legitimate_interests: 'les intérêts légitimes du responsable de traitement',
 };
 
+/**
+ * Aide au choix de la base légale, destinée à l'ORGANISATION.
+ *
+ * Distincte de `LEGAL_BASIS_LABELS`, qui s'adresse au répondant : « votre
+ * consentement » se lit bien dans une mention d'information, mais ne dit pas à
+ * un administrateur quand il faut la retenir. Les deux formulations sont donc
+ * séparées, plutôt qu'une seule tordue pour servir deux publics.
+ *
+ * Ce sont les six catégories de l'article 6 du RGPD, décrites factuellement.
+ * La plateforme n'en impose aucune et ne conseille pas : c'est l'organisation
+ * qui sait pourquoi elle collecte.
+ */
+export interface LegalBasisGuide {
+  /** Intitulé dans le sélecteur. */
+  readonly choice: string;
+  /** Dans quel cas cette base s'applique. */
+  readonly when: string;
+}
+
+export const LEGAL_BASIS_GUIDE: Readonly<Record<LegalBasis, LegalBasisGuide>> = {
+  consent: {
+    choice: 'Consentement',
+    when:
+      'La personne est libre d’accepter ou de refuser, et peut revenir sur son accord. ' +
+      'Le cas le plus courant pour un sondage ou une inscription facultative.',
+  },
+  contract: {
+    choice: 'Exécution d’un contrat',
+    when:
+      'Les données sont nécessaires pour conclure ou exécuter un contrat avec la ' +
+      'personne — une commande, une adhésion, une prestation.',
+  },
+  legal_obligation: {
+    choice: 'Obligation légale',
+    when: 'Un texte impose de collecter ces données ou de les conserver.',
+  },
+  vital_interests: {
+    choice: 'Sauvegarde d’intérêts vitaux',
+    when:
+      'La collecte protège la vie ou l’intégrité d’une personne. Cas rare, réservé ' +
+      'aux situations d’urgence.',
+  },
+  public_task: {
+    choice: 'Mission d’intérêt public',
+    when:
+      'L’organisation exerce une mission d’intérêt public ou relevant de l’autorité ' +
+      'publique qui lui est confiée.',
+  },
+  legitimate_interests: {
+    choice: 'Intérêt légitime',
+    when:
+      'L’organisation a un intérêt propre à collecter, qui ne prévaut pas sur les ' +
+      'droits des personnes. Demande une mise en balance documentée.',
+  },
+};
+
+export function legalBasisGuide(basis: string): LegalBasisGuide | null {
+  return LEGAL_BASIS_GUIDE[basis as LegalBasis] ?? null;
+}
+
 export function legalBasisLabel(basis: string | null | undefined): string | null {
   if (!basis) return null;
   return LEGAL_BASIS_LABELS[basis as LegalBasis] ?? null;

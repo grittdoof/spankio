@@ -139,10 +139,35 @@ export function SurveyRenderer({
     [schema, answers],
   );
 
+  /**
+   * Minuteur de la secousse d'erreur, conservé pour être annulé.
+   *
+   * Sans cela, le minuteur survit au démontage du composant et appelle
+   * `setState` sur un composant mort : un répondant qui quitte l'écran pendant
+   * l'animation laisse derrière lui du travail sur un arbre détruit. C'est un
+   * test dont l'environnement était démonté qui l'a révélé — l'erreur y était
+   * franche (`window is not defined`), alors qu'en production elle passait
+   * inaperçue.
+   */
+  const shakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (shakeTimer.current !== null) clearTimeout(shakeTimer.current);
+    },
+    [],
+  );
+
   const refuse = useCallback((message: string) => {
     setFieldError(message);
     setShake(true);
-    window.setTimeout(() => setShake(false), 400);
+    // Deux refus rapprochés : le premier minuteur est annulé, sinon il
+    // interromprait la seconde secousse au milieu.
+    if (shakeTimer.current !== null) clearTimeout(shakeTimer.current);
+    shakeTimer.current = setTimeout(() => {
+      shakeTimer.current = null;
+      setShake(false);
+    }, 400);
   }, []);
 
   const goBack = useCallback(() => {

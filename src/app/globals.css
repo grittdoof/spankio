@@ -2404,3 +2404,35 @@ summary.sp-btn::-webkit-details-marker {
   border-radius: var(--sp-radius-pill);
   background: var(--sp-accent);
 }
+
+/* Récapitulatif d'un parcours : deux colonnes qui se replient sur une seule. */
+.sp-recap {
+  display: grid;
+  gap: var(--sp-space-4);
+  margin: 0;
+}
+
+.sp-recap > div {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: var(--sp-space-4);
+  align-items: baseline;
+}
+
+@media (max-width: 34rem) {
+  .sp-recap > div {
+    grid-template-columns: 1fr;
+    gap: var(--sp-space-1);
+  }
+}
+
+.sp-recap dt {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-recap dd {
+  margin: 0;
+  color: var(--sp-text);
+  overflow-wrap: anywhere;
+}
