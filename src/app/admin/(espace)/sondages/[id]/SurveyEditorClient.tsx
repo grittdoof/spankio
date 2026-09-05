@@ -15,10 +15,13 @@ export function SurveyEditorClient({
   surveyId,
   initial,
   publicUrl,
+  eventStartsAt,
 }: {
   surveyId: string;
   initial: SurveyDraft;
   publicUrl: string;
+  /** `undefined` pour un sondage : l'éditeur n'exige alors aucune date. */
+  eventStartsAt?: string | null;
 }) {
   const onSave = useCallback<SurveyBuilderProps['onSave']>(
     async (draft) => {
@@ -67,6 +70,7 @@ export function SurveyEditorClient({
       surveyId={surveyId}
       initial={initial}
       publicUrl={publicUrl}
+      eventStartsAt={eventStartsAt}
       onSave={onSave}
     />
   );

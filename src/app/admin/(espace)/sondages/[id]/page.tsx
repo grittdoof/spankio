@@ -115,6 +115,9 @@ export default async function SurveyEditorPage({
         surveyId={survey.value.id}
         initial={initial}
         publicUrl={publicUrl}
+        {...(survey.value.kind === 'event'
+          ? { eventStartsAt: survey.value.event_starts_at }
+          : {})}
       />
 
       <section className="sp-card sp-stack">

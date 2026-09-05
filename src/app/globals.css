@@ -2436,3 +2436,52 @@ summary.sp-btn::-webkit-details-marker {
   color: var(--sp-text);
   overflow-wrap: anywhere;
 }
+
+/* Liste de ce qui manque avant publication : chaque ligne dit QUOI et OÙ. */
+.sp-todo {
+  display: grid;
+  gap: var(--sp-space-2);
+  margin: var(--sp-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-todo li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-space-2);
+}
+
+.sp-todo strong {
+  color: var(--sp-marine);
+}
+
+.sp-todo span {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-builder__blocked {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-empty__url {
+  overflow-wrap: anywhere;
+  font-size: var(--sp-text-sm);
+}
+
+/* Compteur principal : c'est le chiffre qu'on vient regarder. */
+.sp-stat--lead {
+  background: var(--sp-accent-light);
+}
+
+.sp-stat--lead .sp-stat__value {
+  font-size: var(--sp-text-3xl);
+}
+
+.sp-stat--lead .sp-stat__label {
+  color: var(--sp-accent-text);
+  font-weight: 600;
+}

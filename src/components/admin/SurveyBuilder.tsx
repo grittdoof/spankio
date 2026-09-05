@@ -2,7 +2,9 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { Callout, Example } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
   FIELD_TYPE_LABELS,
   canAddField,
@@ -15,10 +17,10 @@ import {
   usedIdentifiers,
 } from '@/lib/survey/builder';
 import { LEGAL_BASES } from '@/lib/services/surveys';
-import { legalBasisLabel } from '@/lib/survey/consent';
+import { LEGAL_BASIS_GUIDE, type LegalBasis } from '@/lib/survey/consent';
+import { missingForPublication } from '@/lib/survey/publication';
 import { FIELD_TYPES, type FieldType, type SurveySchema } from '@/lib/survey/schema';
 import type { SurveySettings } from '@/lib/survey/settings';
-import { validateSurveySchema } from '@/lib/survey/schema';
 import { FieldEditor } from './FieldEditor';
 
 /**
@@ -58,10 +60,22 @@ export interface SurveyBuilderProps {
   surveyId: string;
   initial: SurveyDraft;
   publicUrl: string;
+  /**
+   * Date de l'événement, `undefined` pour un sondage. L'éditeur ne la modifie
+   * pas — elle se règle sur son propre écran — mais il doit la connaître pour
+   * dire ce qui manque avant de publier.
+   */
+  eventStartsAt?: string | null;
   onSave: (draft: SurveyDraft) => Promise<{ ok: true } | { ok: false; fields?: Record<string, string>; message?: string }>;
 }
 
-export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBuilderProps) {
+export function SurveyBuilder({
+  surveyId,
+  initial,
+  publicUrl,
+  eventStartsAt,
+  onSave,
+}: SurveyBuilderProps) {
   const [draft, setDraft] = useState<SurveyDraft>(initial);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -70,8 +84,24 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
   const schema = draft.schema;
   const used = useMemo(() => usedIdentifiers(schema), [schema]);
 
-  /** Validité annoncée en continu, par le validateur du serveur. */
-  const validity = useMemo(() => validateSurveySchema(schema), [schema]);
+  /**
+   * Ce qui manque pour publier, recalculé à chaque frappe avec la MÊME
+   * fonction que le serveur. On ne découvre donc pas au moment de publier
+   * qu'il manquait une mention — et l'écran ne peut pas annoncer « prêt »
+   * sur un formulaire que le serveur refusera.
+   */
+  const missing = useMemo(
+    () =>
+      missingForPublication({
+        kind: eventStartsAt === undefined ? 'survey' : 'event',
+        schema,
+        purpose: draft.purpose,
+        legalBasis: draft.legalBasis,
+        retentionDays: draft.retentionDays,
+        eventStartsAt: eventStartsAt ?? null,
+      }),
+    [schema, draft.purpose, draft.legalBasis, draft.retentionDays, eventStartsAt],
+  );
 
   const setSchema = useCallback((next: SurveySchema) => {
     setDraft((previous) => ({ ...previous, schema: next }));
@@ -142,8 +172,17 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
         <Alert tone="success">{notice}</Alert>
       ) : null}
 
-      <section className="sp-card sp-stack">
-        <h2 className="sp-card__title">Identité du formulaire</h2>
+      <section className="sp-section sp-stack">
+        <div>
+          <h2 className="sp-section__title">
+            Identité du formulaire{' '}
+            <Tooltip label="identité du formulaire">
+              Le titre et la description s’affichent sur l’écran d’accueil vu par les
+              répondants. L’adresse publique, elle, ne change pas d’elle-même : la
+              modifier casse les liens déjà partagés.
+            </Tooltip>
+          </h2>
+        </div>
 
         <Field id="titre" label="Titre" required>
           {(attributes) => (
@@ -158,7 +197,11 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
           )}
         </Field>
 
-        <Field id="slug" label="Adresse publique" hint={publicUrl}>
+        <Field
+          id="slug"
+          label="Adresse publique"
+          hint={`${publicUrl} — la modifier rend inopérants les liens déjà partagés.`}
+        >
           {(attributes) => (
             <input
               {...attributes}
@@ -188,21 +231,46 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
         </Field>
       </section>
 
-      <section className="sp-stack">
-        <div className="sp-card__header">
-          <h2>Questions</h2>
-          <p className="sp-muted">
-            {validity.ok
-              ? 'Le formulaire est valide.'
-              : 'Le formulaire n’est pas encore publiable.'}
+      {/* Ce qui manque pour publier, en tête et en permanence : découvrir
+          après avoir cliqué qu'il manquait une mention fait perdre le geste,
+          et parfois l'heure de travail qui l'a précédé. */}
+      {missing.length === 0 ? (
+        <Callout mark="✓" title="Prêt à publier">
+          Toutes les informations obligatoires sont renseignées.
+        </Callout>
+      ) : (
+        <Callout mark="!" tone="muted" title="Avant de pouvoir publier">
+          <ul className="sp-todo">
+            {missing.map((requirement) => (
+              <li key={requirement.key}>
+                <strong>{requirement.label}</strong>
+                <span>{requirement.where}</span>
+              </li>
+            ))}
+          </ul>
+        </Callout>
+      )}
+
+      <section className="sp-section sp-stack">
+        <div>
+          <h2 className="sp-section__title">Questions</h2>
+          <p className="sp-section__lead">
+            Les répondants voient une question par écran. Les étapes regroupent des
+            questions qui vont ensemble, et chacune peut n’apparaître que si une
+            réponse précédente le justifie.
           </p>
         </div>
 
         {schema.steps.length === 0 ? (
-          <div className="sp-card">
-            <p className="sp-muted">
-              Aucune question pour l’instant. Ajoutez une étape pour commencer.
+          <div className="sp-empty">
+            <h3 className="sp-empty__title">Aucune question pour l’instant</h3>
+            <p className="sp-empty__lead">
+              Ajoutez une première étape : elle arrive avec une question, que vous
+              n’aurez plus qu’à reformuler.
             </p>
+            <button className="sp-btn sp-btn--lg" type="button" onClick={addStep}>
+              Ajouter une première étape
+            </button>
           </div>
         ) : null}
 
@@ -368,14 +436,22 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
         </p>
       </section>
 
-      <section className="sp-card sp-stack">
-        <h2 className="sp-card__title">Information des répondants</h2>
-        <p className="sp-muted">
-          Ces mentions sont affichées avant l’envoi et conservées comme preuve avec chaque
-          réponse. Elles sont obligatoires pour publier.
-        </p>
+      <section className="sp-section sp-stack">
+        <div>
+          <h2 className="sp-section__title">Informations aux répondants</h2>
+          <p className="sp-section__lead">
+            Ces mentions sont affichées avant l’envoi, puis conservées avec chaque réponse
+            comme preuve de ce qui a été annoncé. Elles sont obligatoires pour publier.
+          </p>
+        </div>
 
-        <Field id="purpose" label="Finalité" error={errors['purpose']} required>
+        <Field
+          id="purpose"
+          label="À quoi servent les réponses ?"
+          error={errors['purpose']}
+          hint="Une phrase, dans les mots de votre organisation. C’est la « finalité » au sens du RGPD."
+          required
+        >
           {(attributes) => (
             <textarea
               {...attributes}
@@ -388,7 +464,23 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
           )}
         </Field>
 
-        <Field id="legalBasis" label="Base légale" error={errors['legalBasis']} required>
+        <Callout tone="muted">
+          <Example>
+            Organiser l’assemblée générale : compter les présents et prévoir les repas.
+          </Example>
+        </Callout>
+
+        <Field
+          id="legalBasis"
+          label="Base légale"
+          error={errors['legalBasis']}
+          hint={
+            draft.legalBasis
+              ? LEGAL_BASIS_GUIDE[draft.legalBasis as LegalBasis]?.when
+              : 'Le RGPD prévoit six fondements possibles ; la plateforme n’en impose aucun.'
+          }
+          required
+        >
           {(attributes) => (
             <select
               {...attributes}
@@ -399,7 +491,7 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
               <option value="">À choisir…</option>
               {LEGAL_BASES.map((basis) => (
                 <option key={basis} value={basis}>
-                  {legalBasisLabel(basis)}
+                  {LEGAL_BASIS_GUIDE[basis].choice}
                 </option>
               ))}
             </select>
@@ -410,6 +502,7 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
           id="retentionDays"
           label="Durée de conservation (en jours)"
           error={errors['retentionDays']}
+          hint="Au terme de ce délai, les réponses sont effacées automatiquement par une purge quotidienne. Ce n’est pas une intention affichée."
           required
         >
           {(attributes) => (
@@ -430,7 +523,11 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
           )}
         </Field>
 
-        <Field id="recipients" label="Destinataires des réponses">
+        <Field
+          id="recipients"
+          label="Destinataires des réponses"
+          hint="Facultatif, mais utile : les répondants savent alors à qui ils s’adressent."
+        >
           {(attributes) => (
             <input
               {...attributes}
@@ -451,20 +548,39 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
           />
           <span className="sp-choice__label">
             Demander un consentement explicite avant l’envoi
+            <span className="sp-choice__desc">
+              Un dernier écran récapitule les mentions ci-dessus et exige une case cochée.
+              Le texte affiché est enregistré avec la réponse.
+            </span>
           </span>
         </label>
       </section>
 
       <div className="sp-actions sp-builder__footer sp-sticky-bottom">
         <button className="sp-btn" type="button" onClick={() => void save()} disabled={saving}>
-          {saving ? 'Enregistrement…' : 'Enregistrer'}
+          {saving ? (
+            <>
+              <span aria-hidden="true" className="sp-spinner" />
+              Enregistrement…
+            </>
+          ) : (
+            'Enregistrer'
+          )}
         </button>
+
         {draft.status !== 'published' ? (
           <button
             className="sp-btn sp-btn--outline"
             type="button"
             onClick={() => void publish()}
-            disabled={saving}
+            disabled={saving || missing.length > 0}
+            // Le bouton désactivé DIT pourquoi : un contrôle inerte sans
+            // explication laisse chercher ce qu'on a mal fait.
+            title={
+              missing.length > 0
+                ? `Il manque : ${missing.map((entry) => entry.label).join(', ')}`
+                : undefined
+            }
           >
             Publier
           </button>
@@ -473,9 +589,17 @@ export function SurveyBuilder({ surveyId, initial, publicUrl, onSave }: SurveyBu
             Voir le formulaire publié
           </a>
         )}
+
         <a className="sp-btn sp-btn--ghost" href={`/admin/sondages/${surveyId}/reponses`}>
           Réponses
         </a>
+
+        {missing.length > 0 && draft.status !== 'published' ? (
+          <span className="sp-builder__blocked">
+            {missing.length} information{missing.length > 1 ? 's' : ''} manquante
+            {missing.length > 1 ? 's' : ''} avant publication
+          </span>
+        ) : null}
       </div>
     </div>
   );

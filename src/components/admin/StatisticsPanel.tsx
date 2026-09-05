@@ -136,8 +136,11 @@ function FieldPanel({ field }: { field: FieldStatistics }) {
 export function StatisticsPanel({ statistics }: { statistics: SurveyStatistics }) {
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1rem' } as React.CSSProperties}>
+      {/* Un chiffre domine, les autres l'accompagnent. Trois compteurs de même
+          taille ne hiérarchisent rien, et c'est le nombre de réponses qu'on
+          vient regarder. */}
       <div className="sp-stat-grid">
-        <div className="sp-stat">
+        <div className="sp-stat sp-stat--lead">
           <span className="sp-stat__value">{statistics.responseCount}</span>
           <span className="sp-stat__label">
             Réponse{statistics.responseCount > 1 ? 's' : ''} enregistrée
@@ -147,7 +150,7 @@ export function StatisticsPanel({ statistics }: { statistics: SurveyStatistics }
         <div className="sp-stat">
           <span className="sp-stat__value">{statistics.fields.length}</span>
           <span className="sp-stat__label">
-            Question{statistics.fields.length > 1 ? 's' : ''}
+            Question{statistics.fields.length > 1 ? 's' : ''} au formulaire
           </span>
         </div>
       </div>

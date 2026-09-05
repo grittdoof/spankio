@@ -11,6 +11,7 @@ import {
   type SchemaIssue,
   type SurveySchema,
 } from '@/lib/survey/schema';
+import { missingForPublication } from '@/lib/survey/publication';
 import { surveySettingsSchema, type SurveySettings } from '@/lib/survey/settings';
 import { computeStatistics, type SurveyStatistics } from '@/lib/survey/statistics';
 import { isValidSlug, slugify } from '@/lib/utils/slug';
@@ -380,48 +381,25 @@ export async function updateSurvey(
     input.eventStartsAt !== undefined;
 
   if (targetStatus === 'published' && touchesPublicationRequirements) {
-    const purpose = input.purpose ?? existing.value.purpose;
-    const legalBasis = input.legalBasis ?? existing.value.legal_basis;
-    const retentionDays = input.retentionDays ?? existing.value.retention_days;
+    // UNE seule définition des exigences, partagée avec l'éditeur visuel qui
+    // les affiche en continu. Deux listes divergeraient, et l'écran finirait
+    // par annoncer « prêt à publier » sur un formulaire que le serveur refuse.
+    const schemaToCheck = validateDraftSchema(values['schema'] ?? existing.value.schema);
 
-    const missing: SchemaIssue[] = [];
-    if (!purpose) {
-      missing.push({ path: 'purpose', code: 'required', message: 'La finalité est obligatoire.' });
-    }
-    if (!legalBasis) {
-      missing.push({
-        path: 'legalBasis',
-        code: 'required',
-        message: 'La base légale est obligatoire.',
-      });
-    }
-    if (!retentionDays) {
-      missing.push({
-        path: 'retentionDays',
-        code: 'required',
-        message: 'La durée de conservation est obligatoire.',
-      });
-    }
-
-    const schemaToCheck = values['schema'] ?? existing.value.schema;
-    const parsed = validateSurveySchema(schemaToCheck);
-    if (!parsed.ok) {
-      missing.push({
-        path: 'schema',
-        code: 'incomplete',
-        message: 'Le formulaire doit comporter au moins une question.',
-      });
-    }
-
-    const kind = existing.value.kind;
-    const startsAt = input.eventStartsAt ?? existing.value.event_starts_at;
-    if (kind === 'event' && !startsAt) {
-      missing.push({
-        path: 'eventStartsAt',
-        code: 'required',
-        message: 'Un événement publié doit avoir une date de début.',
-      });
-    }
+    const missing = missingForPublication({
+      kind: existing.value.kind,
+      // Un schéma illisible ne peut pas être « complet » : on présente un
+      // schéma vide, ce qui produit l'exigence « au moins une question ».
+      schema: schemaToCheck.ok ? schemaToCheck.schema : { version: 1, steps: [] },
+      purpose: input.purpose ?? existing.value.purpose,
+      legalBasis: input.legalBasis ?? existing.value.legal_basis,
+      retentionDays: input.retentionDays ?? existing.value.retention_days,
+      eventStartsAt: input.eventStartsAt ?? existing.value.event_starts_at,
+    }).map<SchemaIssue>((requirement) => ({
+      path: requirement.key,
+      code: 'required',
+      message: `${requirement.label} — ${requirement.where}.`,
+    }));
 
     if (missing.length > 0) {
       return {

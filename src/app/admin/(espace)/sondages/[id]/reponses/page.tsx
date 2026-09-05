@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
+import Link from 'next/link';
 import { StatisticsPanel } from '@/components/admin/StatisticsPanel';
 import { Alert } from '@/components/ui/Alert';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { loadAdminSession } from '@/lib/admin/session';
+import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { responseRows } from '@/lib/export/csv';
 import { fr } from '@/lib/i18n/fr';
@@ -94,6 +97,8 @@ export default async function SurveyResponsesPage({
   const header = rows[0] ?? [];
   const body = rows.slice(1);
 
+  const siteUrl = publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+  const publicUrl = `${siteUrl}/s/${session.organisationSlug}/${survey.value.slug}`;
   const okCode = typeof query['ok'] === 'string' ? query['ok'] : undefined;
   const errorCode = typeof query['erreur'] === 'string' ? query['erreur'] : undefined;
 
@@ -130,20 +135,48 @@ export default async function SurveyResponsesPage({
         <Alert tone="error">{ERRORS[errorCode] ?? fr.errors.unexpected}</Alert>
       ) : null}
 
-      <section>
-        <h2>Statistiques</h2>
-        <StatisticsPanel statistics={statistics} />
-      </section>
+      {responses.value.length === 0 ? (
+        <EmptyState
+          title="Aucune réponse pour l’instant"
+          lead={
+            survey.value.status === 'published'
+              ? 'Le formulaire est en ligne : partagez son adresse pour recevoir les premières réponses.'
+              : 'Le formulaire n’est pas publié : il n’accepte donc aucune réponse. Publiez-le depuis l’éditeur.'
+          }
+          action={
+            survey.value.status === 'published' ? (
+              <p className="sp-empty__url">
+                <a href={publicUrl} rel="noreferrer" target="_blank">
+                  {publicUrl}
+                </a>
+              </p>
+            ) : (
+              <Link className="sp-btn" href={`/admin/sondages/${survey.value.id}`}>
+                Ouvrir l’éditeur
+              </Link>
+            )
+          }
+        />
+      ) : (
+        <>
+          <section className="sp-section">
+            <h2 className="sp-section__title">Statistiques</h2>
+            <p className="sp-section__lead">
+              Les champs libres n’y produisent qu’un compteur : un tableau de bord n’est
+              pas un écran de lecture de données personnelles.
+            </p>
+            <StatisticsPanel statistics={statistics} />
+          </section>
 
-      <section className="sp-stack">
-        <div className="sp-card__header">
-          <h2>Détail des réponses</h2>
-          <p className="sp-muted">
-            Ce tableau montre les réponses telles qu’elles ont été saisies. Elles peuvent
-            contenir des données personnelles : ne les diffusez qu’aux destinataires annoncés
-            aux répondants.
-          </p>
-        </div>
+          <section className="sp-section sp-stack">
+            <div>
+              <h2 className="sp-section__title">Détail des réponses</h2>
+              <p className="sp-section__lead">
+                Ce tableau montre les réponses telles qu’elles ont été saisies. Elles
+                peuvent contenir des données personnelles : ne les diffusez qu’aux
+                destinataires annoncés aux répondants.
+              </p>
+            </div>
 
         {responses.value.length > TABLE_LIMIT ? (
           <Alert tone="info">
@@ -152,12 +185,7 @@ export default async function SurveyResponsesPage({
           </Alert>
         ) : null}
 
-        {body.length === 0 ? (
-          <div className="sp-card">
-            <p className="sp-muted">Aucune réponse pour l’instant.</p>
-          </div>
-        ) : (
-          <div className="sp-table-wrapper">
+            <div className="sp-table-wrapper">
             <table className="sp-table">
               <caption className="sp-visually-hidden">
                 Réponses au formulaire {survey.value.title}
@@ -204,9 +232,10 @@ export default async function SurveyResponsesPage({
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </section>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

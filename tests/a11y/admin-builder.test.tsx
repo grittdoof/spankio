@@ -145,19 +145,81 @@ describe('manipulation au clavier', () => {
           Promise.resolve({
             ok: false as const,
             fields: { purpose: 'La finalité est obligatoire.' },
-            message: 'Publication impossible',
+            message: 'L’enregistrement a échoué',
           })
         }
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Publier' }));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
 
     // UNE seule zone d'annonce, qui porte à la fois la cause et le détail.
     const alerts = await screen.findAllByRole('alert');
     expect(alerts).toHaveLength(1);
-    expect(alerts[0]!.textContent).toContain('Publication impossible');
+    expect(alerts[0]!.textContent).toContain('L’enregistrement a échoué');
     expect(alerts[0]!.textContent).toContain('La finalité est obligatoire.');
+  });
+
+  it('empêche de publier un formulaire incomplet, et dit ce qui manque', () => {
+    // Le brouillon de test n'a ni finalité, ni base légale, ni durée : le
+    // bouton reste inerte, mais l'écran énumère les manques AVANT le clic —
+    // les découvrir après avoir cliqué fait perdre le geste.
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={draft(schemaOf('needs_survey'))}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    const publish: HTMLButtonElement = screen.getByRole('button', { name: 'Publier' });
+    expect(publish.disabled).toBe(true);
+    expect(screen.getByText('Avant de pouvoir publier')).toBeTruthy();
+    expect(screen.getByText('La finalité de la collecte')).toBeTruthy();
+    expect(screen.getByText('La base légale')).toBeTruthy();
+    expect(screen.getByText('La durée de conservation')).toBeTruthy();
+  });
+
+  it('autorise la publication dès que tout est renseigné', () => {
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={{
+          ...draft(schemaOf('needs_survey')),
+          purpose: 'Recenser un besoin',
+          legalBasis: 'consent',
+          retentionDays: 365,
+        }}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    const publish: HTMLButtonElement = screen.getByRole('button', { name: 'Publier' });
+    expect(publish.disabled).toBe(false);
+    expect(screen.getByText('Prêt à publier')).toBeTruthy();
+  });
+
+  it('exige aussi la date quand c’est un événement', () => {
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={{
+          ...draft(schemaOf('event_registration')),
+          purpose: 'Organiser un événement',
+          legalBasis: 'consent',
+          retentionDays: 365,
+        }}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        eventStartsAt={null}
+        onSave={saved}
+      />,
+    );
+
+    expect(screen.getByText('La date de l’événement')).toBeTruthy();
+    const publish: HTMLButtonElement = screen.getByRole('button', { name: 'Publier' });
+    expect(publish.disabled).toBe(true);
   });
 });
 

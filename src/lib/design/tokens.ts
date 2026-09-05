@@ -121,6 +121,9 @@ export const CONTRAST_REQUIREMENTS: readonly ContrastRequirement[] = [
   // s'y écrit doit être vérifié, pas seulement les liens.
   { label: 'texte / fond tinté azur', foreground: T['--sp-text']!, background: T['--sp-accent-light']!, min: 4.5 },
   { label: 'texte secondaire / fond tinté azur', foreground: T['--sp-text-muted']!, background: T['--sp-accent-light']!, min: 4.5 },
+  // Compteur principal du tableau de bord : chiffre marine et libellé azur sur
+  // fond tinté.
+  { label: 'compteur principal / fond tinté azur', foreground: T['--sp-marine']!, background: T['--sp-accent-light']!, min: 4.5 },
 
   // Boutons pleins : le texte est toujours blanc
   { label: 'bouton plein : blanc / azur', foreground: T['--sp-on-accent']!, background: T['--sp-accent']!, min: 4.5 },
