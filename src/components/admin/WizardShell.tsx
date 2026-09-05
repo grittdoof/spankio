@@ -5,13 +5,21 @@ import { WIZARD_TOTAL, stepLabel, stepNumber, type WizardStepKey } from '@/lib/a
 /**
  * Coquille d'un écran de parcours guidé.
  *
- * Trois zones fixes, et rien d'autre : l'avancement en haut, UNE question au
- * milieu, la navigation en bas. La constance est le principal apport d'un
- * parcours guidé — si l'action suivante changeait de place d'un écran à
- * l'autre, il faudrait la rechercher à chaque fois, et le gain disparaîtrait.
+ * Trois zones fixes, et rien d'autre : l'avancement, UNE question, la
+ * navigation. La constance est le principal apport d'un parcours guidé — si
+ * l'action suivante changeait de place d'un écran à l'autre, il faudrait la
+ * rechercher à chaque fois, et le gain disparaîtrait.
  *
- * La sortie reste toujours accessible en haut à droite. Un parcours dont on ne
- * peut pas sortir est une impasse, pas un guide.
+ * **UNE seule barre, en bas, sur tous les écrans.** Deux barres collantes
+ * prennent près d'un tiers de la hauteur utile d'un téléphone, et
+ * l'avancement se retrouve loin du bouton qui le fait avancer. Tout regrouper
+ * évite en outre de dupliquer la barre de progression et le lien de sortie
+ * dans le DOM : un exemplaire masqué par CSS reste un second contrôle
+ * interactif, qu'il faut maintenir et qui réapparaît si la feuille de style
+ * n'arrive pas.
+ *
+ * La sortie reste toujours atteignable. Un parcours dont on ne peut pas
+ * sortir est une impasse, pas un guide.
  */
 
 export interface WizardShellProps {
@@ -41,18 +49,10 @@ export function WizardShell({
   footer,
 }: WizardShellProps) {
   const current = stepNumber(step);
+  const label = stepLabel(step);
 
   return (
     <div className="sp-wizard">
-      <div className="sp-wizard__top">
-        <div className="sp-wizard__top-inner">
-          <Steps current={current} total={WIZARD_TOTAL} label={stepLabel(step)} />
-          <Link className="sp-btn sp-btn--ghost sp-btn--sm" href={exitHref}>
-            {exitLabel}
-          </Link>
-        </div>
-      </div>
-
       <main className="sp-wizard__body" id="contenu">
         <div className="sp-ask">
           <span className="sp-ask__step">
@@ -66,14 +66,22 @@ export function WizardShell({
 
       <div className="sp-wizard__foot">
         <div className="sp-wizard__foot-inner">
-          {backHref ? (
-            <Link className="sp-btn sp-btn--ghost" href={backHref}>
-              Retour
+          <div className="sp-wizard__foot-progress">
+            <Steps current={current} total={WIZARD_TOTAL} label={label} />
+            <Link className="sp-btn sp-btn--ghost sp-btn--sm" href={exitHref}>
+              {exitLabel}
             </Link>
-          ) : (
-            <span />
-          )}
-          {footer}
+          </div>
+
+          <div className="sp-wizard__foot-back">
+            {backHref ? (
+              <Link className="sp-btn sp-btn--ghost" href={backHref}>
+                Retour
+              </Link>
+            ) : null}
+          </div>
+
+          <div className="sp-wizard__foot-next">{footer}</div>
         </div>
       </div>
     </div>

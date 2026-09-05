@@ -46,6 +46,17 @@ function draft(schema: SurveySchema): SurveyDraft {
 
 const saved = () => Promise.resolve({ ok: true as const });
 
+/**
+ * Va à une étape de l'éditeur comme le ferait un utilisateur : par la liste
+ * d'étapes. Aucune propriété de test n'est ajoutée au composant pour cela —
+ * un accès réservé aux tests ne prouverait rien du chemin réel.
+ */
+async function goToStep(user: ReturnType<typeof userEvent.setup>, label: string) {
+  // Le numéro d'étape est `aria-hidden` : il repère visuellement, il n'a pas
+  // à être annoncé avant le nom de l'étape.
+  await user.click(screen.getByRole('button', { name: label }));
+}
+
 describe('accessibilité de l’éditeur visuel', () => {
   it.each(SURVEY_TEMPLATES.map((template) => [template.name, template.key] as const))(
     'ne signale aucune violation avec le modèle « %s »',
@@ -68,6 +79,7 @@ describe('accessibilité de l’éditeur visuel', () => {
     // initial d'un formulaire vierge, celui qu'il faut pouvoir éditer.
     expect(empty.ok).toBe(false);
 
+    const user = userEvent.setup();
     const { container } = render(
       <SurveyBuilder
         surveyId="00000000-0000-4000-8000-000000000001"
@@ -76,6 +88,9 @@ describe('accessibilité de l’éditeur visuel', () => {
         onSave={saved}
       />,
     );
+    await expectNoA11yViolations(container);
+
+    await goToStep(user, 'Questions');
     await expectNoA11yViolations(container);
     expect(screen.getByText(/Aucune question pour l’instant/)).toBeTruthy();
   });
@@ -93,17 +108,20 @@ describe('manipulation au clavier', () => {
       />,
     );
 
+    await goToStep(user, 'Questions');
     await user.click(screen.getByRole('button', { name: 'Ajouter une étape' }));
     expect(screen.getByRole('heading', { name: 'Étape 1' })).toBeTruthy();
     // Une étape neuve arrive avec une première question : un écran d'étape
     // vide n'aurait rien à montrer.
     expect(screen.getAllByRole('button', { name: /^Supprimer la question/ })).toHaveLength(1);
 
-    await user.selectOptions(
-      screen.getByLabelText('Ajouter une question'),
-      'email',
+    // Le TYPE est choisi d'abord : c'est ce qui détermine la question, et le
+    // changer après coup orphelinerait les réponses déjà reçues.
+    await user.click(screen.getByRole('button', { name: 'Ajouter une question' }));
+    expect(screen.getByRole('group', { name: 'Quel type de question ?' })).toBeTruthy();
+    await user.click(
+      screen.getByRole('button', { name: /^Adresse électronique/ }),
     );
-    await user.click(screen.getByRole('button', { name: 'Ajouter' }));
 
     // La question apparaît avec son type annoncé, et avec des commandes
     // nommées — pas une zone de saisie sans identité dans la page.
@@ -122,6 +140,7 @@ describe('manipulation au clavier', () => {
       />,
     );
 
+    await goToStep(user, 'Questions');
     const before = screen.getAllByRole('button', { name: /^Descendre/ });
     expect(before.length).toBeGreaterThan(0);
     await user.click(before[0]!);
@@ -132,6 +151,52 @@ describe('manipulation au clavier', () => {
     expect(
       screen.queryAllByRole('button', { name: /^Supprimer la question/ }).length,
     ).toBe(countBefore - 1);
+  });
+
+  it('refuse de quitter une étape dont un champ obligatoire est mal rempli, et désigne lequel', async () => {
+    const user = userEvent.setup();
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={{ ...draft(schemaOf('needs_survey')), title: '' }}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Continuer' }));
+
+    // On reste sur l'étape, le champ fautif est signalé ET reçoit le focus :
+    // « certains champs sont invalides » sur un écran qui en compte six
+    // laisse chercher lequel.
+    const title = screen.getByLabelText(/^Titre/);
+    expect(title).toHaveFocus();
+    expect(title.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText('Indiquez un titre d’au moins deux caractères.')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Identité' }).getAttribute('aria-current'),
+    ).toBe('step');
+  });
+
+  it('laisse repartir en arrière même depuis une étape incomplète', async () => {
+    // Revenir n'aggrave rien : bloquer le retour enfermerait l'utilisateur
+    // dans l'étape qu'il n'arrive pas à remplir.
+    const user = userEvent.setup();
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={draft(schemaOf('needs_survey'))}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    await goToStep(user, 'Questions');
+    await user.clear(screen.getAllByLabelText(/^Titre de l’étape/)[0]!);
+    await user.click(screen.getByRole('button', { name: 'Retour' }));
+    expect(
+      screen.getByRole('button', { name: 'Identité' }).getAttribute('aria-current'),
+    ).toBe('step');
   });
 
   it('annonce l’échec d’un enregistrement au lieu de le taire', async () => {
@@ -160,10 +225,11 @@ describe('manipulation au clavier', () => {
     expect(alerts[0]!.textContent).toContain('La finalité est obligatoire.');
   });
 
-  it('empêche de publier un formulaire incomplet, et dit ce qui manque', () => {
+  it('empêche de publier un formulaire incomplet, et dit ce qui manque', async () => {
     // Le brouillon de test n'a ni finalité, ni base légale, ni durée : le
     // bouton reste inerte, mais l'écran énumère les manques AVANT le clic —
     // les découvrir après avoir cliqué fait perdre le geste.
+    const user = userEvent.setup();
     render(
       <SurveyBuilder
         surveyId="00000000-0000-4000-8000-000000000001"
@@ -173,15 +239,23 @@ describe('manipulation au clavier', () => {
       />,
     );
 
-    const publish: HTMLButtonElement = screen.getByRole('button', { name: 'Publier' });
+    await goToStep(user, 'Publication');
+
+    const publish: HTMLButtonElement = screen.getByRole('button', {
+      name: 'Publier le formulaire',
+    });
     expect(publish.disabled).toBe(true);
     expect(screen.getByText('Avant de pouvoir publier')).toBeTruthy();
-    expect(screen.getByText('La finalité de la collecte')).toBeTruthy();
-    expect(screen.getByText('La base légale')).toBeTruthy();
-    expect(screen.getByText('La durée de conservation')).toBeTruthy();
+    // Chaque manque est un bouton qui CONDUIT à l'étape où le corriger.
+    expect(
+      screen.getByRole('button', { name: 'La finalité de la collecte' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'La base légale' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'La durée de conservation' })).toBeTruthy();
   });
 
-  it('autorise la publication dès que tout est renseigné', () => {
+  it('autorise la publication dès que tout est renseigné', async () => {
+    const user = userEvent.setup();
     render(
       <SurveyBuilder
         surveyId="00000000-0000-4000-8000-000000000001"
@@ -196,12 +270,17 @@ describe('manipulation au clavier', () => {
       />,
     );
 
-    const publish: HTMLButtonElement = screen.getByRole('button', { name: 'Publier' });
+    await goToStep(user, 'Publication');
+
+    const publish: HTMLButtonElement = screen.getByRole('button', {
+      name: 'Publier le formulaire',
+    });
     expect(publish.disabled).toBe(false);
     expect(screen.getByText('Prêt à publier')).toBeTruthy();
   });
 
-  it('exige aussi la date quand c’est un événement', () => {
+  it('exige aussi la date quand c’est un événement', async () => {
+    const user = userEvent.setup();
     render(
       <SurveyBuilder
         surveyId="00000000-0000-4000-8000-000000000001"
@@ -217,8 +296,12 @@ describe('manipulation au clavier', () => {
       />,
     );
 
+    await goToStep(user, 'Publication');
+
     expect(screen.getByText('La date de l’événement')).toBeTruthy();
-    const publish: HTMLButtonElement = screen.getByRole('button', { name: 'Publier' });
+    const publish: HTMLButtonElement = screen.getByRole('button', {
+      name: 'Publier le formulaire',
+    });
     expect(publish.disabled).toBe(true);
   });
 });

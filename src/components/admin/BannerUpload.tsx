@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { Field } from '@/components/ui/Field';
 import { publicEnv } from '@/lib/config/env';
 import {
+  BANNER_ASPECT_LABEL,
   BANNER_MAX_BYTES,
   BANNER_MIME_TYPES,
   bannerNonce,
@@ -11,6 +12,7 @@ import {
   bannerPublicUrl,
   checkBanner,
 } from '@/lib/event/banner';
+import { BannerFrame } from '@/components/ui/BannerFrame';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 /**
@@ -94,18 +96,13 @@ export function BannerUpload({
 
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '0.75rem' } as React.CSSProperties}>
-      {previewUrl ? (
-        // Bannière décorative : le titre de l'événement porte déjà
-        // l'information, un texte alternatif la répéterait au lecteur d'écran.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img alt="" className="sp-banner-preview" src={previewUrl} />
-      ) : null}
+      {previewUrl ? <BannerFrame url={previewUrl} variant="preview" /> : null}
 
       <div className="sp-file-field">
         <Field
           id={`${id}-fichier`}
           label="Bannière de l’événement"
-          hint={`JPEG, PNG, WebP ou AVIF, ${MAX_MIB} Mio au maximum.`}
+          hint={`JPEG, PNG, WebP ou AVIF, ${MAX_MIB} Mio au maximum. Format conseillé : ${BANNER_ASPECT_LABEL} — une image à ce format s’affiche entière, une autre est recadrée au centre.`}
           error={error}
         >
           {(attributes) => (

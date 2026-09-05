@@ -76,7 +76,8 @@ const SURVEY_COLUMNS =
   'created_at, updated_at';
 
 const LIST_COLUMNS =
-  'id, slug, title, kind, status, module_key, published_at, closes_at, updated_at, created_at';
+  'id, slug, title, kind, status, module_key, banner_path, published_at, closes_at, ' +
+  'updated_at, created_at';
 
 export interface SurveySummary {
   id: string;
@@ -85,6 +86,8 @@ export interface SurveySummary {
   kind: 'survey' | 'event';
   status: 'draft' | 'published' | 'closed';
   module_key: string;
+  /** Bannière de l'événement, pour la miniature de la liste. */
+  banner_path: string | null;
   published_at: string | null;
   closes_at: string | null;
   updated_at: string;

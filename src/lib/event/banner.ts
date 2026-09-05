@@ -26,6 +26,19 @@ export const BANNER_MIME_TYPES = [
   'image/avif',
 ] as const;
 
+/**
+ * Format de référence des visuels, tel que fourni par le client
+ * (1200 × 704 pixels, soit un rapport d'environ 1,70:1).
+ *
+ * Il n'est pas IMPOSÉ : une image d'un autre rapport est acceptée et recadrée
+ * au centre. Il est ANNONCÉ, pour que l'organisation puisse fournir une image
+ * qui s'affichera entière — ce que ni un recadrage automatique ni un message
+ * d'erreur ne remplacent.
+ */
+export const BANNER_WIDTH = 1200;
+export const BANNER_HEIGHT = 704;
+export const BANNER_ASPECT_LABEL = `${BANNER_WIDTH} × ${BANNER_HEIGHT} pixels`;
+
 /** Taille maximale, en octets. Doit rester alignée sur `file_size_limit`. */
 export const BANNER_MAX_BYTES = 3 * 1024 * 1024;
 

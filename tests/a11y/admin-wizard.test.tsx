@@ -92,16 +92,26 @@ describe('coquille du parcours', () => {
     const user = userEvent.setup();
     render(<Screen />);
 
-    // Ordre attendu : sortie, champ, puis navigation basse. L'avancement n'est
-    // pas focusable — c'est une indication, pas une commande.
-    await user.tab();
-    expect(screen.getByRole('link', { name: 'Terminer plus tard' })).toHaveFocus();
+    // La question d'abord, la navigation ensuite : c'est l'ordre de lecture,
+    // et il place la réponse à un clavier de distance. L'avancement n'est pas
+    // focusable — c'est une indication, pas une commande.
     await user.tab();
     expect(screen.getByLabelText(/À quoi servent les réponses/)).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('link', { name: 'Terminer plus tard' })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('link', { name: 'Retour' })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('button', { name: 'Continuer' })).toHaveFocus();
+  });
+
+  it('ne rend qu’UNE barre de progression et un seul lien de sortie', () => {
+    render(<Screen />);
+    // Un exemplaire masqué par CSS resterait un second contrôle interactif :
+    // il faut le maintenir, et il réapparaît si la feuille de style n'arrive
+    // pas.
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: 'Terminer plus tard' })).toHaveLength(1);
   });
 });
 

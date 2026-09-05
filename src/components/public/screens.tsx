@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@/components/ui/Alert';
+import { BannerFrame } from '@/components/ui/BannerFrame';
 import { fr } from '@/lib/i18n/fr';
 import type { ConsentNotice } from '@/lib/survey/consent';
 
@@ -36,24 +37,16 @@ export function WelcomeScreen({
 }) {
   return (
     <div className="sp-screen sp-screen--welcome">
-      {branding.bannerUrl ? (
-        // `next/image` ferait transiter la bannière de CHAQUE organisation par
-        // l'optimiseur de Vercel, dont le coût est facturé à l'usage : sur une
-        // plateforme revendable, cela croît avec le nombre de clients. Les
-        // bannières sont servies par le CDN de Storage et bornées à
-        // l'envoi (étape 7). Dimensions déclarées pour éviter le décalage de
-        // mise en page, chargement paresseux, décodage asynchrone.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          className="sp-banner"
-          src={branding.bannerUrl}
-          alt=""
-          width={1200}
-          height={400}
-          loading="lazy"
-          decoding="async"
-        />
-      ) : null}
+      {/* Même cadre que l'aperçu de l'éditeur et que la miniature de la liste
+          (`BannerFrame`) : l'organisation voit exactement ce que verra le
+          répondant. Le rapport de forme est réservé en CSS, donc la page ne
+          saute pas quand l'image arrive.
+
+          `next/image` est écarté : il ferait transiter la bannière de CHAQUE
+          organisation par l'optimiseur de Vercel, facturé à l'usage — sur une
+          plateforme revendable, le coût croît avec le nombre de clients. Les
+          bannières sont servies par le CDN de Storage et bornées à l'envoi. */}
+      {branding.bannerUrl ? <BannerFrame url={branding.bannerUrl} lazy /> : null}
 
       <div className="sp-screen__body">
         <div className="sp-brandline">

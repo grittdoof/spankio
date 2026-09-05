@@ -95,10 +95,17 @@ export default async function InformationsStepPage({
           {(attributes) => (
             <textarea
               {...attributes}
+              // `required` et `minLength` : le navigateur signale et met le
+              // focus sur le champ AVANT tout aller-retour serveur. Le
+              // contrôle serveur reste la seule barrière — celui-ci n'existe
+              // que pour dire tout de suite lequel remplir.
+              autoFocus={errorCode === 'purpose'}
               className="sp-textarea"
               defaultValue={survey.value.purpose ?? ''}
               maxLength={2000}
+              minLength={10}
               name="purpose"
+              required
               rows={3}
             />
           )}
@@ -129,11 +136,13 @@ export default async function InformationsStepPage({
                 <li key={basis}>
                   <label className="sp-pick">
                     <input
+                      autoFocus={errorCode === 'legalBasis' && basis === LEGAL_BASES[0]}
                       defaultChecked={
                         survey.value.legal_basis === basis ||
                         (survey.value.legal_basis === null && basis === 'consent')
                       }
                       name="legalBasis"
+                      required
                       type="radio"
                       value={basis}
                     />
@@ -158,9 +167,11 @@ export default async function InformationsStepPage({
           {(attributes) => (
             <select
               {...attributes}
+              autoFocus={errorCode === 'retentionDays'}
               className="sp-select"
               defaultValue={String(survey.value.retention_days ?? 365)}
               name="retentionDays"
+              required
             >
               {DURATIONS.map((duration) => (
                 <option key={duration.value} value={duration.value}>

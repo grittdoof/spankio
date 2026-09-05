@@ -99,6 +99,10 @@
   --sp-content-w: 44rem; /* colonne de lecture */
   --sp-page-w: 72rem; /* pages d'administration */
   --sp-wizard-w: 38rem; /* une action par écran : colonne étroite */
+
+  /* Ratio des visuels d'événement, calé sur les invitations fournies
+     (1200 × 704). Un seul endroit à changer si le format évolue. */
+  --sp-banner-ratio: 1200 / 704;
 }
 
 /* Thème sombre présent mais NON câblé sur prefers-color-scheme (light-first).
@@ -1127,11 +1131,33 @@ video {
   margin-top: 0.75rem;
 }
 
-.sp-banner {
+/* Bannière d'événement.
+
+   UN SEUL jeu de règles pour l'aperçu d'administration, la miniature de la
+   liste et le rendu public : trois cadrages différents donneraient trois
+   images différentes, et l'organisation ne saurait pas ce que voit le
+   répondant.
+
+   Le ratio de référence est celui des visuels d'invitation fournis
+   (1200 × 704, soit ~1,70:1). `aspect-ratio` réserve la place AVANT le
+   chargement — sans lui, la page saute au moment où l'image arrive. Une image
+   à ce ratio s'affiche entière ; une image plus haute ou plus large est
+   recadrée au centre plutôt que déformée. */
+.sp-banner-frame {
+  display: block;
   width: 100%;
-  max-height: 18rem;
-  object-fit: cover;
+  aspect-ratio: var(--sp-banner-ratio);
+  overflow: hidden;
   border-radius: var(--sp-radius-lg);
+  background: var(--sp-surface-muted);
+}
+
+.sp-banner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .sp-brandline {
@@ -1568,8 +1594,13 @@ video {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: var(--sp-space-5);
+}
+
+/* La zone de texte prend la place restante, pour que la miniature ne pousse
+   pas les actions hors de la rangée. */
+.sp-survey-row__main {
+  flex: 1 1 14rem;
 }
 
 .sp-stat-grid {
@@ -1701,12 +1732,23 @@ summary.sp-btn::-webkit-details-marker {
   box-shadow: var(--sp-ring);
 }
 
-.sp-banner-preview {
-  display: block;
-  width: 100%;
-  max-height: 14rem;
+/* Aperçu dans l'éditeur : même cadre, rayon plus discret. */
+.sp-banner-frame--preview {
   border-radius: var(--sp-radius);
-  object-fit: cover;
+}
+
+/* Miniature de la liste des formulaires. Largeur fixe, même ratio : les
+   rangées restent alignées quelles que soient les images téléversées. */
+.sp-banner-frame--thumb {
+  flex: 0 0 auto;
+  width: 7.5rem;
+  border-radius: var(--sp-radius-sm);
+}
+
+@media (max-width: 40rem) {
+  .sp-banner-frame--thumb {
+    width: 100%;
+  }
 }
 
 .sp-file-field input[type='file'] {
@@ -1974,11 +2016,11 @@ summary.sp-btn::-webkit-details-marker {
 
 .sp-tip__bubble {
   position: absolute;
-  z-index: 20;
+  z-index: 40;
   bottom: calc(100% + var(--sp-space-2));
   left: 50%;
   width: max-content;
-  max-width: min(20rem, 70vw);
+  max-width: min(20rem, calc(100vw - 2 * var(--sp-space-5)));
   padding: var(--sp-space-3) var(--sp-space-4);
   transform: translateX(-50%);
   border-radius: var(--sp-radius-sm);
@@ -2002,26 +2044,6 @@ summary.sp-btn::-webkit-details-marker {
   min-height: 100dvh;
 }
 
-.sp-wizard__top {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  padding: var(--sp-space-4) var(--sp-space-5);
-  padding-top: max(var(--sp-space-4), env(safe-area-inset-top));
-  background: color-mix(in oklab, var(--sp-surface) 88%, transparent);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--sp-border);
-}
-
-.sp-wizard__top-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-space-4);
-  max-width: var(--sp-page-w);
-  margin-inline: auto;
-}
-
 .sp-wizard__body {
   flex: 1;
   width: 100%;
@@ -2037,9 +2059,18 @@ summary.sp-btn::-webkit-details-marker {
   }
 }
 
+/* UNE seule barre, en bas, sur TOUS les écrans : avancement, sortie, retour,
+   action suivante.
+
+   Pourquoi pas d'avancement en haut : deux barres collantes prennent près
+   d'un tiers de la hauteur utile d'un téléphone, et l'avancement se retrouve
+   loin du bouton qui le fait avancer. Tout regrouper évite aussi de dupliquer
+   la barre de progression et le lien de sortie dans le DOM — un exemplaire
+   masqué par CSS reste un second contrôle interactif à maintenir. */
 .sp-wizard__foot {
   position: sticky;
   bottom: 0;
+  z-index: 20;
   padding: var(--sp-space-4) var(--sp-space-5);
   padding-bottom: max(var(--sp-space-4), env(safe-area-inset-bottom));
   background: color-mix(in oklab, var(--sp-surface) 92%, transparent);
@@ -2048,12 +2079,51 @@ summary.sp-btn::-webkit-details-marker {
 }
 
 .sp-wizard__foot-inner {
+  display: grid;
+  grid-template-areas: 'progress back next';
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--sp-space-4);
+  max-width: var(--sp-page-w);
+  margin-inline: auto;
+}
+
+.sp-wizard__foot-progress {
+  grid-area: progress;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sp-space-4);
-  max-width: var(--sp-wizard-w);
-  margin-inline: auto;
+  min-width: 0;
+}
+
+.sp-wizard__foot-back {
+  grid-area: back;
+}
+
+.sp-wizard__foot-next {
+  grid-area: next;
+}
+
+/* Sous 48rem, la barre se replie en deux rangées : l'avancement au-dessus,
+   la navigation en dessous. L'action principale prend toute la largeur
+   restante — c'est la cible la plus souvent visée, et la plus facile à
+   manquer au pouce. */
+@media (max-width: 48rem) {
+  .sp-wizard__foot-inner {
+    grid-template-areas:
+      'progress progress'
+      'back next';
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--sp-space-3) var(--sp-space-3);
+  }
+
+  .sp-wizard__foot-next {
+    justify-self: stretch;
+  }
+
+  .sp-wizard__foot-next > .sp-btn {
+    width: 100%;
+  }
 }
 
 /* Barre de progression. La valeur est TOUJOURS écrite à côté : une barre
@@ -2506,4 +2576,189 @@ summary.sp-btn::-webkit-details-marker {
 .sp-stat--lead .sp-stat__label {
   color: var(--sp-accent-text);
   font-weight: 600;
+}
+
+/* Sous 40rem, la bulle d'aide devient une feuille ancrée en bas de l'écran.
+
+   Raison : une bulle positionnée au-dessus de son déclencheur dépend de la
+   place disponible à gauche et à droite de celui-ci. Près d'un bord, elle
+   sort de l'écran — et sur un téléphone tout est près d'un bord. Aucune règle
+   CSS ne peut recentrer un élément absolu en fonction de la position de son
+   ancre ; on change donc d'ancrage plutôt que de bricoler un décalage. */
+@media (max-width: 40rem) {
+  .sp-tip__bubble {
+    position: fixed;
+    inset: auto var(--sp-space-4) max(var(--sp-space-4), env(safe-area-inset-bottom))
+      var(--sp-space-4);
+    width: auto;
+    max-width: none;
+    transform: none;
+    animation: sp-sheet-up var(--sp-motion) var(--sp-ease-out);
+  }
+}
+
+@keyframes sp-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Manque cliquable : il conduit à l'étape où le corriger. */
+.sp-todo__jump {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sp-accent-text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.sp-todo__jump:hover {
+  color: var(--sp-marine);
+}
+
+.sp-recap__url {
+  overflow-wrap: anywhere;
+  color: var(--sp-accent-text);
+  font-size: var(--sp-text-sm);
+}
+
+/* Choix du type de question : des cibles nommées et décrites, pas une liste
+   déroulante où le type se choisit à l'aveugle. */
+.sp-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--sp-space-3);
+  margin: 0 0 var(--sp-space-4);
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 30rem) {
+  .sp-types {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sp-type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-1);
+  width: 100%;
+  height: 100%;
+  min-height: var(--sp-tap);
+  padding: var(--sp-space-4);
+  border: 1px solid var(--sp-border-strong);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--sp-motion-fast) var(--sp-ease),
+    background-color var(--sp-motion-fast) var(--sp-ease),
+    transform var(--sp-motion-fast) var(--sp-ease);
+}
+
+.sp-type:hover {
+  border-color: var(--sp-accent);
+  background: var(--sp-accent-light);
+}
+
+.sp-type:active {
+  transform: translateY(1px);
+}
+
+.sp-type:focus-visible {
+  outline: 2px solid var(--sp-accent);
+  outline-offset: 2px;
+}
+
+.sp-type__name {
+  color: var(--sp-marine);
+  font-weight: 600;
+}
+
+.sp-type__desc {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  line-height: 1.45;
+}
+
+/* Navigation par étapes de l'éditeur. Cliquable, contrairement à la barre de
+   progression du parcours de création : en édition on revient sans cesse sur
+   une étape déjà faite, et imposer un ordre linéaire coûterait plus qu'il ne
+   guide. */
+.sp-editor-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-space-2);
+  margin: 0 0 var(--sp-space-6);
+  padding: 0;
+  list-style: none;
+  counter-reset: none;
+}
+
+.sp-editor-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-space-2);
+  min-height: 38px;
+  padding: 0 var(--sp-space-4) 0 var(--sp-space-2);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface);
+  color: var(--sp-text-muted);
+  font: inherit;
+  font-size: var(--sp-text-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--sp-motion-fast) var(--sp-ease),
+    background-color var(--sp-motion-fast) var(--sp-ease),
+    color var(--sp-motion-fast) var(--sp-ease);
+}
+
+.sp-editor-step:hover {
+  border-color: var(--sp-accent);
+  color: var(--sp-accent-text);
+}
+
+.sp-editor-step[aria-current='step'] {
+  border-color: transparent;
+  background: var(--sp-accent);
+  color: var(--sp-on-accent);
+  font-weight: 600;
+}
+
+.sp-editor-step__num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--sp-surface-muted);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+}
+
+.sp-editor-step[aria-current='step'] .sp-editor-step__num {
+  background: color-mix(in oklab, #ffffff 26%, transparent);
+  color: var(--sp-on-accent);
+}
+
+@media (pointer: coarse) {
+  .sp-editor-step {
+    min-height: var(--sp-tap);
+  }
 }

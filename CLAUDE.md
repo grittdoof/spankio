@@ -152,6 +152,45 @@ changer.
   par Échap (WCAG 1.4.13), dont la zone cliquable atteint 44px par
   pseudo-élément alors que le dessin reste à 28px — un « ? » de 44px
   dominerait l'intitulé qu'il accompagne.
+- **L'édition est guidée elle aussi**, en quatre étapes (identité, questions,
+  informations, publication). Son état vit côté CLIENT et non dans l'URL,
+  contrairement à la création : l'édition ne s'enregistre qu'au bouton
+  « Enregistrer », et un changement d'étape qui rechargerait la page perdrait
+  le brouillon en cours de saisie.
+- **On ne quitte pas une étape dont un champ obligatoire est mal rempli — mais
+  revenir est toujours libre**, et on peut sauter à n'importe quelle étape
+  suivante dès lors que celle qu'on quitte est valide. Sans cette liberté,
+  l'écran de publication resterait inatteignable tant qu'une mention manque,
+  et sa liste des manques ne servirait à rien.
+- **Un refus DÉSIGNE le champ** : message en ligne, focus posé dessus, champ
+  ramené dans la vue. « Certains champs sont invalides » sur un écran qui en
+  compte six laisse chercher lequel. Et la liste des messages n'est énumérée
+  dans l'alerte que si les champs concernés ne sont PAS sous les yeux — sinon
+  la même phrase se lit deux fois.
+- **Le type d'une question se choisit d'abord**, sur des cibles nommées et
+  décrites, jamais dans une liste déroulante. Le type détermine ce qu'on peut
+  saisir, ce qui est validé et ce qui sort à l'export ; et comme le changer
+  après coup orphelinerait les réponses reçues, se tromper coûte une
+  suppression suivie d'une recréation.
+- **Un seul cadrage de bannière** (`BannerFrame`) pour l'aperçu de l'éditeur,
+  la miniature de la liste et le rendu public : trois cadrages donneraient
+  trois images, et l'organisation ne saurait pas ce que voit le répondant. Le
+  format de référence (1200 × 704) est ANNONCÉ, pas imposé — une autre image
+  est recadrée au centre. Un test vérifie que le ratio CSS et les dimensions
+  annoncées en TypeScript concordent : sinon le conseil donné contredirait le
+  rendu.
+- **Une seule barre de parcours, en bas, sur tous les écrans.** Deux barres
+  collantes prennent près d'un tiers de la hauteur utile d'un téléphone, et
+  l'avancement se retrouve loin du bouton qui le fait avancer. Tout regrouper
+  évite aussi de dupliquer la barre de progression et le lien de sortie dans
+  le DOM — un exemplaire masqué par CSS reste un second contrôle interactif,
+  qui réapparaît si la feuille de style n'arrive pas.
+- **Sous 40rem, l'aide contextuelle devient une feuille ancrée en bas.** Une
+  bulle placée au-dessus de son déclencheur dépend de la place disponible de
+  part et d'autre ; près d'un bord elle sort de l'écran, et sur un téléphone
+  tout est près d'un bord. Aucune règle CSS ne peut recentrer un élément
+  absolu selon la position de son ancre : on change donc d'ancrage plutôt que
+  de bricoler un décalage. Mesuré à 375 px ET à 320 px.
 - **L'état d'un parcours guidé vit dans l'URL**, jamais en session : le
   parcours survit à un rafraîchissement, le bouton « retour » du navigateur
   fait ce qu'on attend, et chaque écran reste un `<form action>` — donc

@@ -2,11 +2,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
+import { BannerFrame } from '@/components/ui/BannerFrame';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { canWriteSurveys, loadAdminSession } from '@/lib/admin/session';
 import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
+import { bannerPublicUrl } from '@/lib/event/banner';
 import { fr } from '@/lib/i18n/fr';
 import { listSurveys, type SurveySummary } from '@/lib/services/surveys';
 
@@ -65,7 +67,9 @@ export default async function SurveysPage({
   if (!surveys.ok) return <Alert tone="error">{fr.errors.unexpected}</Alert>;
 
   const writable = canWriteSurveys(session);
-  const siteUrl = publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+  const env = publicEnv();
+  const siteUrl = env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const okCode = typeof params['ok'] === 'string' ? params['ok'] : undefined;
   const errorCode = typeof params['erreur'] === 'string' ? params['erreur'] : undefined;
 
@@ -111,6 +115,17 @@ export default async function SurveysPage({
             return (
               <li className="sp-card sp-card--link" key={survey.id}>
                 <div className="sp-survey-row">
+                  {/* Miniature au MÊME cadrage que l'aperçu de l'éditeur et
+                      que le rendu public : la liste montre ce que verront les
+                      répondants, pas une variante. */}
+                  {survey.banner_path ? (
+                    <BannerFrame
+                      lazy
+                      url={bannerPublicUrl(supabaseUrl, survey.banner_path)}
+                      variant="thumb"
+                    />
+                  ) : null}
+
                   <div className="sp-survey-row__main">
                     <h2 className="sp-card__title">
                       <Link href={`/admin/sondages/${survey.id}`}>{survey.title}</Link>

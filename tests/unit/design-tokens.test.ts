@@ -7,6 +7,7 @@ import {
   oklchToHex,
   parseOklch,
 } from '@/lib/design/color';
+import { BANNER_ASPECT_LABEL, BANNER_HEIGHT, BANNER_WIDTH } from '@/lib/event/banner';
 import {
   BRAND_HEX,
   CONTRAST_REQUIREMENTS,
@@ -142,6 +143,37 @@ describe('globals.css est aligné sur la charte', () => {
  * famille entière de ce défaut — tout défaut d'élément portant une couleur
  * doit être enveloppé dans `:where()`, donc de spécificité nulle.
  */
+describe('bannière : le format annoncé est celui qui est rendu', () => {
+  it('exprime le ratio CSS avec les dimensions déclarées en TypeScript', () => {
+    // L'aide affichée à l'organisation annonce « 1200 × 704 pixels ». Si le
+    // ratio CSS dérivait de ces valeurs, le conseil donné contredirait le
+    // rendu : une image au format conseillé serait recadrée.
+    expect(tokenValue('--sp-banner-ratio')).toBe(`${BANNER_WIDTH} / ${BANNER_HEIGHT}`);
+    expect(BANNER_ASPECT_LABEL).toBe(`${BANNER_WIDTH} × ${BANNER_HEIGHT} pixels`);
+  });
+
+  it('réserve la place avant le chargement de l’image', () => {
+    // Sans `aspect-ratio` sur le cadre, la page saute au moment où l'image
+    // arrive — sur une connexion lente, le contenu bouge sous le doigt.
+    expect(css).toMatch(
+      /\.sp-banner-frame \{[\s\S]*?aspect-ratio: var\(--sp-banner-ratio\)/,
+    );
+  });
+
+  it('recadre sans déformer, quelles que soient les dimensions reçues', () => {
+    expect(css).toMatch(/\.sp-banner \{[\s\S]*?object-fit: cover/);
+    expect(css).toMatch(/\.sp-banner \{[\s\S]*?object-position: center/);
+  });
+
+  it('déclare les trois variantes de cadre du même système', () => {
+    // Aperçu de l'éditeur, miniature de la liste, rendu public : un seul
+    // cadrage, trois tailles.
+    for (const variant of ['--preview', '--thumb']) {
+      expect(css).toContain(`.sp-banner-frame${variant}`);
+    }
+  });
+});
+
 describe('cascade : les composants l’emportent sur les défauts d’élément', () => {
   /** Règles de premier niveau, `@media` aplaties. */
   const rules = (() => {
