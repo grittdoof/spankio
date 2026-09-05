@@ -142,10 +142,24 @@ function optionLabels(schema: SurveySchema): Map<string, Map<string, string>> {
 }
 
 export interface ExportableResponse {
-  readonly submitted_at: string;
+  /**
+   * Horodatage tel qu'il sort de la base. Le type accepte `Date` autant que
+   * `string` parce que les deux adaptateurs du port DIVERGENT : PostgREST
+   * renvoie une chaîne ISO, un pilote PostgreSQL direct un objet `Date`.
+   * Prétendre que c'est toujours une chaîne produisait un export qui
+   * fonctionnait en production et cassait en test.
+   */
+  readonly submitted_at: string | Date;
   readonly consent_given: boolean;
   readonly consent_text: string | null;
   readonly data: Readonly<Record<string, unknown>>;
+}
+
+/** Horodatage normalisé en ISO 8601, quelle que soit sa forme d'origine. */
+export function toIsoString(value: string | Date | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString();
+  return value;
 }
 
 function renderValue(
@@ -167,17 +181,18 @@ function renderValue(
 }
 
 /**
- * Construit le CSV complet d'un sondage.
+ * Réponses mises à plat en tableau de chaînes, en-tête compris.
  *
- * Les libellés du schéma sont exportés plutôt que les valeurs techniques :
- * l'export est destiné à être lu par une personne. Les valeurs restent
- * disponibles telles quelles dans l'export JSON.
+ * Extrait de la génération CSV pour que le tableau de bord affiche les mêmes
+ * colonnes, dans le même ordre, avec les mêmes libellés que l'export : deux
+ * mises en forme distinctes finiraient par diverger, et l'écran montrerait
+ * autre chose que le fichier téléchargé.
  */
-export function responsesToCsv(
+export function responseRows(
   schema: SurveySchema,
   responses: readonly ExportableResponse[],
   options: CsvOptions = {},
-): string {
+): string[][] {
   const multiValueSeparator = options.multiValueSeparator ?? ' | ';
   const columns = exportColumns(schema);
   const labels = optionLabels(schema);
@@ -189,7 +204,7 @@ export function responsesToCsv(
       columns.map((column) => {
         switch (column.key) {
           case '__submitted_at':
-            return response.submitted_at;
+            return toIsoString(response.submitted_at);
           case '__consent_given':
             return response.consent_given ? 'Oui' : 'Non';
           case '__consent_text':
@@ -211,7 +226,22 @@ export function responsesToCsv(
     );
   }
 
-  return toCsv(rows, options);
+  return rows;
+}
+
+/**
+ * Construit le CSV complet d'un sondage.
+ *
+ * Les libellés du schéma sont exportés plutôt que les valeurs techniques :
+ * l'export est destiné à être lu par une personne. Les valeurs restent
+ * disponibles telles quelles dans l'export JSON.
+ */
+export function responsesToCsv(
+  schema: SurveySchema,
+  responses: readonly ExportableResponse[],
+  options: CsvOptions = {},
+): string {
+  return toCsv(responseRows(schema, responses, options), options);
 }
 
 /** Nom de fichier proposé : ASCII, daté, sans espace. */

@@ -1,0 +1,218 @@
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AdminNav } from '@/components/admin/AdminNav';
+import { FieldEditor } from '@/components/admin/FieldEditor';
+import { StatisticsPanel } from '@/components/admin/StatisticsPanel';
+import { SurveyBuilder, type SurveyDraft } from '@/components/admin/SurveyBuilder';
+import { SURVEY_TEMPLATES, templateByKey } from '@/lib/event/templates';
+import { computeStatistics } from '@/lib/survey/statistics';
+import { validateSurveySchema, type SurveyField, type SurveySchema } from '@/lib/survey/schema';
+import { expectNoA11yViolations } from '../helpers/axe';
+
+/**
+ * Accessibilité de l'espace d'administration.
+ *
+ * L'éditeur visuel est l'écran le plus dense de la plateforme : c'est celui où
+ * un contrôle sans libellé, un bouton sans nom accessible ou une hiérarchie de
+ * titres cassée passerait le plus facilement inaperçu. Il est donc rendu ici
+ * avec un vrai modèle, puis manipulé au clavier.
+ */
+
+vi.mock('next/navigation', () => ({ usePathname: () => '/admin/sondages' }));
+
+function schemaOf(key: string): SurveySchema {
+  const template = templateByKey(key);
+  if (!template) throw new Error(`Modèle « ${key} » introuvable.`);
+  return template.schema;
+}
+
+function draft(schema: SurveySchema): SurveyDraft {
+  return {
+    title: 'Formulaire témoin',
+    slug: 'formulaire-temoin',
+    description: null,
+    status: 'draft',
+    schema,
+    settings: {},
+    purpose: null,
+    legalBasis: null,
+    retentionDays: null,
+    recipients: null,
+    requireConsent: true,
+    dedupField: null,
+  };
+}
+
+const saved = () => Promise.resolve({ ok: true as const });
+
+describe('accessibilité de l’éditeur visuel', () => {
+  it.each(SURVEY_TEMPLATES.map((template) => [template.name, template.key] as const))(
+    'ne signale aucune violation avec le modèle « %s »',
+    async (_name, key) => {
+      const { container } = render(
+        <SurveyBuilder
+          surveyId="00000000-0000-4000-8000-000000000001"
+          initial={draft(schemaOf(key))}
+          publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+          onSave={saved}
+        />,
+      );
+      await expectNoA11yViolations(container);
+    },
+  );
+
+  it('ne signale aucune violation sur un formulaire vide', async () => {
+    const empty = validateSurveySchema({ version: 1, steps: [] });
+    // Un schéma sans étape n'est pas publiable : c'est justement l'état
+    // initial d'un formulaire vierge, celui qu'il faut pouvoir éditer.
+    expect(empty.ok).toBe(false);
+
+    const { container } = render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={{ ...draft(schemaOf('needs_survey')), schema: { version: 1, steps: [] } }}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+    await expectNoA11yViolations(container);
+    expect(screen.getByText(/Aucune question pour l’instant/)).toBeTruthy();
+  });
+});
+
+describe('manipulation au clavier', () => {
+  it('ajoute une étape puis une question sans souris', async () => {
+    const user = userEvent.setup();
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={{ ...draft(schemaOf('needs_survey')), schema: { version: 1, steps: [] } }}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Ajouter une étape' }));
+    expect(screen.getByRole('heading', { name: 'Étape 1' })).toBeTruthy();
+    // Une étape neuve arrive avec une première question : un écran d'étape
+    // vide n'aurait rien à montrer.
+    expect(screen.getAllByRole('button', { name: /^Supprimer la question/ })).toHaveLength(1);
+
+    await user.selectOptions(
+      screen.getByLabelText('Ajouter une question'),
+      'email',
+    );
+    await user.click(screen.getByRole('button', { name: 'Ajouter' }));
+
+    // La question apparaît avec son type annoncé, et avec des commandes
+    // nommées — pas une zone de saisie sans identité dans la page.
+    expect(screen.getByText('Adresse électronique', { selector: '.sp-badge' })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: /^Supprimer la question/ })).toHaveLength(2);
+  });
+
+  it('déplace et supprime une question par des boutons nommés', async () => {
+    const user = userEvent.setup();
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={draft(schemaOf('satisfaction_survey'))}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    const before = screen.getAllByRole('button', { name: /^Descendre/ });
+    expect(before.length).toBeGreaterThan(0);
+    await user.click(before[0]!);
+
+    const removals = screen.getAllByRole('button', { name: /^Supprimer la question/ });
+    const countBefore = screen.getAllByRole('button', { name: /^Supprimer la question/ }).length;
+    await user.click(removals[0]!);
+    expect(
+      screen.queryAllByRole('button', { name: /^Supprimer la question/ }).length,
+    ).toBe(countBefore - 1);
+  });
+
+  it('annonce l’échec d’un enregistrement au lieu de le taire', async () => {
+    const user = userEvent.setup();
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={draft(schemaOf('needs_survey'))}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={() =>
+          Promise.resolve({
+            ok: false as const,
+            fields: { purpose: 'La finalité est obligatoire.' },
+            message: 'Publication impossible',
+          })
+        }
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Publier' }));
+
+    // UNE seule zone d'annonce, qui porte à la fois la cause et le détail.
+    const alerts = await screen.findAllByRole('alert');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]!.textContent).toContain('Publication impossible');
+    expect(alerts[0]!.textContent).toContain('La finalité est obligatoire.');
+  });
+});
+
+describe('accessibilité de l’éditeur de question', () => {
+  it('ne signale aucune violation sur un champ à options', async () => {
+    const schema = schemaOf('satisfaction_survey');
+    const field: SurveyField | undefined = schema.steps
+      .flatMap((step) => step.fields)
+      .find((candidate) => 'options' in candidate);
+    expect(field).toBeDefined();
+
+    const { container } = render(
+      <ul className="sp-list">
+        <FieldEditor
+          field={field!}
+          index={0}
+          count={2}
+          conditionCandidates={[]}
+          onChange={() => {}}
+          onMove={() => {}}
+          onRemove={() => {}}
+        />
+      </ul>,
+    );
+    await expectNoA11yViolations(container);
+  });
+});
+
+describe('accessibilité du tableau de bord', () => {
+  it('ne signale aucune violation sur les agrégats', async () => {
+    const schema = schemaOf('satisfaction_survey');
+    const responses = [
+      { data: {} as Record<string, unknown> },
+      { data: {} as Record<string, unknown> },
+    ];
+    const { container } = render(
+      <StatisticsPanel statistics={computeStatistics(schema, responses)} />,
+    );
+    await expectNoA11yViolations(container);
+  });
+
+  it('ne signale aucune violation sur la navigation latérale', async () => {
+    const { container } = render(
+      <AdminNav
+        items={[
+          { href: '/admin', label: 'Mon espace' },
+          { href: '/admin/sondages', label: 'Formulaires' },
+        ]}
+      />,
+    );
+    await expectNoA11yViolations(container);
+
+    // La page courante est ANNONCÉE, pas seulement surlignée.
+    expect(screen.getByRole('link', { name: 'Formulaires' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+  });
+});

@@ -158,6 +158,18 @@ changer.
 - `FormData.get()` n'est jamais converti directement : il peut renvoyer un
   `File`. Passer par `src/lib/api/form.ts`, qui refuse ce cas au lieu de le
   déguiser en `[object File]`.
+- **Une seule zone d'annonce à la fois.** Deux `role="alert"` simultanés
+  interrompent deux fois le lecteur d'écran pour un même événement, et la
+  seconde interruption écrase souvent la première. L'éditeur regroupe donc la
+  cause et le détail dans une seule alerte.
+- **La valeur d'une option est figée à sa création.** Le libellé se renomme,
+  la valeur non : la modifier orphelinerait silencieusement toutes les
+  réponses déjà enregistrées. L'éditeur l'affiche pour information, jamais en
+  saisie.
+- **Le tableau de bord affiche les colonnes de l'export**, produites par la
+  même fonction (`responseRows`). Seule exception, documentée dans le code :
+  l'horodatage est mis en forme pour une personne à l'écran et reste en
+  ISO 8601 dans le fichier.
 - Les chaînes d'interface vivent dans `src/lib/i18n/fr.ts`. **Exception
   assumée** : la prose longue des pages légales reste dans la page, l'i18n
   étant hors périmètre (R8). Un test de vocabulaire balaye les deux.
@@ -200,7 +212,7 @@ figure, avec sa raison et sa condition de lever.
 | - | -------------- | ------ | ----------- |
 | R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. | Le HMR de Next exige `eval`. | N/A (limite du framework). |
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
-| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert. | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
+| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation), pas les composants serveur qui les assemblent — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
 | R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16. |
@@ -255,7 +267,12 @@ npm run build       # build de production
       écran de consentement, remerciement avec agenda et itinéraire, route de
       soumission publique et fichier ICS. 660 tests dont 28 d'accessibilité sur
       le parcours public.
-- [ ] Étape 6 — builder visuel, tableau de bord, statistiques, exports.
+- [x] Étape 6 — espace d'administration : barre latérale, liste des
+      formulaires, création (vierge ou depuis un modèle), éditeur visuel du
+      schéma, mentions d'information, publication, tableau de bord
+      (agrégats sans aucun contenu de réponse libre), détail des réponses,
+      suppression logique d'une réponse et exports CSV / JSON. 780 tests dont
+      11 d'accessibilité sur l'éditeur et le tableau de bord.
 - [ ] Étape 7 — module événement (bannière, Leaflet, agenda, itinéraire).
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

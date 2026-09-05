@@ -1079,3 +1079,234 @@ textarea {
   margin-bottom: 0.5rem;
   font-size: 1rem;
 }
+
+/* ==========================================================================
+   Espace d'administration
+   ========================================================================== */
+
+.sp-admin {
+  display: grid;
+  grid-template-columns: var(--sp-sidebar-w) 1fr;
+  min-height: 100dvh;
+}
+
+@media (max-width: 60rem) {
+  .sp-admin {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sp-sidebar {
+  padding: 1.5rem 1.25rem;
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  background: var(--sp-surface);
+  border-right: 1px solid var(--sp-border);
+}
+
+.sp-sidebar__brand {
+  display: block;
+  margin-bottom: 1.5rem;
+  color: var(--sp-marine);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sp-sidebar__nav {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.sp-sidebar__link {
+  display: flex;
+  align-items: center;
+  min-height: var(--sp-tap);
+  padding: 0 0.75rem;
+  border-radius: var(--sp-radius-sm);
+  color: var(--sp-text);
+  text-decoration: none;
+  transition: background-color var(--sp-transition);
+}
+
+.sp-sidebar__link:hover {
+  background: var(--sp-accent-light);
+  color: var(--sp-accent-text);
+}
+
+.sp-sidebar__link[aria-current='page'] {
+  background: var(--sp-accent-light);
+  color: var(--sp-accent-text);
+  font-weight: 600;
+}
+
+.sp-admin__main {
+  padding: 2rem 1.5rem;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  min-width: 0;
+}
+
+.sp-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* --- Éditeur --------------------------------------------------------------- */
+
+.sp-builder__footer {
+  justify-content: flex-start;
+  margin-top: 1rem;
+  border-radius: var(--sp-radius-lg);
+  border: 1px solid var(--sp-border);
+  padding-inline: 1rem;
+}
+
+.sp-field-editor__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sp-btn--danger-text {
+  --_fg: var(--sp-danger-text);
+  --_bg-hover: var(--sp-danger-light);
+}
+
+.sp-option-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin-bottom: 0.75rem;
+  list-style: none;
+}
+
+.sp-option-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sp-option-list li .sp-input {
+  flex: 1 1 12rem;
+  width: auto;
+}
+
+.sp-option-value {
+  padding: 0.125rem 0.5rem;
+  background: var(--sp-surface-muted);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-sm);
+  color: var(--sp-text-muted);
+  font-size: 0.8125rem;
+}
+
+.sp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.sp-row > * {
+  flex: 1 1 12rem;
+  margin-bottom: 0;
+}
+
+.sp-row--end {
+  align-items: flex-end;
+}
+
+.sp-row--end .sp-btn {
+  flex: 0 0 auto;
+  margin-bottom: 1rem;
+}
+
+/* --- Tableau de bord ------------------------------------------------------- */
+
+.sp-survey-list {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-survey-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sp-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1rem;
+}
+
+.sp-stat {
+  padding: 1rem;
+  background: var(--sp-surface-muted);
+  border-radius: var(--sp-radius);
+}
+
+.sp-stat__value {
+  display: block;
+  color: var(--sp-marine);
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.sp-stat__label {
+  color: var(--sp-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Barre de répartition : la valeur est TOUJOURS écrite à côté, la longueur
+   n'est qu'un renfort visuel — une information portée par la seule longueur
+   serait perdue pour qui ne la voit pas. */
+.sp-bar {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sp-bar__track {
+  height: 0.75rem;
+  background: var(--sp-border);
+  border-radius: var(--sp-radius-pill);
+  overflow: hidden;
+}
+
+.sp-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--sp-accent);
+}
+
+.sp-bar__value {
+  color: var(--sp-text-muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Un « summary » présenté en bouton : le marqueur natif casserait la forme.
+   Il reste un vrai `details`, donc utilisable au clavier et sans JavaScript. */
+summary.sp-btn {
+  display: inline-flex;
+  list-style: none;
+  cursor: pointer;
+}
+
+summary.sp-btn::-webkit-details-marker {
+  display: none;
+}

@@ -184,6 +184,19 @@ export const fr = {
     },
   },
 
+  /** Espace d'administration. */
+  admin: {
+    surveyStatus: {
+      draft: 'Brouillon',
+      published: 'Publié',
+      closed: 'Fermé',
+    },
+    surveyKind: {
+      survey: 'Sondage',
+      event: 'Événement',
+    },
+  },
+
   common: {
     required: 'obligatoire',
     optional: 'facultatif',
