@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
 import {
@@ -136,6 +137,12 @@ export default async function PendingRequestsPage({
             ))}
           </ul>
         )}
+
+        <p>
+          <Link className="sp-btn sp-btn--outline sp-btn--sm" href="/admin">
+            Retour à mon espace
+          </Link>
+        </p>
 
         <form action={signOut}>
           <button className="sp-btn sp-btn--outline sp-btn--sm" type="submit">

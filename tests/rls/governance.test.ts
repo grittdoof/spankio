@@ -264,11 +264,10 @@ describe('demandes de rattachement', () => {
       expect(sqlErrorCode(error)).toBe('PT409');
     });
 
-    it('refuse de rétrograder un super administrateur', async () => {
-      // Situation rencontrée en exploitation : le premier super administrateur
-      // avait aussi déposé une demande pour créer son organisation. La valider
-      // aurait écrasé son rôle et laissé la plateforme sans personne pour
-      // valider les demandes suivantes.
+    it('rattache un super administrateur SANS lui retirer son rôle plateforme', async () => {
+      // Valider la demande d'un super administrateur écrasait son rôle : la
+      // plateforme pouvait se retrouver sans personne pour valider les
+      // demandes suivantes. Le rattachement s'ajoute, il ne substitue pas.
       const own = await db.queryOne<{ id: string }>(
         OWNER,
         `insert into public.membership_requests
@@ -278,31 +277,63 @@ describe('demandes de rattachement', () => {
         [superAdmin],
       );
 
-      const error = await expectError(
-        db.query(
-          asUser(superAdmin),
-          `select public.approve_membership_request($1, 'admin', '{}', 'org-du-super-admin')`,
-          [own!.id],
-        ),
+      const result = await db.queryOne<{ org: string }>(
+        asUser(superAdmin),
+        `select public.approve_membership_request($1, 'admin', array['event'], 'org-du-super-admin') as org`,
+        [own!.id],
       );
-      expect(sqlErrorCode(error)).toBe('PT409');
+      expect(result?.org).toBeTruthy();
 
-      // Le rôle est intact, et aucune organisation n'a été créée au passage.
-      const profile = await db.queryOne<{ role: string; organisation_id: string | null }>(
+      const profile = await db.queryOne<{ role: string; organisation_id: string; status: string }>(
         OWNER,
-        'select role, organisation_id from public.profiles where id = $1',
+        'select role, organisation_id, status from public.profiles where id = $1',
         [superAdmin],
       );
-      expect(profile).toEqual({ role: 'super_admin', organisation_id: null });
+      expect(profile).toEqual({
+        role: 'super_admin',
+        organisation_id: result!.org,
+        status: 'active',
+      });
 
-      const created = await db.query(
-        OWNER,
-        'select id from public.organisations where slug = $1',
-        ['org-du-super-admin'],
+      // Il reste super administrateur…
+      const platform = await db.query<{ ok: boolean }>(
+        asUser(superAdmin),
+        'select app.is_super_admin() as ok',
       );
-      expect(created).toEqual([]);
+      expect(platform[0]?.ok).toBe(true);
 
-      await db.query(OWNER, 'delete from public.membership_requests where id = $1', [own!.id]);
+      // …et peut désormais écrire dans SA propre organisation.
+      const writes = await db.query<{ ok: boolean }>(
+        asUser(superAdmin),
+        'select app.can_write_surveys() as ok',
+      );
+      expect(writes[0]?.ok).toBe(true);
+
+      const created = await db.query<{ id: string }>(
+        asUser(superAdmin),
+        `insert into public.surveys (organisation_id, slug, title)
+         values ($1, 'sondage-du-super-admin', 'Sondage') returning id`,
+        [result!.org],
+      );
+      expect(created).toHaveLength(1);
+
+      // L'audit garde la trace de la préservation du rôle.
+      const audit = await db.queryOne<{ meta: Record<string, unknown> }>(
+        OWNER,
+        `select meta from public.audit_log
+          where action = 'membership.approved' and target_id = $1`,
+        [own!.id],
+      );
+      expect(audit?.meta['platform_role_preserved']).toBe(true);
+      expect(audit?.meta['effective_role']).toBe('super_admin');
+
+      // Remise en état pour les tests suivants.
+      await db.query(OWNER, 'delete from public.organisations where id = $1', [result!.org]);
+      await db.query(
+        OWNER,
+        "update public.profiles set organisation_id = null, role = 'super_admin' where id = $1",
+        [superAdmin],
+      );
     });
 
     it('enregistre un refus motivé', async () => {

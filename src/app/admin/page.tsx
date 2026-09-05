@@ -53,9 +53,14 @@ export default async function AdminHomePage() {
     );
   }
 
-  if (profile.data.role === 'super_admin') redirect('/super-admin/demandes');
-
+  const isPlatformAdmin = profile.data.role === 'super_admin';
   const rattached = profile.data.organisation_id !== null && profile.data.status === 'active';
+
+  // Un super administrateur SANS organisation n'a rien à faire ici : son
+  // espace est celui de la plateforme. S'il en a une, il voit son espace
+  // d'organisation, avec un lien vers l'espace plateforme — les deux rôles
+  // s'additionnent.
+  if (isPlatformAdmin && !rattached) redirect('/super-admin/demandes');
 
   const organisation = rattached
     ? await context.port.selectOne<{ name: string }>({
@@ -98,6 +103,21 @@ export default async function AdminHomePage() {
             </ul>
           </div>
         )}
+
+        {isPlatformAdmin ? (
+          <div className="sp-card sp-stack">
+            <h2 className="sp-card__title">Administration de la plateforme</h2>
+            <p className="sp-muted">
+              Votre compte porte aussi le rôle de super administrateur : il valide les
+              demandes de rattachement et concède les modules aux organisations.
+            </p>
+            <p>
+              <Link className="sp-btn sp-btn--outline" href="/super-admin/demandes">
+                Voir les demandes de rattachement
+              </Link>
+            </p>
+          </div>
+        ) : null}
 
         <form action={signOut}>
           <button className="sp-btn sp-btn--outline sp-btn--sm" type="submit">

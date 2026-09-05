@@ -63,12 +63,23 @@ par le super_admin, qui choisit le rôle **et** les modules autorisés. La
 restriction des modules est **par utilisateur** (table d'overrides), pas
 seulement par organisation.
 
-**Un rattachement ne peut pas rétrograder un super administrateur.**
-`approve_membership_request` écrase le rôle du profil : valider la demande d'un
-compte super_admin le priverait de son rôle, et la plateforme pourrait se
-retrouver sans personne pour valider les demandes suivantes. Le refus est
-explicite (`PT409`) — retirer ce rôle reste possible depuis la base, mais
-jamais comme effet de bord d'une validation de routine.
+**Les deux autorités s'additionnent.** Un super administrateur PEUT appartenir
+à une organisation : l'éditeur de la plateforme est souvent aussi
+l'administrateur de la première organisation cliente. Deux conséquences, sans
+lesquelles le rattachement serait cosmétique :
+
+- `app.can_write_surveys()` accepte le rôle `super_admin` rattaché, sinon il ne
+  pourrait pas créer de sondage dans SA propre organisation alors qu'il peut
+  modifier ceux de toutes les autres ;
+- `approve_membership_request` **préserve** le rôle plateforme au lieu de
+  l'écraser. Sans cela, valider la demande d'un super administrateur le
+  privait de son rôle — et pouvait laisser la plateforme sans personne pour
+  valider les demandes suivantes. L'audit garde la trace de la préservation
+  (`platform_role_preserved`).
+
+Partout ailleurs, l'autorité plateforme (`app.is_super_admin()`) englobe déjà
+les droits d'un administrateur d'organisation : aucune policy n'a eu besoin de
+changer.
 
 ## 4. Conventions de code
 
