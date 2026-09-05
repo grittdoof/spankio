@@ -112,6 +112,119 @@ describe('globals.css est aligné sur la charte', () => {
   });
 });
 
+/**
+ * Cascade : un défaut d'élément ne doit jamais l'emporter sur un composant.
+ *
+ * Ce bloc existe à cause d'un défaut réel. Les tokens étaient tous conformes —
+ * « blanc sur azur foncé » passait les 4,5:1 — mais `a:hover` (spécificité
+ * 0,1,1) battait `.sp-btn` (0,1,0) : au survol, le libellé d'un bouton plein
+ * était repeint en `--sp-accent-hover` sur un fond `--sp-accent-hover`, soit
+ * un rapport de 1:1 mesuré dans un navigateur. Un bouton vide.
+ *
+ * Vérifier des paires de couleurs ne suffit donc pas : il faut vérifier QUI
+ * gagne. La règle structurelle retenue est la plus simple qui ferme la
+ * famille entière de ce défaut — tout défaut d'élément portant une couleur
+ * doit être enveloppé dans `:where()`, donc de spécificité nulle.
+ */
+describe('cascade : les composants l’emportent sur les défauts d’élément', () => {
+  /** Règles de premier niveau, `@media` aplaties. */
+  const rules = (() => {
+    const flat = css
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/@media[^{]*\{/g, ' ');
+    const found: Array<{ selector: string; body: string }> = [];
+    const re = /([^{}]+)\{([^{}]+)\}/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(flat)) !== null) {
+      found.push({ selector: match[1]!.trim(), body: match[2]!.trim() });
+    }
+    return found;
+  })();
+
+  it('trouve bien les règles du fichier', () => {
+    // Garde-fou du garde-fou : une analyse qui ne lit rien passerait toujours.
+    expect(rules.length).toBeGreaterThan(80);
+    expect(rules.some((rule) => rule.selector === '.sp-btn')).toBe(true);
+  });
+
+  /**
+   * `html` et `body` sont admis : aucun composant `sp-` ne s'applique à eux,
+   * et `body` porte les couleurs héritées de toute la page.
+   */
+  const ALLOWED_BARE = new Set(['html', 'body']);
+
+  /** Sélecteur d'élément nu, éventuellement suivi de pseudo-classes. */
+  const BARE_ELEMENT = /^[a-z][a-zA-Z0-9]*(?::{1,2}[a-zA-Z-]+(?:\([^)]*\))?)*$/;
+
+  /**
+   * Découpe une liste de sélecteurs sur les virgules de PREMIER niveau.
+   * Un `split(',')` naïf ferait de `:where(h1, h2)` deux sélecteurs nus `h1`
+   * et `h2` — et signalerait comme défaut exactement ce qui le corrige.
+   */
+  function topLevelParts(selector: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let current = '';
+    for (const character of selector) {
+      if (character === '(') depth += 1;
+      else if (character === ')') depth -= 1;
+
+      if (character === ',' && depth === 0) {
+        parts.push(current.trim());
+        current = '';
+        continue;
+      }
+      current += character;
+    }
+    if (current.trim() !== '') parts.push(current.trim());
+    return parts;
+  }
+
+  const colouringBareRules = rules.flatMap((rule) =>
+    topLevelParts(rule.selector)
+      .filter(
+        (part) =>
+          BARE_ELEMENT.test(part) &&
+          !ALLOWED_BARE.has(part) &&
+          /(?:^|;|\s)(?:color|background(?:-color)?)\s*:/.test(rule.body),
+      )
+      .map((part) => `${part} { ${rule.body} }`),
+  );
+
+  it('aucun sélecteur d’élément nu ne peint une couleur', () => {
+    expect(
+      colouringBareRules,
+      'Ces règles peuvent battre un composant `sp-` dès qu’une pseudo-classe ' +
+        's’y ajoute. Envelopper le sélecteur dans `:where()`.',
+    ).toEqual([]);
+  });
+
+  it('le défaut de lien reste à spécificité nulle', () => {
+    // Le défaut d'origine, nommé : `a:hover` non enveloppé rendait invisible
+    // le libellé de tout bouton plein rendu comme un lien.
+    expect(css).toMatch(/:where\(a\)\s*\{/);
+    expect(css).toMatch(/:where\(a:hover\)\s*\{/);
+    expect(css).not.toMatch(/(?:^|\n)a:hover\s*\{/);
+    expect(css).not.toMatch(/(?:^|\n)a\s*\{/);
+  });
+
+  it('le texte des boutons pleins n’est défini que par leur propre classe', () => {
+    // `.sp-btn` fixe `color: var(--_fg)` ; aucune variante ne doit redéfinir
+    // la couleur du texte d'un bouton PLEIN, dont la charte impose le blanc.
+    const filled = rules.filter(
+      (rule) =>
+        /^\.sp-btn(--(?:danger|sm|lg|block))?(:[a-z-]+)*$/.test(rule.selector) &&
+        /--_fg\s*:/.test(rule.body),
+    );
+    for (const rule of filled) {
+      expect(
+        rule.body,
+        `${rule.selector} redéfinit le texte d’un bouton plein`,
+      ).toMatch(/--_fg:\s*var\(--sp-on-accent\)/);
+    }
+  });
+});
+
 describe('contrastes WCAG 2.1 AA', () => {
   it.each(CONTRAST_REQUIREMENTS)(
     '$label ≥ $min:1',

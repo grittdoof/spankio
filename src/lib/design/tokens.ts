@@ -78,6 +78,12 @@ export const CONTRAST_REQUIREMENTS: readonly ContrastRequirement[] = [
   { label: 'lien azur / fond gris', foreground: T['--sp-accent-text']!, background: T['--sp-bg']!, min: 4.5 },
   { label: 'lien azur / fond tinté azur', foreground: T['--sp-accent-text']!, background: T['--sp-accent-light']!, min: 4.5 },
 
+  // `--sp-accent-light` est le fond de survol de plusieurs composants
+  // (choix, échelle, navigation latérale, résultats de recherche) : tout ce qui
+  // s'y écrit doit être vérifié, pas seulement les liens.
+  { label: 'texte / fond tinté azur', foreground: T['--sp-text']!, background: T['--sp-accent-light']!, min: 4.5 },
+  { label: 'texte secondaire / fond tinté azur', foreground: T['--sp-text-muted']!, background: T['--sp-accent-light']!, min: 4.5 },
+
   // Boutons pleins : le texte est toujours blanc
   { label: 'bouton plein : blanc / azur', foreground: T['--sp-on-accent']!, background: T['--sp-accent']!, min: 4.5 },
   { label: 'bouton plein survolé : blanc / azur foncé', foreground: T['--sp-on-accent']!, background: T['--sp-accent-hover']!, min: 4.5 },

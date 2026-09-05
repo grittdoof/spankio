@@ -119,6 +119,14 @@ changer.
   `src/app/globals.css`. La charte est décrite en TypeScript dans
   `src/lib/design/tokens.ts` et **un test échoue si le CSS dérive** de la charte
   ou si un contraste descend sous WCAG AA.
+- **Les défauts d'élément sont à spécificité nulle** (`:where(a)`,
+  `:where(a:hover)`, `:where(h1, h2, h3, h4)`…) : un composant préfixé `sp-`
+  l'emporte toujours. Ce n'est pas un raffinement — sans `:where()`, `a:hover`
+  (0,1,1) battait `.sp-btn` (0,1,0) et repeignait le libellé d'un bouton plein
+  en bleu sur bleu, mesuré à 1:1 dans un navigateur : un bouton vide au
+  survol. Leçon retenue dans les tests : vérifier des paires de tokens ne suffit
+  pas, il faut vérifier QUI gagne la cascade — c'est le rôle du bloc « cascade »
+  de `tests/unit/design-tokens.test.ts`.
 - Les listes déroulantes sont de vraies `<select>` natives.
 - Les formulaires d'authentification sont des `<form action={serverAction}>` :
   ils **fonctionnent sans JavaScript**. Un écran de connexion qui dépend d'un
