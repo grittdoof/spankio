@@ -128,7 +128,14 @@ const baseField = {
   condition: conditionSchema.optional(),
 };
 
-const textLike = (type: 'text' | 'email' | 'tel' | 'textarea') =>
+/**
+ * Générique volontaire : sans lui, `z.literal(type)` produit un seul membre
+ * d'union portant `type: 'text' | 'email' | ...`, et la réduction de type
+ * devient impossible chez les consommateurs (le rendu d'un champ ne peut plus
+ * savoir qu'un `textarea` a un `maxLength`). Avec le paramètre de type, chaque
+ * appel crée un membre distinct.
+ */
+const textLike = <T extends 'text' | 'email' | 'tel' | 'textarea'>(type: T) =>
   z.object({
     ...baseField,
     type: z.literal(type),
@@ -137,7 +144,7 @@ const textLike = (type: 'text' | 'email' | 'tel' | 'textarea') =>
   });
 
 /** Choix unique : `select` (liste native) ou `radio` (cartes cliquables). */
-const singleChoiceField = (type: 'select' | 'radio') =>
+const singleChoiceField = <T extends 'select' | 'radio'>(type: T) =>
   z.object({
     ...baseField,
     type: z.literal(type),

@@ -84,6 +84,15 @@ changer.
 ## 4. Conventions de code
 
 - `src/lib/**` : logique **pure et testable**, aucun accès réseau implicite.
+- **Le texte de consentement est composé par le SERVEUR**, jamais transmis par
+  le client. `survey_responses.consent_text` est une preuve auditable : si elle
+  venait de la requête, n'importe qui pourrait soumettre le texte de son choix.
+  Le rendu public affiche exactement le même texte, produit par la même
+  fonction (`src/lib/survey/consent.ts`).
+- **La validation côté client EST celle du serveur.** Le rendu appelle
+  `validateResponse` avec le schéma et n'affiche que les erreurs du champ
+  courant. Il n'existe aucune règle « d'interface » : l'écran ne peut donc pas
+  accepter ce que le serveur refusera, ni l'inverse.
 - **Une seule implémentation des conditions.** `src/lib/survey/conditions.ts`
   sert au rendu public (quel écran afficher) ET à la validation serveur (quel
   champ est requis). Deux implémentations divergeraient, et le serveur finirait
@@ -241,7 +250,11 @@ npm run build       # build de production
       rendu et validation, assainissement Unicode, ICS RFC 5545, liens agenda
       et itinéraire, export CSV avec neutralisation des formules, 4 modèles en
       TypeScript. 570 tests dont 370 unitaires.
-- [ ] Étape 5 — renderer public + consentement + API de soumission.
+- [x] Étape 5 — rendu public « une question, un écran » (11 types de champs,
+      conditions, progression, transitions, secousse d'erreur, pied collant),
+      écran de consentement, remerciement avec agenda et itinéraire, route de
+      soumission publique et fichier ICS. 660 tests dont 28 d'accessibilité sur
+      le parcours public.
 - [ ] Étape 6 — builder visuel, tableau de bord, statistiques, exports.
 - [ ] Étape 7 — module événement (bannière, Leaflet, agenda, itinéraire).
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.

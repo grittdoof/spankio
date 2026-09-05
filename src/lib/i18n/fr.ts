@@ -123,6 +123,67 @@ export const fr = {
       'L’envoi de courriels est momentanément indisponible : votre demande n’a pas pu aboutir. Merci de réessayer dans quelques minutes, ou de contacter l’administrateur de la plateforme.',
   },
 
+  /** Rendu public du formulaire. */
+  survey: {
+    start: 'Commencer',
+    next: 'Suivant',
+    back: 'Retour',
+    submit: 'Envoyer ma réponse',
+    sending: 'Envoi en cours…',
+    progress: 'Progression',
+    questionCounter: (current: number, total: number) => `${current} / ${total}`,
+    required: 'obligatoire',
+    optionalHint: 'facultatif',
+    otherLabel: 'Autre',
+    otherPlaceholder: 'Précisez',
+    closed: 'Ce formulaire n’accepte plus de réponses.',
+    full: 'Le nombre maximal de réponses a été atteint.',
+    thankYouTitle: 'Merci pour votre réponse',
+    thankYouMessage: 'Votre réponse a bien été enregistrée.',
+    addToCalendar: 'Ajouter à mon agenda',
+    directions: 'Itinéraire',
+    consentTitle: 'Avant d’envoyer',
+    consentIntro:
+      'Voici comment vos réponses seront utilisées. Prenez le temps de les lire avant de valider.',
+    privacyLink: 'Politique de confidentialité',
+    /** Messages d'erreur de saisie, par code renvoyé par la validation. */
+    errors: {
+      required: 'Cette réponse est obligatoire.',
+      not_a_string: 'Cette valeur n’est pas attendue ici.',
+      too_long: 'Cette réponse est trop longue.',
+      invalid_email: 'Cette adresse électronique n’est pas valide.',
+      invalid_tel: 'Ce numéro de téléphone n’est pas valide.',
+      not_a_number: 'Indiquez un nombre.',
+      not_an_integer: 'Indiquez un nombre entier.',
+      out_of_range: 'Cette valeur est en dehors des limites autorisées.',
+      invalid_date: 'Cette date n’existe pas.',
+      date_out_of_range: 'Cette date est en dehors de la période autorisée.',
+      unknown_option: 'Ce choix n’est pas proposé.',
+      not_a_list: 'Cette réponse n’a pas le format attendu.',
+      too_few_selected: 'Vous n’avez pas coché assez de choix.',
+      too_many_selected: 'Vous avez coché trop de choix.',
+      duplicate_selection: 'Ce choix est sélectionné deux fois.',
+      not_a_grid: 'Cette réponse n’a pas le format attendu.',
+      unknown_grid_row: 'Cette ligne n’est pas proposée.',
+      single_choice_per_row: 'Un seul choix par ligne est autorisé.',
+      unknown_field: 'Cette question n’existe pas dans ce formulaire.',
+      payload_not_object: 'Les données envoyées sont invalides.',
+      payload_too_large: 'Votre réponse est trop volumineuse.',
+      too_many_fields: 'Votre réponse contient trop de champs.',
+    },
+    /** Erreurs d'envoi, par code de l'API. */
+    submitErrors: {
+      invalid_input: 'Certaines réponses doivent être corrigées.',
+      conflict: 'Une réponse a déjà été enregistrée pour cette personne.',
+      closed: 'Ce formulaire n’accepte plus de réponses.',
+      consent_required: 'Le consentement est nécessaire pour envoyer cette réponse.',
+      payload_too_large: 'Votre réponse est trop volumineuse.',
+      too_many_requests: 'Trop d’envois en peu de temps. Réessayez dans un instant.',
+      not_found: 'Ce formulaire est introuvable.',
+      server_error: 'L’envoi a échoué. Vos réponses sont conservées : réessayez.',
+    },
+  },
+
   common: {
     required: 'obligatoire',
     optional: 'facultatif',
@@ -133,6 +194,40 @@ export const fr = {
 
 /** Codes d'erreur transmis dans l'URL, jamais de données personnelles. */
 export type AuthErrorCode = keyof typeof fr.errors;
+
+/** Message d'une erreur de saisie, avec ses éventuels paramètres. */
+export function responseErrorMessage(
+  code: string,
+  params?: Readonly<Record<string, string | number>>,
+): string {
+  const messages: Readonly<Record<string, string>> = fr.survey.errors;
+  const base = messages[code] ?? fr.errors.unexpected;
+
+  if (params?.['max'] !== undefined && code === 'too_long') {
+    return `${base} Maximum : ${params['max']} caractères.`;
+  }
+  if (code === 'out_of_range') {
+    if (params?.['min'] !== undefined && params['max'] !== undefined) {
+      return `${base} Entre ${params['min']} et ${params['max']}.`;
+    }
+    if (params?.['min'] !== undefined) return `${base} Minimum : ${params['min']}.`;
+    if (params?.['max'] !== undefined) return `${base} Maximum : ${params['max']}.`;
+  }
+  if (code === 'too_few_selected' && params?.['min'] !== undefined) {
+    return `${base} Minimum : ${params['min']}.`;
+  }
+  if (code === 'too_many_selected' && params?.['max'] !== undefined) {
+    return `${base} Maximum : ${params['max']}.`;
+  }
+
+  return base;
+}
+
+/** Message d'un échec d'envoi, par code d'API. */
+export function submitErrorMessage(code: string | undefined): string {
+  const messages: Readonly<Record<string, string>> = fr.survey.submitErrors;
+  return (code && messages[code]) || fr.errors.unexpected;
+}
 
 export function authErrorMessage(code: string | undefined): string | null {
   if (!code) return null;

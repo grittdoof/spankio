@@ -778,3 +778,304 @@ textarea {
   font-size: 0.875rem;
   text-align: left;
 }
+
+/* ==========================================================================
+   Parcours public — « une question, un écran »
+   ========================================================================== */
+
+.sp-runner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.sp-progress {
+  padding: 0.75rem 1.25rem;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--sp-border);
+}
+
+.sp-progress__bar {
+  height: 6px;
+  background: var(--sp-border);
+  border-radius: var(--sp-radius-pill);
+  overflow: hidden;
+}
+
+.sp-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--sp-accent);
+  border-radius: var(--sp-radius-pill);
+  transition: width 0.25s var(--sp-ease);
+}
+
+.sp-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 2rem 1.25rem;
+}
+
+.sp-stage__focus {
+  width: 100%;
+  max-width: var(--sp-content-w);
+  margin-inline: auto;
+}
+
+/* Le focus est déplacé par programme sur cet élément : le contour par défaut
+   ferait croire à un élément interactif, alors qu'il ne fait qu'annoncer. */
+.sp-stage__focus:focus {
+  outline: none;
+}
+
+/* Transitions horizontales : vers la gauche en avançant, vers la droite en
+   reculant. La clé de React change à chaque écran, donc l'animation rejoue. */
+@keyframes sp-slide-from-right {
+  from {
+    opacity: 0;
+    transform: translate3d(2rem, 0, 0);
+  }
+}
+
+@keyframes sp-slide-from-left {
+  from {
+    opacity: 0;
+    transform: translate3d(-2rem, 0, 0);
+  }
+}
+
+.sp-stage--forward {
+  animation: sp-slide-from-right 0.25s var(--sp-ease);
+}
+
+.sp-stage--backward {
+  animation: sp-slide-from-left 0.25s var(--sp-ease);
+}
+
+/* Secousse sur erreur : brève, et neutralisée par prefers-reduced-motion. */
+@keyframes sp-shake {
+  10%,
+  90% {
+    transform: translate3d(-2px, 0, 0);
+  }
+  30%,
+  70% {
+    transform: translate3d(4px, 0, 0);
+  }
+  50% {
+    transform: translate3d(-6px, 0, 0);
+  }
+}
+
+.sp-stage--shake {
+  animation: sp-shake 0.4s var(--sp-ease);
+}
+
+.sp-runner__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.75rem;
+}
+
+.sp-counter {
+  color: var(--sp-text-muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   Écrans du parcours
+   ========================================================================== */
+
+.sp-screen__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.sp-screen__title {
+  font-size: clamp(1.5rem, 1.1rem + 2vw, 2rem);
+}
+
+.sp-screen__lead {
+  color: var(--sp-text-muted);
+  font-size: 1.0625rem;
+}
+
+.sp-question__legend {
+  color: var(--sp-marine);
+  font-size: clamp(1.25rem, 1rem + 1.4vw, 1.625rem);
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.sp-choices {
+  display: grid;
+  gap: 0.625rem;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.sp-other {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
+.sp-banner {
+  width: 100%;
+  max-height: 18rem;
+  object-fit: cover;
+  border-radius: var(--sp-radius-lg);
+}
+
+.sp-brandline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sp-brandline__logo {
+  max-height: 2.5rem;
+  width: auto;
+}
+
+.sp-brandline__name {
+  color: var(--sp-marine);
+  font-weight: 700;
+}
+
+.sp-meta {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0;
+  list-style: none;
+  color: var(--sp-text-muted);
+}
+
+.sp-meta li::before {
+  content: '·';
+  margin-right: 0.5rem;
+  color: var(--sp-accent);
+}
+
+/* --- Échelle --------------------------------------------------------------- */
+
+.sp-scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.sp-scale__step {
+  cursor: pointer;
+}
+
+.sp-scale__step input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sp-scale__value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--sp-tap);
+  min-height: var(--sp-tap);
+  padding: 0 0.5rem;
+  background: var(--sp-surface);
+  border: 1px solid var(--sp-border-strong);
+  border-radius: var(--sp-radius);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--sp-transition),
+    border-color var(--sp-transition),
+    color var(--sp-transition);
+}
+
+.sp-scale__step:hover .sp-scale__value {
+  border-color: var(--sp-accent);
+  background: var(--sp-accent-light);
+}
+
+.sp-scale__step input:checked + .sp-scale__value {
+  background: var(--sp-accent);
+  border-color: var(--sp-accent);
+  color: var(--sp-on-accent);
+}
+
+.sp-scale__step input:focus-visible + .sp-scale__value {
+  outline: 2px solid var(--sp-accent);
+  outline-offset: 2px;
+}
+
+.sp-scale__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  color: var(--sp-text-muted);
+  font-size: 0.875rem;
+}
+
+/* --- Grille ---------------------------------------------------------------- */
+
+.sp-grid td {
+  text-align: center;
+}
+
+.sp-grid input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--sp-accent);
+}
+
+/* Zone tactile réelle de 44px sans grossir la case elle-même. */
+.sp-grid td {
+  padding: 0;
+}
+
+.sp-grid td input {
+  margin: calc((var(--sp-tap) - 1.25rem) / 2);
+}
+
+/* --- Remerciement ---------------------------------------------------------- */
+
+.sp-done-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  background: var(--sp-success-light);
+  color: var(--sp-success-text);
+  border-radius: var(--sp-radius-pill);
+  font-size: 1.75rem;
+  font-weight: 700;
+  animation: sp-pop 0.35s var(--sp-ease);
+}
+
+@keyframes sp-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+.sp-actions-block {
+  width: 100%;
+  padding-top: 0.5rem;
+}
+
+.sp-actions-block h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
