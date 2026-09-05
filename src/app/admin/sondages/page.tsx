@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
-import { loadAdminSession, canWriteSurveys } from '@/lib/admin/session';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { canWriteSurveys, loadAdminSession } from '@/lib/admin/session';
 import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
@@ -22,8 +24,7 @@ const ERRORS: Readonly<Record<string, string>> = {
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
+  dateStyle: 'long',
   timeZone: 'Europe/Paris',
 });
 
@@ -31,6 +32,13 @@ const STATUS_TONE: Readonly<Record<SurveySummary['status'], string>> = {
   draft: 'sp-badge',
   published: 'sp-badge sp-badge--success',
   closed: 'sp-badge sp-badge--warning',
+};
+
+/** Ce que l'utilisateur doit faire ensuite, selon l'état du formulaire. */
+const NEXT_STEP: Readonly<Record<SurveySummary['status'], string>> = {
+  draft: 'À terminer puis publier',
+  published: 'En ligne : partagez l’adresse',
+  closed: 'Fermé : les réponses restent consultables',
 };
 
 /**
@@ -62,22 +70,18 @@ export default async function SurveysPage({
   const errorCode = typeof params['erreur'] === 'string' ? params['erreur'] : undefined;
 
   return (
-    <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
-      <div className="sp-page-header">
-        <div>
-          <h1>Formulaires</h1>
-          <p className="sp-muted">
-            {surveys.value.length === 0
-              ? 'Aucun formulaire pour l’instant.'
-              : `${surveys.value.length} formulaire${surveys.value.length > 1 ? 's' : ''}.`}
-          </p>
-        </div>
-        {writable ? (
-          <Link className="sp-btn" href="/admin/sondages/nouveau">
-            Nouveau formulaire
-          </Link>
-        ) : null}
-      </div>
+    <div className="sp-rise">
+      <PageHeader
+        title="Formulaires"
+        lead="Chaque formulaire a sa propre adresse publique, ses réponses et ses exports."
+        actions={
+          writable ? (
+            <Link className="sp-btn" href="/admin/sondages/nouveau">
+              Créer un formulaire
+            </Link>
+          ) : null
+        }
+      />
 
       {okCode && NOTICES[okCode] ? <Alert tone="success">{NOTICES[okCode]}</Alert> : null}
       {errorCode ? (
@@ -85,65 +89,73 @@ export default async function SurveysPage({
       ) : null}
 
       {surveys.value.length === 0 ? (
-        <div className="sp-card">
-          <p className="sp-muted">
-            {writable
-              ? 'Créez un formulaire pour commencer : vierge, ou à partir d’un modèle.'
-              : 'Votre rôle ne permet pas de créer un formulaire.'}
-          </p>
-        </div>
+        <EmptyState
+          title="Aucun formulaire pour l’instant"
+          lead={
+            writable
+              ? 'Un parcours guidé vous accompagne : titre, type, informations aux répondants. Vous pourrez tout modifier ensuite.'
+              : 'Votre rôle est en lecture seule. Demandez le rôle d’éditeur à un administrateur de votre organisation.'
+          }
+          action={
+            writable ? (
+              <Link className="sp-btn sp-btn--lg" href="/admin/sondages/nouveau">
+                Créer mon premier formulaire
+              </Link>
+            ) : null
+          }
+        />
       ) : (
         <ul className="sp-survey-list">
-          {surveys.value.map((survey) => (
-            <li className="sp-card" key={survey.id}>
-              <div className="sp-survey-row">
-                <div>
-                  <h2 className="sp-card__title">
-                    <Link href={`/admin/sondages/${survey.id}`}>{survey.title}</Link>
-                  </h2>
-                  <p className="sp-meta">
-                    <span className={STATUS_TONE[survey.status]}>
-                      {fr.admin.surveyStatus[survey.status]}
-                    </span>{' '}
-                    <span className="sp-badge sp-badge--accent">
-                      {fr.admin.surveyKind[survey.kind]}
-                    </span>{' '}
-                    <span className="sp-muted">
-                      Modifié le {DATE_FORMAT.format(new Date(survey.updated_at))}
-                    </span>
-                  </p>
-                  {survey.status === 'published' ? (
-                    <p className="sp-muted" style={{ fontSize: '0.875rem' }}>
-                      <a
-                        href={`${siteUrl}/s/${session.organisationSlug}/${survey.slug}`}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {`${siteUrl}/s/${session.organisationSlug}/${survey.slug}`}
-                      </a>
+          {surveys.value.map((survey) => {
+            const publicUrl = `${siteUrl}/s/${session.organisationSlug}/${survey.slug}`;
+            return (
+              <li className="sp-card sp-card--link" key={survey.id}>
+                <div className="sp-survey-row">
+                  <div className="sp-survey-row__main">
+                    <h2 className="sp-card__title">
+                      <Link href={`/admin/sondages/${survey.id}`}>{survey.title}</Link>
+                    </h2>
+                    <p className="sp-survey-row__badges">
+                      <span className={STATUS_TONE[survey.status]}>
+                        {fr.admin.surveyStatus[survey.status]}
+                      </span>
+                      <span className="sp-badge sp-badge--accent">
+                        {fr.admin.surveyKind[survey.kind]}
+                      </span>
                     </p>
-                  ) : null}
-                </div>
+                    <p className="sp-survey-row__hint">
+                      {NEXT_STEP[survey.status]} · modifié le{' '}
+                      {DATE_FORMAT.format(new Date(survey.updated_at))}
+                    </p>
+                    {survey.status === 'published' ? (
+                      <p className="sp-survey-row__url">
+                        <a href={publicUrl} rel="noreferrer" target="_blank">
+                          {publicUrl}
+                        </a>
+                      </p>
+                    ) : null}
+                  </div>
 
-                <div className="sp-actions">
-                  <Link
-                    className="sp-btn sp-btn--outline sp-btn--sm"
-                    href={`/admin/sondages/${survey.id}`}
-                  >
-                    <span aria-hidden="true">Modifier</span>
-                    <span className="sp-visually-hidden">Modifier {survey.title}</span>
-                  </Link>
-                  <Link
-                    className="sp-btn sp-btn--ghost sp-btn--sm"
-                    href={`/admin/sondages/${survey.id}/reponses`}
-                  >
-                    <span aria-hidden="true">Réponses</span>
-                    <span className="sp-visually-hidden">Réponses de {survey.title}</span>
-                  </Link>
+                  <div className="sp-actions">
+                    <Link
+                      className="sp-btn sp-btn--outline sp-btn--sm"
+                      href={`/admin/sondages/${survey.id}`}
+                    >
+                      <span aria-hidden="true">Modifier</span>
+                      <span className="sp-visually-hidden">Modifier {survey.title}</span>
+                    </Link>
+                    <Link
+                      className="sp-btn sp-btn--ghost sp-btn--sm"
+                      href={`/admin/sondages/${survey.id}/reponses`}
+                    >
+                      <span aria-hidden="true">Réponses</span>
+                      <span className="sp-visually-hidden">Réponses de {survey.title}</span>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

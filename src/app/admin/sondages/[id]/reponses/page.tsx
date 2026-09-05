@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 import { StatisticsPanel } from '@/components/admin/StatisticsPanel';
 import { Alert } from '@/components/ui/Alert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { responseRows } from '@/lib/export/csv';
@@ -99,30 +99,31 @@ export default async function SurveyResponsesPage({
 
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
-      <div className="sp-page-header">
-        <div>
-          <p className="sp-meta">
-            <Link href="/admin/sondages">Formulaires</Link>
-            {' · '}
-            <Link href={`/admin/sondages/${survey.value.id}`}>{survey.value.title}</Link>
-          </p>
-          <h1>Réponses</h1>
-        </div>
-        <div className="sp-actions">
-          <a
-            className="sp-btn sp-btn--outline sp-btn--sm"
-            href={`/api/admin/surveys/${survey.value.id}/export?format=csv`}
-          >
-            Exporter en CSV
-          </a>
-          <a
-            className="sp-btn sp-btn--ghost sp-btn--sm"
-            href={`/api/admin/surveys/${survey.value.id}/export?format=json`}
-          >
-            Exporter en JSON
-          </a>
-        </div>
-      </div>
+      <PageHeader
+        title="Réponses"
+        lead={`Suivez ce que les répondants ont envoyé à « ${survey.value.title} », et exportez-le quand vous voulez.`}
+        crumbs={[
+          { label: 'Formulaires', href: '/admin/sondages' },
+          { label: survey.value.title, href: `/admin/sondages/${survey.value.id}` },
+          { label: 'Réponses' },
+        ]}
+        actions={
+          <>
+            <a
+              className="sp-btn sp-btn--outline"
+              href={`/api/admin/surveys/${survey.value.id}/export?format=csv`}
+            >
+              Exporter en tableur
+            </a>
+            <a
+              className="sp-btn sp-btn--ghost"
+              href={`/api/admin/surveys/${survey.value.id}/export?format=json`}
+            >
+              Export JSON
+            </a>
+          </>
+        }
+      />
 
       {okCode && NOTICES[okCode] ? <Alert tone="success">{NOTICES[okCode]}</Alert> : null}
       {errorCode ? (

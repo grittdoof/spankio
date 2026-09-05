@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 import { Alert } from '@/components/ui/Alert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import type { EventDraft } from '@/components/admin/EventSettings';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
@@ -75,20 +76,15 @@ export default async function EventSettingsPage({
 
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
-      <div className="sp-page-header">
-        <div>
-          <p className="sp-meta">
-            <Link href="/admin/sondages">Formulaires</Link>
-            {' · '}
-            <Link href={`/admin/sondages/${survey.value.id}`}>{survey.value.title}</Link>
-          </p>
-          <h1>Réglages de l’événement</h1>
-          <p className="sp-muted">
-            Ces informations alimentent la page publique, le fichier d’agenda et
-            l’itinéraire proposé aux répondants.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Réglages de l’événement"
+        lead="Ces informations alimentent la page publique, le fichier d’agenda et l’itinéraire proposé aux répondants."
+        crumbs={[
+          { label: 'Formulaires', href: '/admin/sondages' },
+          { label: survey.value.title, href: `/admin/sondages/${survey.value.id}` },
+          { label: 'Événement' },
+        ]}
+      />
 
       <EventSettingsClient
         organisationId={session.organisationId}

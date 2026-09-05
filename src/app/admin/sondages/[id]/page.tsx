@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 import { Alert } from '@/components/ui/Alert';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { loadAdminSession } from '@/lib/admin/session';
 import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
@@ -86,28 +87,29 @@ export default async function SurveyEditorPage({
 
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
-      <div className="sp-page-header">
-        <div>
-          <p className="sp-meta">
-            <Link href="/admin/sondages">Formulaires</Link>
-          </p>
-          <h1>{survey.value.title}</h1>
-          <p className="sp-meta">
-            <span className="sp-badge">{fr.admin.surveyStatus[survey.value.status]}</span>{' '}
+      <PageHeader
+        title={survey.value.title}
+        lead="Composez les questions, renseignez les mentions d’information, puis publiez."
+        crumbs={[{ label: 'Formulaires', href: '/admin/sondages' }, { label: 'Édition' }]}
+        meta={
+          <>
+            <span className="sp-badge">{fr.admin.surveyStatus[survey.value.status]}</span>
             <span className="sp-badge sp-badge--accent">
               {fr.admin.surveyKind[survey.value.kind]}
             </span>
-          </p>
-        </div>
-        {survey.value.kind === 'event' ? (
-          <Link
-            className="sp-btn sp-btn--outline"
-            href={`/admin/sondages/${survey.value.id}/evenement`}
-          >
-            Réglages de l’événement
-          </Link>
-        ) : null}
-      </div>
+          </>
+        }
+        actions={
+          survey.value.kind === 'event' ? (
+            <Link
+              className="sp-btn sp-btn--outline"
+              href={`/admin/sondages/${survey.value.id}/evenement`}
+            >
+              Réglages de l’événement
+            </Link>
+          ) : null
+        }
+      />
 
       <SurveyEditorClient
         surveyId={survey.value.id}

@@ -41,7 +41,7 @@ export function PageHeader({ title, lead, crumbs, actions, meta }: PageHeaderPro
           </nav>
         ) : null}
         <h1>{title}</h1>
-        {meta ? <p className="sp-meta">{meta}</p> : null}
+        {meta ? <p className="sp-header__meta">{meta}</p> : null}
         {lead ? <p className="sp-lead">{lead}</p> : null}
       </div>
       {actions ? <div className="sp-header__actions">{actions}</div> : null}

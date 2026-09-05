@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BrandMark } from '@/components/ui/BrandMark';
 import { fr } from '@/lib/i18n/fr';
 
 /**
@@ -22,7 +23,10 @@ export function AuthShell({
   return (
     <main className="sp-auth" id="contenu">
       <div className="sp-auth__inner">
-        <p className="sp-auth__brand">{fr.platform.name}</p>
+        <p className="sp-auth__brand">
+          <BrandMark className="sp-auth__mark" name={fr.platform.name} />
+          {fr.platform.name}
+        </p>
         <div className="sp-card">
           <h1 className="sp-auth__title">{title}</h1>
           {description ? <p className="sp-auth__description">{description}</p> : null}

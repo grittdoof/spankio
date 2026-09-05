@@ -203,8 +203,8 @@ describe('accessibilité du tableau de bord', () => {
     const { container } = render(
       <AdminNav
         items={[
-          { href: '/admin', label: 'Mon espace' },
-          { href: '/admin/sondages', label: 'Formulaires' },
+          { href: '/admin', label: 'Mon espace', icon: 'home' },
+          { href: '/admin/sondages', label: 'Formulaires', icon: 'forms' },
         ]}
       />,
     );

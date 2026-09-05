@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Alert } from '@/components/ui/Alert';
+import { BrandMark } from '@/components/ui/BrandMark';
 import { callbackErrorCode } from '@/lib/auth/callback';
 import { authErrorMessage, fr } from '@/lib/i18n/fr';
 
@@ -33,12 +34,12 @@ export default async function HomePage({
 
   return (
     <>
-      <main id="contenu" className="sp-container" style={{ paddingBlock: '4rem' }}>
-        <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
+      <main className="sp-landing" id="contenu">
+        <div className="sp-landing__inner">
           {message ? (
             <Alert tone="error" title="Ce lien n’a pas fonctionné">
               <p>{message}</p>
-              <p style={{ marginTop: '0.75rem' }}>
+              <p style={{ marginTop: 'var(--sp-space-3)' }}>
                 <Link className="sp-btn sp-btn--sm" href="/mot-de-passe-oublie">
                   Demander un nouveau lien
                 </Link>
@@ -46,10 +47,18 @@ export default async function HomePage({
             </Alert>
           ) : null}
 
-          <div className="sp-card sp-stack">
-            <h1>{fr.platform.name}</h1>
-            <p className="sp-muted">{fr.platform.tagline}</p>
-            <div className="sp-actions">
+          <div className="sp-rise">
+            <p className="sp-landing__brand">
+              <BrandMark className="sp-auth__mark" name={fr.platform.name} />
+              {fr.platform.name}
+            </p>
+            <h1 className="sp-landing__title">{fr.platform.tagline}</h1>
+            <p className="sp-lead sp-landing__lead">
+              Composez un formulaire question par question, publiez-le à votre adresse,
+              suivez les réponses et exportez-les. Chaque organisation dispose de son
+              espace, de sa marque et de ses règles.
+            </p>
+            <div className="sp-actions sp-landing__actions">
               <Link className="sp-btn sp-btn--lg" href="/connexion">
                 {fr.auth.signIn.submit}
               </Link>
@@ -57,11 +66,28 @@ export default async function HomePage({
                 {fr.auth.signUp.title}
               </Link>
             </div>
+
+            <ul className="sp-landing__points">
+              <li>
+                <strong>Une question par écran</strong>
+                Les répondants avancent sans se perdre, sur mobile comme sur ordinateur.
+              </li>
+              <li>
+                <strong>Sondages et inscriptions</strong>
+                Date, lieu, carte, ajout à l’agenda et itinéraire pour vos événements.
+              </li>
+              <li>
+                <strong>Conforme, et vérifiable</strong>
+                Finalité, base légale et durée de conservation annoncées aux répondants,
+                et le texte affiché est conservé avec chaque réponse.
+              </li>
+            </ul>
           </div>
         </div>
       </main>
-      <footer className="sp-container" style={{ paddingBottom: '3rem' }}>
-        <p className="sp-muted" style={{ fontSize: '0.875rem' }}>
+
+      <footer className="sp-landing__footer">
+        <p>
           <Link href="/mentions-legales">{fr.nav.legalNotice}</Link>
           {' · '}
           <Link href="/confidentialite">{fr.nav.privacy}</Link>
