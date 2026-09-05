@@ -118,7 +118,26 @@ changer.
 - Design system : classes préfixées `sp-`, tokens CSS dans
   `src/app/globals.css`. La charte est décrite en TypeScript dans
   `src/lib/design/tokens.ts` et **un test échoue si le CSS dérive** de la charte
-  ou si un contraste descend sous WCAG AA.
+  ou si un contraste descend sous WCAG AA. `tokens.ts` distingue explicitement
+  les valeurs **imposées par le client** (couleurs, Montserrat, `--sp-ease`,
+  `--sp-transition`, `248px`, `44px`) de celles **retenues à la refonte**
+  (corps 16px, rayons 12/16/24, interlignes) : sans cette distinction, une
+  valeur négociable et une valeur contractuelle deviennent indistinguables.
+- **Une échelle, pas des valeurs au jugé.** Les espacements viennent de
+  `--sp-space-1..9` (4 → 96px) ; un cran surnuméraire fait échouer le test,
+  parce qu'une échelle qu'on complète au coup par coup n'en est plus une.
+  L'échelle typographique fluide est réservée aux GRANDS niveaux : un corps de
+  texte qui change de taille avec la fenêtre gêne la lecture, un titre non —
+  et le test le vérifie dans les deux sens.
+- **Les micro-animations rassurent, elles ne portent jamais d'information.**
+  Toutes passent par `--sp-motion-*` et sont neutralisées en bloc par
+  `prefers-reduced-motion`. Une barre de progression est toujours accompagnée
+  de sa valeur écrite, et un `role="progressbar"` porte les mêmes chiffres.
+- **`/atelier` (hors production) montre le système sur un écran.** Il existe
+  parce que les écrans d'administration exigent une session, ce qui empêchait
+  de vérifier une décision de mise en forme — et surtout de comparer deux
+  composants côte à côte, où une incohérence de rayon ou d'espacement se voit
+  immédiatement.
 - **Les défauts d'élément sont à spécificité nulle** (`:where(a)`,
   `:where(a:hover)`, `:where(h1, h2, h3, h4)`…) : un composant préfixé `sp-`
   l'emporte toujours. Ce n'est pas un raffinement — sans `:where()`, `a:hover`
@@ -127,6 +146,22 @@ changer.
   survol. Leçon retenue dans les tests : vérifier des paires de tokens ne suffit
   pas, il faut vérifier QUI gagne la cascade — c'est le rôle du bloc « cascade »
   de `tests/unit/design-tokens.test.ts`.
+- **L'aide contextuelle n'utilise jamais `title`.** Cet attribut ne s'ouvre ni
+  au clavier ni au toucher, son délai n'est pas réglable et sa restitution
+  varie d'un lecteur d'écran à l'autre. `Tooltip` est un *disclosure* refermable
+  par Échap (WCAG 1.4.13), dont la zone cliquable atteint 44px par
+  pseudo-élément alors que le dessin reste à 28px — un « ? » de 44px
+  dominerait l'intitulé qu'il accompagne.
+- **L'état d'un parcours guidé vit dans l'URL**, jamais en session : le
+  parcours survit à un rafraîchissement, le bouton « retour » du navigateur
+  fait ce qu'on attend, et chaque écran reste un `<form action>` — donc
+  fonctionne sans JavaScript. Seules des valeurs de listes fermées y
+  circulent, et un test le vérifie.
+- **Ce qui bloque une action est dit AVANT le clic.**
+  `missingForPublication` est une fonction pure, partagée par l'éditeur (qui
+  l'affiche en continu) et par `updateSurvey` (qui refuse). Deux listes
+  auraient divergé, et l'écran aurait fini par annoncer « prêt à publier » sur
+  un formulaire que le serveur refuse.
 - Les listes déroulantes sont de vraies `<select>` natives.
 - Les formulaires d'authentification sont des `<form action={serverAction}>` :
   ils **fonctionnent sans JavaScript**. Un écran de connexion qui dépend d'un
@@ -245,7 +280,7 @@ figure, avec sa raison et sa condition de lever.
 | - | -------------- | ------ | ----------- |
 | R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. | Le HMR de Next exige `eval`. | N/A (limite du framework). |
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
-| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation, panneau événement), pas les composants serveur qui les assemblent — et **Leaflet y est remplacé par un double**, jsdom n'ayant ni moteur de rendu ni dimensions : la carte elle-même n'est pas couverte, seul l'est le chemin clavier qui la contourne — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
+| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. Un audit programmatique dans un vrai navigateur (contraste calculé par rasterisation canvas, tailles de cibles, débordement horizontal à 375px) a été rejoué à la main lors de la refonte, mais **il n'est pas en CI**. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation, panneau événement), pas les composants serveur qui les assemblent — et **Leaflet y est remplacé par un double**, jsdom n'ayant ni moteur de rendu ni dimensions : la carte elle-même n'est pas couverte, seul l'est le chemin clavier qui la contourne — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
 | R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16. |
@@ -255,6 +290,7 @@ figure, avec sa raison et sa condition de lever.
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
 | R11 | **8 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
+| R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 
 ## 7. Commandes
 
@@ -314,5 +350,13 @@ npm run build       # build de production
       géocodage Nominatim authentifié et plafonné, agenda et itinéraire déjà
       posés à l'étape 5. 924 tests dont 10 d'accessibilité sur le panneau
       événement et 21 d'intégration sur la bannière et le géocodage.
+- [x] Refonte de l'expérience (5 septembre 2026) — échelles d'espacement et de
+      typographie, mouvement, primitives pédagogiques (en-tête d'écran, chapeau,
+      encadré avec exemple, état vide, avancement, aide contextuelle, bouton à
+      retour visuel), accueil et écrans d'authentification retravaillés, barre
+      latérale à icônes repliable en barre horizontale sous 60rem, **parcours
+      guidé de création en cinq écrans** avec état dans l'URL, liste permanente
+      de ce qui manque avant publication, et `/atelier` hors production.
+      Couleurs et Montserrat inchangés : c'est l'identité du client.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.
