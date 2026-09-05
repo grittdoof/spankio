@@ -63,6 +63,13 @@ par le super_admin, qui choisit le rôle **et** les modules autorisés. La
 restriction des modules est **par utilisateur** (table d'overrides), pas
 seulement par organisation.
 
+**Un rattachement ne peut pas rétrograder un super administrateur.**
+`approve_membership_request` écrase le rôle du profil : valider la demande d'un
+compte super_admin le priverait de son rôle, et la plateforme pourrait se
+retrouver sans personne pour valider les demandes suivantes. Le refus est
+explicite (`PT409`) — retirer ce rôle reste possible depuis la base, mais
+jamais comme effet de bord d'une validation de routine.
+
 ## 4. Conventions de code
 
 - `src/lib/**` : logique **pure et testable**, aucun accès réseau implicite.

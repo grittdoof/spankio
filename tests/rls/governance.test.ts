@@ -264,6 +264,47 @@ describe('demandes de rattachement', () => {
       expect(sqlErrorCode(error)).toBe('PT409');
     });
 
+    it('refuse de rétrograder un super administrateur', async () => {
+      // Situation rencontrée en exploitation : le premier super administrateur
+      // avait aussi déposé une demande pour créer son organisation. La valider
+      // aurait écrasé son rôle et laissé la plateforme sans personne pour
+      // valider les demandes suivantes.
+      const own = await db.queryOne<{ id: string }>(
+        OWNER,
+        `insert into public.membership_requests
+           (user_id, requester_email, requested_organisation_name, requested_role)
+         values ($1, 'super@gouv.test', 'Organisation du super admin', 'admin')
+         returning id`,
+        [superAdmin],
+      );
+
+      const error = await expectError(
+        db.query(
+          asUser(superAdmin),
+          `select public.approve_membership_request($1, 'admin', '{}', 'org-du-super-admin')`,
+          [own!.id],
+        ),
+      );
+      expect(sqlErrorCode(error)).toBe('PT409');
+
+      // Le rôle est intact, et aucune organisation n'a été créée au passage.
+      const profile = await db.queryOne<{ role: string; organisation_id: string | null }>(
+        OWNER,
+        'select role, organisation_id from public.profiles where id = $1',
+        [superAdmin],
+      );
+      expect(profile).toEqual({ role: 'super_admin', organisation_id: null });
+
+      const created = await db.query(
+        OWNER,
+        'select id from public.organisations where slug = $1',
+        ['org-du-super-admin'],
+      );
+      expect(created).toEqual([]);
+
+      await db.query(OWNER, 'delete from public.membership_requests where id = $1', [own!.id]);
+    });
+
     it('enregistre un refus motivé', async () => {
       await db.query(asUser(superAdmin), 'select public.reject_membership_request($1, $2)', [
         requestId,
