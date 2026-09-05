@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { toIsoString } from '@/lib/export/csv';
 import { eq, isNull, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
+import { isBannerPathOf } from '@/lib/event/banner';
 import { templateByKey } from '@/lib/event/templates';
 import { MAX_LENGTHS } from '@/lib/survey/limits';
 import {
@@ -333,6 +334,27 @@ export async function updateSurvey(
       return { ok: false, error: { code: 'PT400', message: "Identifiant d'URL invalide" } };
     }
     values['slug'] = slug;
+  }
+
+  // La bannière est téléversée directement du navigateur vers Storage, dont le
+  // RLS impose le dossier de l'organisation. Mais RIEN n'empêcherait
+  // d'enregistrer ici un chemin pointant ailleurs : le bucket est public, et une
+  // organisation illustrerait sa page avec le fichier d'une autre. Le chemin est
+  // donc revérifié contre CE sondage et CETTE organisation.
+  if (typeof input.bannerPath === 'string' && input.bannerPath !== '') {
+    if (!isBannerPathOf(input.bannerPath, existing.value.organisation_id, id)) {
+      return {
+        ok: false,
+        error: { code: 'PT400', message: 'Chemin de bannière invalide' },
+        issues: [
+          {
+            path: 'bannerPath',
+            code: 'foreign_path',
+            message: 'Cette image n’appartient pas à ce formulaire.',
+          },
+        ],
+      };
+    }
   }
 
   for (const [field, column] of Object.entries(COLUMN_BY_FIELD)) {

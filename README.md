@@ -57,9 +57,9 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
 | Élément | État |
 | ------- | ---- |
 | Projet Supabase | `spankio` (`qmhjckioehsiduongadk`), PostgreSQL 17.6, région `eu-west-2` |
-| Migrations | Les 21 migrations sont appliquées ; l'historique distant correspond exactement aux fichiers de `supabase/migrations` (`supabase db push` ne rejoue rien) |
+| Migrations | Les 23 migrations sont appliquées ; l'historique distant correspond exactement aux fichiers de `supabase/migrations` (`supabase db push` ne rejoue rien) |
 | `pg_cron` | Actif. Purges planifiées : réponses expirées à 3 h 17, sondages supprimés à 3 h 37 |
-| Storage | Bucket `survey-banners` créé, 4 policies |
+| Storage | Bucket `survey-banners` créé, 4 policies, plafond 3 Mio et types d'image restreints |
 | Projet Vercel | `spankio`, relié à `grittdoof/spankio`, déploiement automatique sur `main` |
 | Protection Vercel | SSO activée sur tous les déploiements (hors domaine personnalisé) : le site n'est accessible qu'aux membres de l'équipe |
 | Node | `24.20.0` en CI (`.nvmrc`) et `24.x` sur Vercel. Si le réglage Vercel change, mettre `.nvmrc` à jour : la CI ne le lit pas depuis Vercel |
@@ -112,6 +112,54 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
    avec SPF/DKIM/DMARC), `KV_REST_API_URL` / `KV_REST_API_TOKEN`, `SENTRY_DSN`.
    Toutes optionnelles : leur absence dégrade proprement (aucun email envoyé,
    rate-limit réduit au garde-fou mémoire), jamais silencieusement.
+
+## Module événement
+
+Le module `event` ajoute à un formulaire une date, un lieu, un organisateur et
+une bannière, et alimente le fichier iCalendar ainsi que les liens d'itinéraire
+proposés aux répondants.
+
+### Bannières
+
+Le bucket **`survey-banners`** est public en lecture et contraint en écriture,
+côté Storage :
+
+| Contrainte | Valeur | Vérifié |
+| ---------- | ------ | ------- |
+| Taille | 3 Mio | `413 EntityTooLarge` au-delà |
+| Types | `image/jpeg`, `image/png`, `image/webp`, `image/avif` | `415 InvalidMimeType` pour un SVG |
+| Dossier | `{organisation_id}/{survey_id}/` | RLS sur `storage.objects` |
+
+Le SVG est exclu délibérément : c'est un document XML pouvant porter du script,
+servi depuis une origine publique. Les trois contrôles ont été éprouvés sur le
+projet réel, pas seulement déclarés.
+
+L'image part **directement du navigateur vers Storage**, avec la session de
+l'utilisateur : elle ne transite par aucune route Next. Le chemin enregistré
+dans `surveys.banner_path` est ensuite revérifié côté serveur — le bucket étant
+public, un chemin non contrôlé permettrait d'afficher le fichier d'un autre
+tenant.
+
+### Géocodage (Nominatim / OpenStreetMap)
+
+Toute recherche d'adresse passe par `/api/admin/geocode`. Le navigateur ne
+contacte jamais Nominatim directement : la politique d'usage d'OSM impose un
+`User-Agent` identifiant l'application et plafonne à **une requête par seconde
+pour l'application entière**, et relayer évite de livrer à un tiers l'adresse IP
+de chaque personne qui saisit une adresse.
+
+- `NOMINATIM_USER_AGENT` (facultative) impose le `User-Agent` ; sans elle, il
+  est composé à partir de `NEXT_PUBLIC_SITE_URL`. **Renseignez-la avec une
+  adresse de contact avant toute mise en service à volume réel** : c'est ce que
+  la politique d'OSM attend d'une application tierce.
+- Le plafond d'une requête par seconde s'appuie sur `KV_REST_API_URL` /
+  `KV_REST_API_TOKEN`. Sans store, il n'est tenu que **par instance** — voir le
+  risque R12 de [CLAUDE.md](./CLAUDE.md).
+
+Les tuiles sont chargées par Leaflet depuis `tile.openstreetmap.org` ; aucune
+iframe n'est utilisée. À l'étape 9, la politique de sécurité de contenu devra
+autoriser `tile.openstreetmap.org` en `img-src` et **ne pas** autoriser
+`openstreetmap.org` en `frame-src`.
 
 ## Sections à compléter
 

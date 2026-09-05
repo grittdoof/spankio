@@ -1310,3 +1310,88 @@ summary.sp-btn {
 summary.sp-btn::-webkit-details-marker {
   display: none;
 }
+
+/* ==========================================================================
+   Module événement
+   ========================================================================== */
+
+.sp-map {
+  height: 22rem;
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  overflow: hidden;
+}
+
+/* Marqueur dessiné en CSS : aucune image à charger, donc aucune origine de
+   plus à autoriser dans la politique de sécurité de contenu. */
+.sp-map-marker span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: var(--sp-danger);
+  box-shadow: var(--sp-shadow);
+}
+
+.sp-geocode-results {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sp-geocode-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: var(--sp-tap);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface);
+  color: var(--sp-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--sp-transition), border-color var(--sp-transition);
+}
+
+.sp-geocode-result:hover {
+  background: var(--sp-accent-light);
+  border-color: var(--sp-accent);
+}
+
+.sp-geocode-result:focus-visible {
+  outline: none;
+  border-color: var(--sp-accent);
+  box-shadow: var(--sp-ring);
+}
+
+.sp-banner-preview {
+  display: block;
+  width: 100%;
+  max-height: 14rem;
+  border-radius: var(--sp-radius);
+  object-fit: cover;
+}
+
+.sp-file-field input[type='file'] {
+  display: block;
+  width: 100%;
+  min-height: var(--sp-tap);
+  padding: 0.5rem;
+  border: 1px solid var(--sp-border-strong);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface);
+  font: inherit;
+}
+
+.sp-file-field input[type='file']:focus-visible {
+  outline: none;
+  border-color: var(--sp-accent);
+  box-shadow: var(--sp-ring);
+}

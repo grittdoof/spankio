@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ClosedScreen } from '@/components/public/screens';
 import { publicEnv } from '@/lib/config/env';
+import { bannerPublicUrl } from '@/lib/event/banner';
 import { resolveRequestContext } from '@/lib/data/context';
 import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
 import { fr } from '@/lib/i18n/fr';
@@ -68,8 +69,9 @@ function eventMeta(survey: PublicSurvey): string[] {
 
 function bannerUrl(survey: PublicSurvey): string | null {
   if (!survey.bannerPath) return null;
-  const base = publicEnv().NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
-  return `${base}/storage/v1/object/public/survey-banners/${survey.bannerPath}`;
+  // Une seule composition d'URL de bannière, partagée avec l'espace
+  // d'administration : deux versions finiraient par diverger d'un segment.
+  return bannerPublicUrl(publicEnv().NEXT_PUBLIC_SUPABASE_URL, survey.bannerPath);
 }
 
 export default async function PublicSurveyPage({ params }: PageProps) {

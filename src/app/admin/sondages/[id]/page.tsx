@@ -99,6 +99,14 @@ export default async function SurveyEditorPage({
             </span>
           </p>
         </div>
+        {survey.value.kind === 'event' ? (
+          <Link
+            className="sp-btn sp-btn--outline"
+            href={`/admin/sondages/${survey.value.id}/evenement`}
+          >
+            Réglages de l’événement
+          </Link>
+        ) : null}
       </div>
 
       <SurveyEditorClient

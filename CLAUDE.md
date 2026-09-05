@@ -123,7 +123,32 @@ changer.
 - Les formulaires d'authentification sont des `<form action={serverAction}>` :
   ils **fonctionnent sans JavaScript**. Un écran de connexion qui dépend d'un
   bundle devient inutilisable dès que celui-ci échoue.
-- Modules Leaflet : `await import(...)` dans un effet (sinon crash SSR).
+- Modules Leaflet : `await import(...)` dans un effet (sinon crash SSR). La
+  feuille de style, elle, est importée statiquement — un import de CSS ne peut
+  pas être dynamique.
+- **La carte n'est jamais le seul chemin.** Un lieu se règle par la recherche
+  d'adresse et deux champs numériques, tous deux utilisables au clavier ; la
+  carte est un confort. Elle porte `role="img"` et une description, plutôt
+  qu'un `role="application"` qui promettrait une interaction clavier
+  inexistante.
+- **Les octets ne traversent pas Next.** La bannière part du navigateur vers
+  Storage avec la session de l'utilisateur. Les contrôles qui protègent sont
+  ceux du bucket (`file_size_limit`, `allowed_mime_types` — pas de SVG, qui
+  est un document XML porteur de script servi depuis une origine publique) et
+  le RLS des objets. Ce que fait le navigateur avant n'est qu'un refus
+  précoce, et le chemin enregistré est revérifié côté serveur
+  (`isBannerPathOf`) : le bucket étant public, un chemin non vérifié
+  laisserait une organisation afficher le fichier d'une autre.
+- **Aucun appel direct du navigateur vers un tiers.** Nominatim passe par
+  `/api/admin/geocode` : la politique d'usage d'OpenStreetMap exige un
+  `User-Agent` identifiant l'application et plafonne à une requête par seconde
+  pour l'application ENTIÈRE — un verrou `SET NX EX` partagé, distinct du
+  rate-limit par appelant. Relayer évite en outre de livrer à un tiers l'IP de
+  chaque personne qui tape une adresse.
+- **Une heure de calendrier n'est pas un instant.** Les dates d'événement sont
+  saisies dans le fuseau DE L'ÉVÉNEMENT, converties par
+  `src/lib/event/time.ts`. Se fier au fuseau du navigateur rendrait le champ
+  « fuseau » décoratif et décalerait le fichier iCalendar.
 - Migrations SQL **toujours idempotentes** : `create or replace`,
   `drop policy if exists`, `create index if not exists`,
   `on conflict do nothing`.
@@ -212,7 +237,7 @@ figure, avec sa raison et sa condition de lever.
 | - | -------------- | ------ | ----------- |
 | R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. | Le HMR de Next exige `eval`. | N/A (limite du framework). |
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
-| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation), pas les composants serveur qui les assemblent — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
+| R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation, panneau événement), pas les composants serveur qui les assemblent — et **Leaflet y est remplacé par un double**, jsdom n'ayant ni moteur de rendu ni dimensions : la carte elle-même n'est pas couverte, seul l'est le chemin clavier qui la contourne — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
 | R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16. |
@@ -221,6 +246,7 @@ figure, avec sa raison et sa condition de lever.
 | R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 21 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
 | R11 | **8 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
+| R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 
 ## 7. Commandes
 
@@ -273,6 +299,12 @@ npm run build       # build de production
       (agrégats sans aucun contenu de réponse libre), détail des réponses,
       suppression logique d'une réponse et exports CSV / JSON. 780 tests dont
       11 d'accessibilité sur l'éditeur et le tableau de bord.
-- [ ] Étape 7 — module événement (bannière, Leaflet, agenda, itinéraire).
+- [x] Étape 7 — module événement : réglages de l'événement (dates dans le
+      fuseau de l'événement, lieu, organisateur, précisions), bannière
+      téléversée directement vers Storage sous contraintes de bucket, carte
+      Leaflet + tuiles OpenStreetMap avec marqueur déplaçable, relais de
+      géocodage Nominatim authentifié et plafonné, agenda et itinéraire déjà
+      posés à l'étape 5. 924 tests dont 10 d'accessibilité sur le panneau
+      événement et 21 d'intégration sur la bannière et le géocodage.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

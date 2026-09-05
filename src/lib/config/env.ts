@@ -78,6 +78,22 @@ export function publicEnv(): PublicEnv {
   });
 }
 
+/**
+ * Réglages serveur NON secrets, lus isolément.
+ *
+ * `serverEnv()` valide TOUT, clé de service comprise : une route qui n'a besoin
+ * que d'un libellé d'en-tête n'a pas à exiger la présence d'un secret dont elle
+ * ne fera rien. La clé est restreinte à une union fermée pour que cette porte
+ * ne devienne pas un accès générique à `process.env`.
+ */
+export function serverSetting(key: 'NOMINATIM_USER_AGENT'): string | undefined {
+  if (typeof window !== 'undefined') {
+    throw new Error("serverSetting() a été appelé côté client.");
+  }
+  const value = process.env[key];
+  return value && value.trim() !== '' ? value : undefined;
+}
+
 let serverCache: ServerEnv | null = null;
 
 /** Variables serveur (secrets compris). Interdit côté client. */
