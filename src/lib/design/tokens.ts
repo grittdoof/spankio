@@ -41,6 +41,44 @@ export const CSS_TOKEN_HEX: Readonly<Record<string, string>> = {
   '--sp-on-accent': '#FFFFFF',
 };
 
+/**
+ * Valeurs NON colorimétriques attendues dans `globals.css`.
+ *
+ * Elles vivent ici, et non dans les assertions du test, pour la même raison
+ * que les couleurs : la charte doit être lisible d'un seul endroit. Le
+ * commentaire dit lesquelles sont imposées par le client et lesquelles
+ * relèvent de l'échelle retenue — sans quoi une valeur négociable et une
+ * valeur contractuelle deviennent indistinguables.
+ */
+export const LAYOUT_TOKENS: Readonly<Record<string, string>> = {
+  // Imposées par le client, jamais renégociées.
+  '--sp-ease': 'cubic-bezier(0.4, 0, 0.2, 1)',
+  '--sp-transition': '0.15s var(--sp-ease)',
+  '--sp-sidebar-w': '248px',
+  '--sp-tap': '44px',
+
+  // Échelle retenue lors de la refonte : corps à 16px, rayons généreux.
+  '--sp-radius-lg': '24px',
+  '--sp-radius': '16px',
+  '--sp-radius-sm': '12px',
+  '--sp-radius-pill': '999px',
+  '--sp-text-xs': '0.8125rem',
+  '--sp-text-sm': '0.875rem',
+  '--sp-text-body': '1rem',
+  '--sp-text-lg': '1.125rem',
+  '--sp-leading': '1.6',
+  '--sp-leading-tight': '1.15',
+};
+
+/**
+ * Échelle d'espacement. Sa progression est vérifiée : une valeur intercalée
+ * au jugé (« 1.25rem parce que ça tombait mieux ») ferait perdre à l'échelle
+ * la seule chose qui la rend utile, sa régularité.
+ */
+export const SPACE_SCALE_REM: readonly number[] = [
+  0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6,
+];
+
 export interface ContrastRequirement {
   label: string;
   foreground: string;

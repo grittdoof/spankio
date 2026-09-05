@@ -11,6 +11,8 @@ import {
   BRAND_HEX,
   CONTRAST_REQUIREMENTS,
   CSS_TOKEN_HEX,
+  LAYOUT_TOKENS,
+  SPACE_SCALE_REM,
 } from '@/lib/design/tokens';
 
 const cssPath = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
@@ -79,16 +81,30 @@ describe('globals.css est aligné sur la charte', () => {
     },
   );
 
-  it('respecte les valeurs de forme et de mouvement imposées', () => {
-    expect(tokenValue('--sp-radius-lg')).toBe('16px');
-    expect(tokenValue('--sp-radius')).toBe('10px');
-    expect(tokenValue('--sp-radius-sm')).toBe('8px');
-    expect(tokenValue('--sp-ease')).toBe('cubic-bezier(0.4, 0, 0.2, 1)');
-    expect(tokenValue('--sp-transition')).toBe('0.15s var(--sp-ease)');
-    expect(tokenValue('--sp-sidebar-w')).toBe('248px');
-    expect(tokenValue('--sp-tap')).toBe('44px');
-    expect(tokenValue('--sp-text-body')).toMatch(/^0\.9375rem/); // 15px
-    expect(tokenValue('--sp-leading')).toBe('1.5');
+  it.each(Object.entries(LAYOUT_TOKENS))('%s vaut %s', (token, expected) => {
+    expect(tokenValue(token)).toBe(expected);
+  });
+
+  it('déclare une échelle d’espacement régulière', () => {
+    SPACE_SCALE_REM.forEach((rem, index) => {
+      expect(tokenValue(`--sp-space-${index + 1}`)).toBe(`${rem}rem`);
+    });
+    // Aucun cran surnuméraire : une échelle qu'on complète au coup par coup
+    // n'en est plus une.
+    expect(rootBlock).not.toMatch(
+      new RegExp(`--sp-space-${SPACE_SCALE_REM.length + 1}\\s*:`),
+    );
+  });
+
+  it('réserve l’échelle fluide aux grands niveaux', () => {
+    // Un corps de texte qui change de taille avec la fenêtre gêne la lecture ;
+    // un grand titre, non.
+    for (const token of ['--sp-text-xs', '--sp-text-sm', '--sp-text-body', '--sp-text-lg']) {
+      expect(tokenValue(token), `${token} ne doit pas être fluide`).not.toContain('clamp');
+    }
+    for (const token of ['--sp-text-xl', '--sp-text-2xl', '--sp-text-3xl']) {
+      expect(tokenValue(token), `${token} doit être fluide`).toContain('clamp');
+    }
   });
 
   it('déclare Montserrat avec un repli system-ui', () => {

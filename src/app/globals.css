@@ -34,30 +34,71 @@
   --sp-border-strong: oklch(63.88% 0.0322 264.32); /* #828CA0 — 3:1 mini (WCAG 1.4.11) */
   --sp-on-accent: oklch(100% 0 0); /* texte des boutons pleins : blanc */
 
-  /* --- Typographie ------------------------------------------------------ */
+  /* --- Typographie ------------------------------------------------------
+     Corps à 16px : en dessous, un texte long fatigue et l'interface « fait
+     technique ». L'échelle est fluide sur les grands niveaux uniquement — un
+     corps de texte qui change de taille avec la fenêtre gêne la lecture. */
   --sp-font: var(--font-montserrat), system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --sp-text-body: 0.9375rem; /* 15px */
-  --sp-leading: 1.5;
+  --sp-text-xs: 0.8125rem; /* 13px — métadonnées, badges */
+  --sp-text-sm: 0.875rem; /* 14px — aides, légendes */
+  --sp-text-body: 1rem; /* 16px — corps */
+  --sp-text-lg: 1.125rem; /* 18px — chapeaux */
+  --sp-text-xl: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --sp-text-2xl: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  --sp-text-3xl: clamp(1.875rem, 1.5rem + 1.9vw, 2.75rem);
+  --sp-leading: 1.6; /* corps : plus d'air entre les lignes */
+  --sp-leading-tight: 1.15; /* titres */
+
+  /* --- Échelle d'espacement --------------------------------------------
+     Base 4px, progression volontairement grossière au-delà de 16px : les
+     grands écarts sont ceux qui aèrent, et une échelle trop fine se traduit
+     par des marges choisies au hasard. */
+  --sp-space-1: 0.25rem; /* 4 */
+  --sp-space-2: 0.5rem; /* 8 */
+  --sp-space-3: 0.75rem; /* 12 */
+  --sp-space-4: 1rem; /* 16 */
+  --sp-space-5: 1.5rem; /* 24 */
+  --sp-space-6: 2rem; /* 32 */
+  --sp-space-7: 3rem; /* 48 */
+  --sp-space-8: 4rem; /* 64 */
+  --sp-space-9: 6rem; /* 96 */
 
   /* --- Forme ------------------------------------------------------------ */
-  --sp-radius-lg: 16px;
-  --sp-radius: 10px;
-  --sp-radius-sm: 8px;
+  --sp-radius-lg: 24px;
+  --sp-radius: 16px;
+  --sp-radius-sm: 12px;
   --sp-radius-pill: 999px;
 
-  /* --- Ombres douces (~6 %) --------------------------------------------- */
-  --sp-shadow-sm: 0 1px 2px oklch(23.18% 0.018 270.53 / 6%);
-  --sp-shadow: 0 2px 8px oklch(23.18% 0.018 270.53 / 6%);
-  --sp-shadow-lg: 0 8px 24px oklch(23.18% 0.018 270.53 / 6%);
+  /* --- Ombres à deux couches -------------------------------------------
+     Une couche courte pour poser l'objet, une longue et très diffuse pour le
+     détacher. Une ombre à couche unique paraît soit dure, soit sale. */
+  --sp-shadow-sm: 0 1px 2px oklch(23.18% 0.018 270.53 / 5%);
+  --sp-shadow:
+    0 1px 2px oklch(23.18% 0.018 270.53 / 4%),
+    0 8px 24px oklch(23.18% 0.018 270.53 / 6%);
+  --sp-shadow-lg:
+    0 2px 4px oklch(23.18% 0.018 270.53 / 4%),
+    0 16px 48px oklch(23.18% 0.018 270.53 / 10%);
   --sp-ring: 0 0 0 3px oklch(56.08% 0.1782 260.27 / 22%);
   --sp-ring-danger: 0 0 0 3px oklch(57.03% 0.2325 27.6 / 22%);
 
-  /* --- Mouvement & layout ---------------------------------------------- */
+  /* --- Mouvement --------------------------------------------------------
+     `--sp-transition` et `--sp-ease` restent les valeurs de la charte.
+     `--sp-ease-out` sert aux entrées : une courbe très amortie donne l'effet
+     « l'élément se pose » plutôt que « l'élément apparaît ». */
   --sp-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --sp-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --sp-transition: 0.15s var(--sp-ease);
+  --sp-motion-fast: 0.12s;
+  --sp-motion: 0.22s;
+  --sp-motion-slow: 0.4s;
+
+  /* --- Layout ---------------------------------------------------------- */
   --sp-sidebar-w: 248px;
   --sp-tap: 44px; /* zone tactile minimale */
-  --sp-content-w: 44rem;
+  --sp-content-w: 44rem; /* colonne de lecture */
+  --sp-page-w: 72rem; /* pages d'administration */
+  --sp-wizard-w: 38rem; /* une action par écran : colonne étroite */
 }
 
 /* Thème sombre présent mais NON câblé sur prefers-color-scheme (light-first).
@@ -125,21 +166,38 @@ body {
 :where(h1, h2, h3, h4) {
   color: var(--sp-marine);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--sp-leading-tight);
+  letter-spacing: -0.015em; /* Montserrat respire trop en grand corps */
   text-wrap: balance;
 }
 
-h1 {
-  font-size: clamp(1.625rem, 1.2rem + 2vw, 2.25rem);
+:where(h1) {
+  font-size: var(--sp-text-3xl);
+  letter-spacing: -0.025em;
 }
-h2 {
-  font-size: 1.375rem;
+:where(h2) {
+  font-size: var(--sp-text-2xl);
 }
-h3 {
-  font-size: 1.125rem;
+:where(h3) {
+  font-size: var(--sp-text-xl);
+}
+:where(h4) {
+  font-size: var(--sp-text-lg);
+  letter-spacing: normal;
 }
 
-p {
+:where(p) {
+  text-wrap: pretty;
+}
+
+/* Chapeau : la phrase qui suit un titre et explique l'écran. C'est la pièce
+   maîtresse de la pédagogie — elle a donc un style, pas une classe utilitaire
+   improvisée à chaque page. */
+.sp-lead {
+  max-width: 60ch;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-lg);
+  line-height: 1.55;
   text-wrap: pretty;
 }
 
@@ -187,31 +245,34 @@ video {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  min-height: var(--sp-tap);
+  gap: var(--sp-space-2);
+  min-height: 48px; /* au-delà du minimum tactile de 44px : plus confortable */
   min-width: var(--sp-tap);
-  padding: 0.625rem 1.125rem;
+  padding: var(--sp-space-3) var(--sp-space-5);
   border: 1px solid var(--_bd);
   border-radius: var(--sp-radius);
   background: var(--_bg);
   color: var(--_fg);
   font-size: var(--sp-text-body);
   font-weight: 600;
+  line-height: 1.25;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
   transition:
-    background-color var(--sp-transition),
-    border-color var(--sp-transition),
-    color var(--sp-transition),
-    box-shadow var(--sp-transition),
-    transform var(--sp-transition);
+    background-color var(--sp-motion-fast) var(--sp-ease),
+    border-color var(--sp-motion-fast) var(--sp-ease),
+    color var(--sp-motion-fast) var(--sp-ease),
+    box-shadow var(--sp-motion-fast) var(--sp-ease),
+    transform var(--sp-motion-fast) var(--sp-ease);
 }
 
 .sp-btn:hover:not(:disabled) {
   background: var(--_bg-hover);
 }
 
+/* Enfoncement léger : le retour tactile compte plus que son amplitude. Un
+   déplacement d'un pixel se sent, une mise à l'échelle se voit trop. */
 .sp-btn:active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -251,16 +312,16 @@ video {
 }
 
 .sp-btn--sm {
-  min-height: 36px;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.875rem;
+  min-height: 38px;
+  padding: var(--sp-space-2) var(--sp-space-4);
+  font-size: var(--sp-text-sm);
   border-radius: var(--sp-radius-sm);
 }
 
 .sp-btn--lg {
-  min-height: 52px;
-  padding: 0.875rem 1.75rem;
-  font-size: 1rem;
+  min-height: 56px;
+  padding: var(--sp-space-4) var(--sp-space-6);
+  font-size: var(--sp-text-lg);
   border-radius: var(--sp-radius);
 }
 
@@ -284,23 +345,45 @@ video {
   border: 1px solid var(--sp-border);
   border-radius: var(--sp-radius-lg);
   box-shadow: var(--sp-shadow);
-  padding: 1.5rem;
+  padding: var(--sp-space-6);
+}
+
+@media (max-width: 30rem) {
+  .sp-card {
+    padding: var(--sp-space-5);
+    border-radius: var(--sp-radius);
+  }
 }
 
 .sp-card--flat {
   box-shadow: none;
 }
 
+/* Carte cliquable : l'élévation au survol dit « ceci mène ailleurs » sans
+   ajouter un bouton dans chaque rangée. */
+.sp-card--link {
+  transition:
+    box-shadow var(--sp-motion) var(--sp-ease),
+    transform var(--sp-motion) var(--sp-ease),
+    border-color var(--sp-motion) var(--sp-ease);
+}
+
+.sp-card--link:hover {
+  border-color: transparent;
+  box-shadow: var(--sp-shadow-lg);
+  transform: translateY(-2px);
+}
+
 .sp-card__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: var(--sp-space-4);
+  margin-bottom: var(--sp-space-5);
 }
 
 .sp-card__title {
-  font-size: 1.0625rem;
+  font-size: var(--sp-text-lg);
 }
 
 /* ==========================================================================
@@ -310,15 +393,15 @@ video {
 .sp-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.1875rem 0.625rem;
+  gap: var(--sp-space-1);
+  padding: var(--sp-space-1) var(--sp-space-3);
   border-radius: var(--sp-radius-pill);
   background: var(--sp-surface-muted);
   border: 1px solid var(--sp-border);
   color: var(--sp-text-muted);
-  font-size: 0.8125rem;
+  font-size: var(--sp-text-xs);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.5;
   white-space: nowrap;
 }
 
@@ -352,44 +435,92 @@ video {
 
 .sp-field {
   display: block;
-  margin-bottom: 1rem;
+  margin-bottom: var(--sp-space-5);
 }
 
 .sp-label {
   display: block;
-  margin-bottom: 0.375rem;
+  margin-bottom: var(--sp-space-2);
   color: var(--sp-marine);
   font-weight: 600;
 }
 
 .sp-hint {
   display: block;
-  margin-top: 0.25rem;
+  margin-top: var(--sp-space-2);
   color: var(--sp-text-muted);
-  font-size: 0.875rem;
+  font-size: var(--sp-text-sm);
+  line-height: 1.5;
+}
+
+/* L'aide vient AVANT le champ quand elle conditionne la saisie : la lire après
+   avoir répondu ne sert à rien. C'est le rôle de `.sp-field--hint-first`. */
+.sp-field--hint-first {
+  display: flex;
+  flex-direction: column;
+}
+
+.sp-field--hint-first .sp-label {
+  order: 1;
+  margin-bottom: var(--sp-space-1);
+}
+
+.sp-field--hint-first .sp-hint {
+  order: 2;
+  margin-top: 0;
+  margin-bottom: var(--sp-space-2);
+}
+
+.sp-field--hint-first > :not(.sp-label):not(.sp-hint):not(.sp-error) {
+  order: 3;
+}
+
+.sp-field--hint-first .sp-error {
+  order: 4;
 }
 
 .sp-error {
-  display: block;
-  margin-top: 0.375rem;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-space-2);
+  margin-top: var(--sp-space-2);
   color: var(--sp-danger-text);
-  font-size: 0.875rem;
+  font-size: var(--sp-text-sm);
   font-weight: 600;
+  animation: sp-slide-in var(--sp-motion) var(--sp-ease-out);
+}
+
+.sp-error::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 1.125em;
+  height: 1.125em;
+  border-radius: 50%;
+  background: var(--sp-danger-text);
+  /* Point d'exclamation dessiné en masque : pas de fichier, pas d'origine à
+     autoriser dans la politique de sécurité de contenu. */
+  mask: radial-gradient(circle at 50% 78%, #000 9%, transparent 10%),
+    linear-gradient(#000 0 0) center/2px 45% no-repeat;
+  mask-composite: add;
+  -webkit-mask: radial-gradient(circle at 50% 78%, #000 9%, transparent 10%),
+    linear-gradient(#000 0 0) center/2px 45% no-repeat;
+  -webkit-mask-composite: source-over;
 }
 
 .sp-input,
 .sp-textarea,
 .sp-select {
   width: 100%;
-  min-height: var(--sp-tap);
-  padding: 0.625rem 0.75rem;
+  min-height: 48px;
+  padding: var(--sp-space-3) var(--sp-space-4);
   background: var(--sp-surface);
   border: 1px solid var(--sp-border-strong);
   border-radius: var(--sp-radius-sm);
   color: var(--sp-text);
+  font-size: var(--sp-text-body);
   transition:
-    border-color var(--sp-transition),
-    box-shadow var(--sp-transition);
+    border-color var(--sp-motion-fast) var(--sp-ease),
+    box-shadow var(--sp-motion-fast) var(--sp-ease);
 }
 
 .sp-textarea {
@@ -1400,4 +1531,483 @@ summary.sp-btn::-webkit-details-marker {
   outline: none;
   border-color: var(--sp-accent);
   box-shadow: var(--sp-ring);
+}
+
+/* ==========================================================================
+   Refonte — mouvement partagé
+   Toutes ces animations sont neutralisées par le bloc
+   `prefers-reduced-motion` ci-dessus : elles rassurent, elles ne portent
+   jamais d'information à elles seules.
+   ========================================================================== */
+
+@keyframes sp-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sp-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes sp-shimmer {
+  to {
+    background-position-x: -200%;
+  }
+}
+
+/* Entrée d'écran. Le délai en cascade donne l'impression que la page se
+   compose, au lieu d'apparaître d'un bloc. */
+.sp-rise > * {
+  animation: sp-rise var(--sp-motion-slow) var(--sp-ease-out) backwards;
+}
+
+.sp-rise > *:nth-child(1) { animation-delay: 0ms; }
+.sp-rise > *:nth-child(2) { animation-delay: 40ms; }
+.sp-rise > *:nth-child(3) { animation-delay: 80ms; }
+.sp-rise > *:nth-child(4) { animation-delay: 120ms; }
+.sp-rise > *:nth-child(n + 5) { animation-delay: 160ms; }
+
+/* ==========================================================================
+   Refonte — mise en page des pages
+   ========================================================================== */
+
+.sp-page {
+  width: 100%;
+  max-width: var(--sp-page-w);
+  margin-inline: auto;
+}
+
+.sp-page--narrow {
+  max-width: var(--sp-content-w);
+}
+
+/* En-tête d'écran : un titre, un chapeau, une action. Toujours dans cet
+   ordre, sur toutes les pages — la constance vaut mieux que l'invention. */
+.sp-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-space-5);
+  margin-bottom: var(--sp-space-7);
+}
+
+.sp-header__text {
+  min-width: 0;
+  max-width: 60ch;
+}
+
+.sp-header__text > * + * {
+  margin-top: var(--sp-space-3);
+}
+
+.sp-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-space-3);
+}
+
+/* Fil d'Ariane : la position dans l'arborescence, pas une décoration. */
+.sp-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-space-2);
+  margin-bottom: var(--sp-space-3);
+  padding: 0;
+  list-style: none;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-crumbs li + li::before {
+  content: '/';
+  margin-right: var(--sp-space-2);
+  color: var(--sp-border-strong);
+}
+
+.sp-section {
+  margin-bottom: var(--sp-space-7);
+}
+
+.sp-section__title {
+  margin-bottom: var(--sp-space-2);
+}
+
+.sp-section__lead {
+  margin-bottom: var(--sp-space-5);
+  color: var(--sp-text-muted);
+  max-width: 60ch;
+}
+
+/* ==========================================================================
+   Refonte — pédagogie : encadré explicatif, exemple, info-bulle
+   ========================================================================== */
+
+/* Encadré d'explication. Il DIT quelque chose d'utile ou il n'existe pas :
+   un bandeau décoratif ne fait qu'éloigner l'action réelle. */
+.sp-callout {
+  display: flex;
+  gap: var(--sp-space-3);
+  padding: var(--sp-space-4) var(--sp-space-5);
+  border-radius: var(--sp-radius);
+  background: var(--sp-accent-light);
+  color: var(--sp-text);
+  font-size: var(--sp-text-sm);
+  line-height: 1.55;
+}
+
+.sp-callout__mark {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--sp-accent-text);
+  color: var(--sp-on-accent);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+}
+
+.sp-callout--muted {
+  background: var(--sp-surface-muted);
+  border: 1px solid var(--sp-border);
+}
+
+.sp-callout--muted .sp-callout__mark {
+  background: var(--sp-text-muted);
+}
+
+.sp-callout__title {
+  display: block;
+  margin-bottom: var(--sp-space-1);
+  color: var(--sp-marine);
+  font-weight: 700;
+}
+
+/* Exemple concret. Le meilleur libellé d'aide reste un exemple. */
+.sp-example {
+  display: block;
+  margin-top: var(--sp-space-2);
+  padding: var(--sp-space-2) var(--sp-space-3);
+  border-left: 3px solid var(--sp-border-strong);
+  background: var(--sp-surface-muted);
+  border-radius: 0 var(--sp-radius-sm) var(--sp-radius-sm) 0;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+/* Info-bulle. Bâtie sur un vrai `button` + une région décrite : l'attribut
+   `title` ne s'ouvre ni au clavier ni au toucher, et n'est pas lu de façon
+   fiable — ce n'est pas une info-bulle, c'est une loterie. */
+.sp-tip {
+  display: inline-flex;
+  position: relative;
+  vertical-align: middle;
+}
+
+.sp-tip__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  padding: 0;
+  border: 1px solid var(--sp-border-strong);
+  border-radius: 50%;
+  background: var(--sp-surface);
+  color: var(--sp-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  transition:
+    border-color var(--sp-motion-fast) var(--sp-ease),
+    color var(--sp-motion-fast) var(--sp-ease);
+}
+
+.sp-tip__button:hover,
+.sp-tip__button[aria-expanded='true'] {
+  border-color: var(--sp-accent);
+  color: var(--sp-accent-text);
+}
+
+.sp-tip__bubble {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + var(--sp-space-2));
+  left: 50%;
+  width: max-content;
+  max-width: min(20rem, 70vw);
+  padding: var(--sp-space-3) var(--sp-space-4);
+  transform: translateX(-50%);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-marine);
+  color: #ffffff;
+  font-size: var(--sp-text-sm);
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  box-shadow: var(--sp-shadow-lg);
+  animation: sp-slide-in var(--sp-motion-fast) var(--sp-ease-out);
+}
+
+/* ==========================================================================
+   Refonte — parcours guidé (wizard)
+   ========================================================================== */
+
+.sp-wizard {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.sp-wizard__top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: var(--sp-space-4) var(--sp-space-5);
+  padding-top: max(var(--sp-space-4), env(safe-area-inset-top));
+  background: color-mix(in oklab, var(--sp-surface) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--sp-border);
+}
+
+.sp-wizard__top-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-4);
+  max-width: var(--sp-page-w);
+  margin-inline: auto;
+}
+
+.sp-wizard__body {
+  flex: 1;
+  width: 100%;
+  max-width: var(--sp-wizard-w);
+  margin-inline: auto;
+  padding: var(--sp-space-8) var(--sp-space-5) var(--sp-space-9);
+}
+
+@media (max-width: 40rem) {
+  .sp-wizard__body {
+    padding-top: var(--sp-space-6);
+    padding-bottom: var(--sp-space-8);
+  }
+}
+
+.sp-wizard__foot {
+  position: sticky;
+  bottom: 0;
+  padding: var(--sp-space-4) var(--sp-space-5);
+  padding-bottom: max(var(--sp-space-4), env(safe-area-inset-bottom));
+  background: color-mix(in oklab, var(--sp-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--sp-border);
+}
+
+.sp-wizard__foot-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-4);
+  max-width: var(--sp-wizard-w);
+  margin-inline: auto;
+}
+
+/* Barre de progression. La valeur est TOUJOURS écrite à côté : une barre
+   seule ne dit rien à qui ne la voit pas. */
+.sp-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-3);
+  min-width: 0;
+}
+
+.sp-steps__track {
+  flex: 1;
+  height: 6px;
+  min-width: 4rem;
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-border);
+  overflow: hidden;
+}
+
+.sp-steps__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sp-accent);
+  transition: width var(--sp-motion-slow) var(--sp-ease-out);
+}
+
+.sp-steps__label {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Une question par écran : le titre porte l'écran, tout le reste le sert. */
+.sp-ask {
+  animation: sp-rise var(--sp-motion-slow) var(--sp-ease-out);
+}
+
+.sp-ask__step {
+  display: block;
+  margin-bottom: var(--sp-space-3);
+  color: var(--sp-accent-text);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sp-ask__title {
+  margin-bottom: var(--sp-space-3);
+}
+
+.sp-ask__lead {
+  margin-bottom: var(--sp-space-6);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-lg);
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.sp-ask__body > * + * {
+  margin-top: var(--sp-space-5);
+}
+
+/* Choix en grandes cartes : la cible est le bloc entier, pas un rond de 16px. */
+.sp-picks {
+  display: grid;
+  gap: var(--sp-space-3);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.sp-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-space-4);
+  padding: var(--sp-space-5);
+  border: 1px solid var(--sp-border-strong);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
+  cursor: pointer;
+  transition:
+    border-color var(--sp-motion-fast) var(--sp-ease),
+    background-color var(--sp-motion-fast) var(--sp-ease),
+    box-shadow var(--sp-motion-fast) var(--sp-ease);
+}
+
+.sp-pick:hover {
+  border-color: var(--sp-accent);
+  background: var(--sp-accent-light);
+}
+
+.sp-pick:has(input:focus-visible) {
+  outline: 2px solid var(--sp-accent);
+  outline-offset: 2px;
+}
+
+.sp-pick:has(input:checked) {
+  border-color: var(--sp-accent);
+  box-shadow: inset 0 0 0 1px var(--sp-accent);
+}
+
+.sp-pick input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  accent-color: var(--sp-accent);
+}
+
+.sp-pick__text {
+  min-width: 0;
+}
+
+.sp-pick__name {
+  display: block;
+  color: var(--sp-marine);
+  font-weight: 600;
+}
+
+.sp-pick__desc {
+  display: block;
+  margin-top: var(--sp-space-1);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Refonte — états : vide, chargement, en cours
+   ========================================================================== */
+
+.sp-empty {
+  padding: var(--sp-space-8) var(--sp-space-5);
+  border: 1px dashed var(--sp-border-strong);
+  border-radius: var(--sp-radius-lg);
+  background: var(--sp-surface);
+  text-align: center;
+}
+
+.sp-empty__title {
+  margin-bottom: var(--sp-space-3);
+}
+
+.sp-empty__lead {
+  max-width: 46ch;
+  margin: 0 auto var(--sp-space-5);
+  color: var(--sp-text-muted);
+}
+
+/* Indicateur d'action en cours, DANS le bouton : la confirmation arrive là où
+   le clic a eu lieu, pas dans un coin de l'écran. */
+.sp-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sp-spin 0.7s linear infinite;
+}
+
+.sp-skeleton {
+  border-radius: var(--sp-radius-sm);
+  background: linear-gradient(
+      90deg,
+      var(--sp-surface-muted) 40%,
+      var(--sp-border) 50%,
+      var(--sp-surface-muted) 60%
+    )
+    right / 200% 100%;
+  animation: sp-shimmer 1.4s linear infinite;
 }
