@@ -2,9 +2,15 @@ import { z } from 'zod';
 import { guard } from '@/lib/api/guard';
 import { jsonError, mapDbError } from '@/lib/api/respond';
 import { parseWith } from '@/lib/api/validate';
-import { csvFileName, responsesToCsv } from '@/lib/export/csv';
+import { csvFileName, responseRows, toCsv } from '@/lib/export/csv';
 import { jsonFileName, responsesToJsonExport, serialiseJsonExport } from '@/lib/export/json';
 import { eq } from '@/lib/data/port';
+import {
+  ATTENDANCE_STATUS_LABELS,
+  attendanceRows,
+  isAttendanceConfigured,
+} from '@/lib/survey/attendance';
+import { validateSurveySettings } from '@/lib/survey/settings';
 import {
   EXPORT_LIMIT,
   getSurvey,
@@ -84,7 +90,40 @@ export async function GET(
     });
   }
 
-  return new Response(responsesToCsv(schema.value, rows), {
+  // Comptage des présents : les deux colonnes ouvrent le fichier quand
+  // l'organisation a désigné la question de présence. Un listing d'accueil
+  // sans effectif obligerait à recompter à la main.
+  const settings = validateSurveySettings(survey.value.settings);
+  const attendance = settings.ok ? (settings.settings.attendance ?? {}) : {};
+  const counting = survey.value.kind === 'event' && isAttendanceConfigured(attendance);
+
+  const csvRows = responseRows(schema.value, rows);
+  if (counting) {
+    const lines = attendanceRows(schema.value, attendance, rows);
+    const header = csvRows[0] ?? [];
+    const body = csvRows.slice(1);
+    const withAttendance: string[][] = [['Présence', 'Personnes', ...header]];
+    body.forEach((row, index) => {
+      const line = lines[index];
+      withAttendance.push([
+        line ? ATTENDANCE_STATUS_LABELS[line.status] : '',
+        // Un effectif indéterminé est DIT, pas remplacé par un chiffre sûr de
+        // lui : la personne qui prépare l'accueil doit savoir quoi vérifier.
+        line ? (line.ambiguous ? `${line.people} (à vérifier)` : String(line.people)) : '',
+        ...row,
+      ]);
+    });
+    return new Response(toCsv(withAttendance), {
+      status: 200,
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="${csvFileName(survey.value.slug, now)}"`,
+        'cache-control': 'no-store',
+      },
+    });
+  }
+
+  return new Response(toCsv(csvRows), {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',

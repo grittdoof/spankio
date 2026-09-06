@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { attendanceSettingsSchema } from './attendance';
 import { MAX_LENGTHS } from './limits';
 
 /**
@@ -47,6 +48,13 @@ export const surveySettingsSchema = z.object({
    * formule vague.
    */
   consentText: text(MAX_LENGTHS.stepIntro).optional(),
+
+  /**
+   * Comptage des présents (mode événement). L'organisation DÉSIGNE ici la
+   * question qui dit « je viens » et celle qui donne le nombre : la plateforme
+   * est générique, elle ne peut pas les deviner.
+   */
+  attendance: attendanceSettingsSchema.optional(),
 });
 
 export type SurveySettings = z.infer<typeof surveySettingsSchema>;

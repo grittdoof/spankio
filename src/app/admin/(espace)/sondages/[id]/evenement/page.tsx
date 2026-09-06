@@ -8,7 +8,8 @@ import type { EventDraft } from '@/components/admin/EventSettings';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
-import { getSurvey } from '@/lib/services/surveys';
+import { getSurvey, parseSurveySchema } from '@/lib/services/surveys';
+import { validateSurveySettings } from '@/lib/survey/settings';
 import { EventSettingsClient } from './EventSettingsClient';
 
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,16 @@ export default async function EventSettingsPage({
     );
   }
 
+  // Le schéma fournit les questions à désigner pour le comptage ; les réglages
+  // sont réémis intégralement à l'enregistrement.
+  const schema = parseSurveySchema(survey.value);
+  const settings = validateSurveySettings(survey.value.settings);
+  if (!schema.ok || !settings.ok) {
+    return <Alert tone="error">{fr.errors.unexpected}</Alert>;
+  }
+
   const initial: EventDraft = {
+    attendance: settings.settings.attendance ?? {},
     bannerPath: survey.value.banner_path,
     eventStartsAt: survey.value.event_starts_at,
     eventEndsAt: survey.value.event_ends_at,
@@ -90,6 +100,8 @@ export default async function EventSettingsPage({
         organisationId={session.organisationId}
         surveyId={survey.value.id}
         initial={initial}
+        schema={schema.value}
+        settings={settings.settings}
       />
     </div>
   );

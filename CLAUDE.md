@@ -212,6 +212,22 @@ changer.
   saisir, ce qui est validé et ce qui sort à l'export ; et comme le changer
   après coup orphelinerait les réponses reçues, se tromper coûte une
   suppression suivie d'une recréation.
+- **Le comptage des présents est DÉSIGNÉ, jamais devine.** La plateforme est
+  générique : elle ne peut pas savoir laquelle des questions signifie « je
+  viens ». L'organisation désigne la question de présence, la réponse qui vaut
+  oui, et éventuellement la question donnant le nombre — le tout dans
+  `settings.attendance`, donc sans migration. Sans désignation, la page des
+  réponses continue de compter des RÉPONSES, ce qui reste exact.
+- **Un effectif indéterminé est signalé, pas arbitré.** Plusieurs cases
+  cochées là où une seule était attendue, ou aucun nombre indiqué : la réponse
+  compte pour une personne — celle qui a répondu vient bien — et elle est
+  marquée « à vérifier » dans la liste comme dans l'export. Additionner les
+  cases ou retenir le maximum serait un arbitrage que personne n'a demandé, et
+  un chiffre faux qu'aucune alerte ne signalerait.
+- **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
+  valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
+  libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
+  les valeurs d'option.
 - **Un seul cadrage de bannière** (`BannerFrame`) pour l'aperçu de l'éditeur,
   la miniature de la liste et le rendu public : trois cadrages donneraient
   trois images, et l'organisation ne saurait pas ce que voit le répondant. Le

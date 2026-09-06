@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { BannerUpload } from '@/components/admin/BannerUpload';
 import { EventSettings, type EventDraft } from '@/components/admin/EventSettings';
 import { LocationPicker } from '@/components/admin/LocationPicker';
+import { validateSurveySchema } from '@/lib/survey/schema';
 import { expectNoA11yViolations } from '../helpers/axe';
 
 /**
@@ -37,7 +38,41 @@ vi.mock('leaflet', () => {
 
 vi.mock('leaflet/dist/leaflet.css', () => ({}));
 
+const schema = (() => {
+  const result = validateSurveySchema({
+    version: 1,
+    steps: [
+      {
+        id: 'etape_1',
+        fields: [
+          {
+            id: 'presence',
+            type: 'radio',
+            label: 'Serez-vous présent ?',
+            options: [
+              { value: 'oui', label: 'Oui' },
+              { value: 'non', label: 'Non' },
+            ],
+          },
+          {
+            id: 'accompagnants',
+            type: 'select',
+            label: 'Combien vous accompagnent ?',
+            options: [
+              { value: 'a0', label: '0' },
+              { value: 'a2', label: '2' },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  if (!result.ok) throw new Error('Schéma de test invalide');
+  return result.schema;
+})();
+
 const draft: EventDraft = {
+  attendance: {},
   bannerPath: null,
   eventStartsAt: '2027-06-01T08:00:00.000Z',
   eventEndsAt: null,
@@ -59,7 +94,13 @@ const saved = () => Promise.resolve({ ok: true as const });
 describe('accessibilité du panneau événement', () => {
   it('ne signale aucune violation', async () => {
     const { container } = render(
-      <EventSettings organisationId={ORG} surveyId={SURVEY} initial={draft} onSave={saved} />,
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={draft}
+        onSave={saved}
+      />,
     );
     await waitFor(() => expect(screen.getByLabelText('Latitude')).toBeTruthy());
     await expectNoA11yViolations(container);
@@ -67,7 +108,13 @@ describe('accessibilité du panneau événement', () => {
 
   it('affiche l’horaire dans le fuseau de l’événement, pas celui du poste', () => {
     render(
-      <EventSettings organisationId={ORG} surveyId={SURVEY} initial={draft} onSave={saved} />,
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={draft}
+        onSave={saved}
+      />,
     );
     // 08:00 UTC le 1er juin, c'est 10 h à Paris.
     const start: HTMLInputElement = screen.getByLabelText(/^Début/);
@@ -77,7 +124,13 @@ describe('accessibilité du panneau événement', () => {
   it('recalcule l’instant quand le fuseau change, en gardant l’heure affichée', async () => {
     const user = userEvent.setup();
     render(
-      <EventSettings organisationId={ORG} surveyId={SURVEY} initial={draft} onSave={saved} />,
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={draft}
+        onSave={saved}
+      />,
     );
 
     await user.selectOptions(screen.getByLabelText(/Fuseau horaire/), 'Europe/Lisbon');
@@ -95,6 +148,7 @@ describe('accessibilité du panneau événement', () => {
     render(
       <EventSettings
         organisationId={ORG}
+        schema={schema}
         surveyId={SURVEY}
         initial={{ ...draft, eventTimezone: 'UTC' }}
         onSave={saved}
@@ -107,7 +161,13 @@ describe('accessibilité du panneau événement', () => {
   it('signale une fin antérieure au début', async () => {
     const user = userEvent.setup();
     render(
-      <EventSettings organisationId={ORG} surveyId={SURVEY} initial={draft} onSave={saved} />,
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={draft}
+        onSave={saved}
+      />,
     );
 
     const end = screen.getByLabelText(/^Fin/);
@@ -115,6 +175,106 @@ describe('accessibilité du panneau événement', () => {
     await user.type(end, '2027-05-01T09:00');
 
     expect(await screen.findByText('La fin précède le début.')).toBeTruthy();
+  });
+});
+
+describe('comptage des présents', () => {
+  it('ne propose le comptage qu’à partir des questions du formulaire', async () => {
+    const user = userEvent.setup();
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={draft}
+        onSave={saved}
+      />,
+    );
+
+    // Seules les questions à choix unique peuvent dire « je viens » : une
+    // réponse libre ne se compare pas de façon fiable.
+    const presence = screen.getByLabelText(/Question qui dit si la personne vient/);
+    expect([...presence.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+      'Ne pas compter les présents',
+      'Serez-vous présent ?',
+      'Combien vous accompagnent ?',
+    ]);
+
+    await user.selectOptions(presence, 'presence');
+    // La valeur attendue est préremplie : un comptage à moitié configuré ne
+    // se déclencherait jamais.
+    expect(screen.getByLabelText(/Réponse qui signifie/)).toHaveValue('oui');
+  });
+
+  it('réinitialise la réponse attendue quand la question change', async () => {
+    const user = userEvent.setup();
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={{
+          ...draft,
+          attendance: { presenceField: 'presence', presenceValue: 'oui' },
+        }}
+        onSave={saved}
+      />,
+    );
+
+    // « oui » n'existe pas dans l'autre question : la conserver produirait un
+    // comptage muet.
+    await user.selectOptions(
+      screen.getByLabelText(/Question qui dit si la personne vient/),
+      'accompagnants',
+    );
+    expect(screen.getByLabelText(/Réponse qui signifie/)).toHaveValue('a0');
+  });
+
+  it('demande si le nombre compte les accompagnants ou le total', async () => {
+    const user = userEvent.setup();
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={{
+          ...draft,
+          attendance: { presenceField: 'presence', presenceValue: 'oui' },
+        }}
+        onSave={saved}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByLabelText(/Question donnant le nombre de personnes/),
+      'accompagnants',
+    );
+    // Sans cette question, « 2 » vaudrait deux ou trois personnes selon la
+    // lecture — et personne ne saurait laquelle.
+    expect(screen.getByRole('group', { name: 'Ce nombre compte…' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /Les accompagnants/ })).toBeTruthy();
+  });
+
+  it('ne signale aucune violation, comptage configuré', async () => {
+    const { container } = render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyId={SURVEY}
+        initial={{
+          ...draft,
+          attendance: {
+            presenceField: 'presence',
+            presenceValue: 'oui',
+            partyField: 'accompagnants',
+            partyMode: 'extra',
+          },
+        }}
+        onSave={saved}
+      />,
+    );
+    await waitFor(() => expect(screen.getByLabelText('Latitude')).toBeTruthy());
+    await expectNoA11yViolations(container);
   });
 });
 

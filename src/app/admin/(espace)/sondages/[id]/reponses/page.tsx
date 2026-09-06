@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 import Link from 'next/link';
+import { AttendancePanel } from '@/components/admin/AttendancePanel';
 import { StatisticsPanel } from '@/components/admin/StatisticsPanel';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -17,6 +18,14 @@ import {
   listResponses,
   parseSurveySchema,
 } from '@/lib/services/surveys';
+import {
+  ATTENDANCE_STATUS_LABELS,
+  attendanceRows,
+  countAttendance,
+  isAttendanceConfigured,
+  type AttendanceStatus,
+} from '@/lib/survey/attendance';
+import { validateSurveySettings } from '@/lib/survey/settings';
 import { computeStatistics } from '@/lib/survey/statistics';
 import { deleteResponseAction } from '../../actions';
 
@@ -43,6 +52,13 @@ const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
   timeStyle: 'short',
   timeZone: 'Europe/Paris',
 });
+
+/** Le statut est porté par un mot ET une couleur, jamais par la couleur seule. */
+const STATUS_BADGE: Readonly<Record<AttendanceStatus, string>> = {
+  attending: 'sp-badge sp-badge--success',
+  declined: 'sp-badge',
+  unknown: 'sp-badge sp-badge--warning',
+};
 
 /**
  * Horodatage lisible. C'est la SEULE cellule qui diffère de l'export : celui-ci
@@ -92,10 +108,23 @@ export default async function SurveyResponsesPage({
   if (!responses.ok) return <Alert tone="error">{fr.errors.unexpected}</Alert>;
 
   const statistics = computeStatistics(schema.value, responses.value);
+
+  // Comptage des présents : uniquement si l'organisation a désigné la question
+  // qui dit « je viens ». Sans cela on compte des réponses, ce qui est exact
+  // mais ne donne pas d'effectif.
+  const settings = validateSurveySettings(survey.value.settings);
+  const attendance = settings.ok ? (settings.settings.attendance ?? {}) : {};
+  const counting = survey.value.kind === 'event' && isAttendanceConfigured(attendance);
+  const totals = counting
+    ? countAttendance(schema.value, attendance, responses.value)
+    : null;
   const shown = responses.value.slice(0, TABLE_LIMIT);
   // `meta: 'screen'` : la date suffit à l'écran. Le consentement et son texte
   // restent dans l'export, où ils servent de preuve.
   const rows = responseRows(schema.value, shown, { meta: 'screen' });
+  const perResponse = counting
+    ? attendanceRows(schema.value, attendance, shown)
+    : null;
   const header = rows[0] ?? [];
   const body = rows.slice(1);
 
@@ -161,6 +190,17 @@ export default async function SurveyResponsesPage({
         />
       ) : (
         <>
+          {totals ? (
+            <section className="sp-section">
+              <h2 className="sp-section__title">Effectif attendu</h2>
+              <p className="sp-section__lead">
+                Le nombre de personnes, accompagnants compris — non le nombre de
+                réponses.
+              </p>
+              <AttendancePanel totals={totals} />
+            </section>
+          ) : null}
+
           <section className="sp-section">
             <h2 className="sp-section__title">Statistiques</h2>
             <p className="sp-section__lead">
@@ -194,6 +234,12 @@ export default async function SurveyResponsesPage({
               </caption>
               <thead>
                 <tr>
+                  {perResponse ? (
+                    <>
+                      <th scope="col">Présence</th>
+                      <th scope="col">Personnes</th>
+                    </>
+                  ) : null}
                   {header.map((cell, index) => (
                     <th key={`${cell}-${index}`} scope="col">
                       {cell}
@@ -205,8 +251,30 @@ export default async function SurveyResponsesPage({
               <tbody>
                 {body.map((row, index) => {
                   const response = shown[index];
+                  const line = perResponse?.[index];
                   return (
-                    <tr key={response?.id ?? index}>
+                    <tr
+                      className={line?.ambiguous ? 'sp-row--check' : undefined}
+                      key={response?.id ?? index}
+                    >
+                      {line ? (
+                        <>
+                          <td>
+                            <span className={STATUS_BADGE[line.status]}>
+                              {ATTENDANCE_STATUS_LABELS[line.status]}
+                            </span>
+                          </td>
+                          <td className="sp-people">
+                            {line.people}
+                            {line.ambiguous ? (
+                              <>
+                                {' '}
+                                <span className="sp-badge sp-badge--warning">à vérifier</span>
+                              </>
+                            ) : null}
+                          </td>
+                        </>
+                      ) : null}
                       {row.map((cell, cellIndex) => (
                         <td key={`${cellIndex}-${cell}`}>
                           {cellIndex === 0 && response ? formatMoment(response.submitted_at) : cell}
