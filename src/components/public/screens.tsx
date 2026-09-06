@@ -2,8 +2,17 @@
 
 import { Alert } from '@/components/ui/Alert';
 import { BannerFrame } from '@/components/ui/BannerFrame';
+import {
+  EventActions,
+  type CalendarActions,
+  type DirectionsActions,
+  type EventActionsProps,
+} from './EventActions';
 import { fr } from '@/lib/i18n/fr';
 import type { ConsentNotice } from '@/lib/survey/consent';
+
+/** Ré-exportés : les écrans sont le point d'entrée de ces types. */
+export type { CalendarActions, DirectionsActions };
 
 /**
  * Écrans d'encadrement du formulaire : accueil, intro d'étape, consentement,
@@ -24,6 +33,7 @@ export function WelcomeScreen({
   meta,
   ctaLabel,
   onStart,
+  event,
   children,
 }: {
   branding: Branding;
@@ -33,6 +43,8 @@ export function WelcomeScreen({
   meta?: readonly string[];
   ctaLabel: string;
   onStart: () => void;
+  /** Agenda et itinéraire, proposés AVANT l'inscription. */
+  event?: EventActionsProps | undefined;
   children?: React.ReactNode;
 }) {
   return (
@@ -46,9 +58,13 @@ export function WelcomeScreen({
           organisation par l'optimiseur de Vercel, facturé à l'usage — sur une
           plateforme revendable, le coût croît avec le nombre de clients. Les
           bannières sont servies par le CDN de Storage et bornées à l'envoi. */}
-      {branding.bannerUrl ? <BannerFrame url={branding.bannerUrl} lazy /> : null}
+      {branding.bannerUrl ? (
+        <div className="sp-welcome__visual">
+          <BannerFrame url={branding.bannerUrl} />
+        </div>
+      ) : null}
 
-      <div className="sp-screen__body">
+      <div className="sp-screen__body sp-welcome__text">
         <div className="sp-brandline">
           {branding.logoUrl ? (
             // Même raison que pour la bannière : un logo par organisation.
@@ -83,6 +99,11 @@ export function WelcomeScreen({
         <button className="sp-btn sp-btn--lg" type="button" onClick={onStart}>
           {ctaLabel}
         </button>
+
+        {/* APRÈS l'inscription dans l'ordre de lecture, mais accessible sans
+            elle : bloquer la date est souvent le premier geste, s'inscrire le
+            second. */}
+        {event ? <EventActions {...event} /> : null}
       </div>
     </div>
   );
@@ -171,12 +192,6 @@ export function ConsentScreen({
   );
 }
 
-export interface CalendarActions {
-  readonly google: string;
-  readonly outlook: string;
-  readonly ics: string;
-}
-
 export function ThankYouScreen({
   title,
   message,
@@ -187,7 +202,7 @@ export function ThankYouScreen({
   title: string;
   message?: string | undefined;
   calendar?: CalendarActions | undefined;
-  directions?: { google: string; openStreetMap: string; apple: string } | undefined;
+  directions?: DirectionsActions | undefined;
   eventSummary?: readonly string[];
 }) {
   return (
@@ -207,64 +222,8 @@ export function ThankYouScreen({
           </ul>
         ) : null}
 
-        {calendar ? (
-          <section className="sp-actions-block">
-            <h3>{fr.survey.addToCalendar}</h3>
-            <div className="sp-actions">
-              <a className="sp-btn sp-btn--outline sp-btn--sm" href={calendar.ics}>
-                Fichier .ics
-              </a>
-              <a
-                className="sp-btn sp-btn--outline sp-btn--sm"
-                href={calendar.google}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Google Agenda
-              </a>
-              <a
-                className="sp-btn sp-btn--outline sp-btn--sm"
-                href={calendar.outlook}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Outlook
-              </a>
-            </div>
-          </section>
-        ) : null}
+        <EventActions calendar={calendar} directions={directions} />
 
-        {directions ? (
-          <section className="sp-actions-block">
-            <h3>{fr.survey.directions}</h3>
-            <div className="sp-actions">
-              <a
-                className="sp-btn sp-btn--outline sp-btn--sm"
-                href={directions.openStreetMap}
-                target="_blank"
-                rel="noreferrer"
-              >
-                OpenStreetMap
-              </a>
-              <a
-                className="sp-btn sp-btn--outline sp-btn--sm"
-                href={directions.google}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Google Maps
-              </a>
-              <a
-                className="sp-btn sp-btn--outline sp-btn--sm"
-                href={directions.apple}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Plans
-              </a>
-            </div>
-          </section>
-        ) : null}
       </div>
     </div>
   );

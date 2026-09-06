@@ -257,10 +257,81 @@ describe('accessibilité des écrans d’encadrement', () => {
       />,
     );
     await expectNoA11yViolations(container);
-    expect(screen.getByRole('link', { name: 'Fichier .ics' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Autre agenda (.ics)' })).toHaveAttribute(
       'href',
       '/api/ics/1',
     );
+  });
+
+  it('accueil : l’agenda et l’itinéraire sont offerts AVANT l’inscription', async () => {
+    // Un destinataire d'invitation bloque d'abord la date, s'inscrit ensuite.
+    // L'obliger à s'inscrire pour pouvoir noter le rendez-vous inverse
+    // l'ordre naturel des gestes.
+    const { container } = render(
+      <WelcomeScreen
+        branding={branding}
+        badge="Inscription"
+        title="Soirée des 180 ans"
+        description="Une soirée d’exception."
+        meta={['Le 18 novembre 2026 à 19 h 30', 'Musée Jacquemart-André']}
+        ctaLabel="Je m’inscris"
+        onStart={noop}
+        event={{
+          calendar: { google: 'https://x.test/g', outlook: 'https://x.test/o', ics: '/api/ics/1' },
+          directions: {
+            google: 'https://x.test/dg',
+            openStreetMap: 'https://x.test/osm',
+            apple: 'https://x.test/a',
+          },
+        }}
+      />,
+    );
+
+    await expectNoA11yViolations(container);
+    expect(screen.getByRole('link', { name: 'Google Agenda' })).toHaveAttribute(
+      'href',
+      'https://x.test/g',
+    );
+    expect(screen.getByRole('link', { name: 'Google Maps' })).toHaveAttribute(
+      'href',
+      'https://x.test/dg',
+    );
+    // Le bouton d'inscription reste l'action principale de l'écran.
+    expect(screen.getByRole('button', { name: 'Je m’inscris' })).toBeTruthy();
+  });
+
+  it('accueil sans événement : aucun bloc d’agenda inventé', () => {
+    render(
+      <WelcomeScreen
+        branding={branding}
+        title="Enquête de satisfaction"
+        ctaLabel="Commencer"
+        onStart={noop}
+      />,
+    );
+    expect(screen.queryByText('Ajouter à mon agenda')).toBeNull();
+    expect(screen.queryByText('Itinéraire')).toBeNull();
+  });
+
+  it('itinéraire : Google Maps vient en premier', () => {
+    // Ce n'est pas une préférence pour ce service — les tuiles de la
+    // plateforme viennent d'OpenStreetMap — mais l'application que la plupart
+    // des destinataires ont déjà ouverte.
+    render(
+      <ThankYouScreen
+        title={fr.survey.thankYouTitle}
+        directions={{
+          google: 'https://x.test/dg',
+          openStreetMap: 'https://x.test/osm',
+          apple: 'https://x.test/a',
+        }}
+      />,
+    );
+    const names = screen
+      .getAllByRole('link')
+      .map((link) => link.textContent?.trim())
+      .filter((name): name is string => Boolean(name));
+    expect(names[0]).toBe('Google Maps');
   });
 });
 

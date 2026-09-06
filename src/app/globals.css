@@ -100,9 +100,13 @@
   --sp-page-w: 72rem; /* pages d'administration */
   --sp-wizard-w: 38rem; /* une action par écran : colonne étroite */
 
-  /* Ratio des visuels d'événement, calé sur les invitations fournies
-     (1200 × 704). Un seul endroit à changer si le format évolue. */
-  --sp-banner-ratio: 1200 / 704;
+  /* Format des visuels d'événement, calé sur les invitations fournies.
+     Les deux nombres sont séparés pour pouvoir BORNER la largeur du cadre à
+     partir d'une hauteur maximale : `aspect-ratio` seul ne sait pas se
+     limiter en hauteur sans recadrer l'image. */
+  --sp-banner-w: 1200;
+  --sp-banner-h: 704;
+  --sp-banner-ratio: var(--sp-banner-w) / var(--sp-banner-h);
 }
 
 /* Thème sombre présent mais NON câblé sur prefers-color-scheme (light-first).
@@ -1004,7 +1008,11 @@ video {
   flex: 1;
   display: flex;
   align-items: center;
-  padding: var(--sp-space-8) var(--sp-space-5);
+  /* Marge verticale mesurée, pas choisie : à 4rem, le bouton d'inscription
+     d'une invitation au titre long passait sous la ligne de flottaison sur un
+     écran de 720 pixels. La barre de progression collante fournit déjà une
+     respiration en haut. */
+  padding: var(--sp-space-6) var(--sp-space-5);
 }
 
 @media (max-width: 40rem) {
@@ -1091,7 +1099,7 @@ video {
   display: flex;
   flex-direction: column;
   animation: sp-rise var(--sp-motion-slow) var(--sp-ease-out);
-  gap: 1rem;
+  gap: var(--sp-space-4);
   align-items: flex-start;
 }
 
@@ -2761,4 +2769,78 @@ summary.sp-btn::-webkit-details-marker {
   .sp-editor-step {
     min-height: var(--sp-tap);
   }
+}
+
+/* ==========================================================================
+   Écran d'accueil d'un événement
+   ========================================================================== */
+
+/* Le visuel est BORNÉ EN HAUTEUR, en limitant sa largeur.
+
+   Sans cette borne, une bannière au format d'invitation occupe toute la
+   largeur de la fenêtre : mesuré à 1280 × 751 sur un écran de 720 de haut,
+   soit plus d'un écran entier avant le titre, et le bouton d'inscription à
+   1252 pixels du sommet. Un `max-height` seul ne suffirait pas : il écraserait
+   le cadre et l'image serait recadrée. On borne donc la LARGEUR à ce que la
+   hauteur permet, et le rapport de forme fait le reste — le visuel reste
+   entier. */
+.sp-welcome__visual {
+  --_max-h: min(46vh, 22rem);
+  width: 100%;
+  max-width: calc(var(--_max-h) * var(--sp-banner-w) / var(--sp-banner-h));
+  margin-inline: auto;
+}
+
+/* Quand un visuel accompagne l'invitation, c'est LUI qui porte l'impact : le
+   titre passe d'un cran en dessous. Mesuré sur une invitation réelle au titre
+   de 95 caractères — à 44 pixels il occupait trois lignes et 202 pixels de
+   haut, et repoussait le bouton d'inscription sous la ligne de flottaison.
+   Sans visuel, le titre reprend sa pleine taille : il est alors seul à tenir
+   l'écran. */
+.sp-screen--welcome:has(.sp-welcome__visual) .sp-screen__title {
+  font-size: var(--sp-text-2xl);
+}
+
+/* Au-delà de 64rem, le visuel et le texte se répondent côte à côte : les
+   informations essentielles — date, lieu, bouton — reviennent alors au-dessus
+   de la ligne de flottaison, ce qui est tout l'objet d'une invitation. */
+@media (min-width: 64rem) {
+  .sp-screen--welcome {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: var(--sp-space-8);
+    align-items: center;
+    width: 100%;
+    max-width: var(--sp-page-w);
+    margin-inline: auto;
+  }
+
+  .sp-welcome__visual {
+    --_max-h: min(70vh, 30rem);
+    max-width: 100%;
+  }
+
+  .sp-welcome__text {
+    /* La colonne de texte garde une longueur de ligne lisible même quand la
+       grille lui accorde davantage. */
+    max-width: 34rem;
+  }
+}
+
+/* Agenda et itinéraire : détachés du reste par un filet, parce qu'ils
+   s'adressent à un autre moment — noter le rendez-vous, puis s'y rendre. */
+.sp-event-actions {
+  display: grid;
+  gap: var(--sp-space-5);
+  width: 100%;
+  margin-top: var(--sp-space-3);
+  padding-top: var(--sp-space-5);
+  border-top: 1px solid var(--sp-border);
+}
+
+.sp-actions-block__title {
+  margin-bottom: var(--sp-space-3);
+  color: var(--sp-marine);
+  font-size: var(--sp-text-body);
+  font-weight: 700;
 }

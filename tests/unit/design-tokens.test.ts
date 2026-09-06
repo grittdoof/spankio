@@ -148,7 +148,11 @@ describe('bannière : le format annoncé est celui qui est rendu', () => {
     // L'aide affichée à l'organisation annonce « 1200 × 704 pixels ». Si le
     // ratio CSS dérivait de ces valeurs, le conseil donné contredirait le
     // rendu : une image au format conseillé serait recadrée.
-    expect(tokenValue('--sp-banner-ratio')).toBe(`${BANNER_WIDTH} / ${BANNER_HEIGHT}`);
+    // Le ratio est composé des deux nombres, qui servent aussi à borner la
+    // largeur du cadre : les trois doivent rester d'accord.
+    expect(tokenValue('--sp-banner-w')).toBe(String(BANNER_WIDTH));
+    expect(tokenValue('--sp-banner-h')).toBe(String(BANNER_HEIGHT));
+    expect(tokenValue('--sp-banner-ratio')).toBe('var(--sp-banner-w) / var(--sp-banner-h)');
     expect(BANNER_ASPECT_LABEL).toBe(`${BANNER_WIDTH} × ${BANNER_HEIGHT} pixels`);
   });
 

@@ -15,6 +15,7 @@ import {
   WelcomeScreen,
   type Branding,
   type CalendarActions,
+  type DirectionsActions,
 } from './screens';
 
 /**
@@ -51,7 +52,7 @@ export interface SurveyRendererProps {
   event?:
     | {
         calendar: CalendarActions;
-        directions?: { google: string; openStreetMap: string; apple: string } | undefined;
+        directions?: DirectionsActions | undefined;
         summary?: readonly string[];
       }
     | undefined;
@@ -268,6 +269,10 @@ export function SurveyRenderer({
           setDirection('forward');
           setPhase('form');
         }}
+        // Bloquer la date est souvent le premier geste d'un destinataire
+        // d'invitation ; s'inscrire vient ensuite. L'agenda et l'itinéraire
+        // sont donc offerts dès l'accueil, pas seulement après l'envoi.
+        {...(event ? { event: { calendar: event.calendar, directions: event.directions } } : {})}
       />
     );
   }
