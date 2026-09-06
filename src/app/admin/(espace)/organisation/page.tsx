@@ -6,6 +6,7 @@ import { Field } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Steps } from '@/components/ui/Steps';
 import { SubmitButton } from '@/components/ui/SubmitButton';
+import { LogoUpload } from '@/components/admin/LogoUpload';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
@@ -22,7 +23,9 @@ export const metadata: Metadata = { title: 'Profil de l’organisation' };
 
 const ERRORS: Readonly<Record<string, string>> = {
   name: 'Le nom doit contenir au moins deux caractères.',
-  logoUrl: 'Indiquez une adresse d’image complète, commençant par https://',
+  logoUrl:
+    'Indiquez une adresse d’image complète commençant par https://, ou déposez un fichier.',
+  logo: 'Ce logo n’appartient pas à votre organisation.',
   contactEmail: 'Cette adresse électronique n’est pas valide.',
   contactPhone: 'Ce numéro est trop long.',
   address: 'Cette adresse est trop longue.',
@@ -128,25 +131,20 @@ export default async function OrganisationProfilePage({
             )}
           </Field>
 
-          <Field
-            id="logoUrl"
-            label="Logo"
-            error={fieldError('logoUrl')}
-            hint="Adresse d’une image déjà en ligne. Elle remplace le nom sur l’écran d’accueil de vos formulaires."
-          >
-            {(attributes) => (
-              <input
-                {...attributes}
-                className="sp-input"
-                defaultValue={organisation.value.logo_url ?? ''}
-                inputMode="url"
-                maxLength={500}
-                name="logoUrl"
-                placeholder="https://"
-                type="url"
-              />
-            )}
-          </Field>
+          <div className="sp-field">
+            <p className="sp-label" id="logo-intitule">
+              Logo
+            </p>
+            <p className="sp-hint" style={{ marginBottom: 'var(--sp-space-3)' }}>
+              Il remplace le nom de l’organisation sur l’écran d’accueil de vos
+              formulaires.
+            </p>
+            <LogoUpload
+              error={fieldError('logoUrl')}
+              organisationId={session.organisationId}
+              value={organisation.value.logo_url}
+            />
+          </div>
         </fieldset>
 
         <fieldset className="sp-fieldset" disabled={!canEdit}>

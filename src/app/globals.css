@@ -2891,3 +2891,29 @@ summary.sp-btn::-webkit-details-marker {
 .sp-progress-line .sp-steps {
   flex: 1 1 12rem;
 }
+
+/* Aperçu du logo : l'image à sa taille réelle, bornée, sur un damier discret
+   qui révèle la transparence — un PNG blanc sur fond blanc paraîtrait vide. */
+.sp-logo-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-space-5);
+}
+
+.sp-logo-preview img {
+  max-width: 14rem;
+  max-height: 5rem;
+  padding: var(--sp-space-3);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-sm);
+  background-color: var(--sp-surface);
+  background-image:
+    linear-gradient(45deg, var(--sp-surface-muted) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--sp-surface-muted) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--sp-surface-muted) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--sp-surface-muted) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  object-fit: contain;
+}

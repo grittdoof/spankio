@@ -57,9 +57,9 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
 | Élément | État |
 | ------- | ---- |
 | Projet Supabase | `spankio` (`qmhjckioehsiduongadk`), PostgreSQL 17.6, région `eu-west-2` |
-| Migrations | Les 23 migrations sont appliquées ; l'historique distant correspond exactement aux fichiers de `supabase/migrations` (`supabase db push` ne rejoue rien) |
+| Migrations | Les 24 migrations sont appliquées ; l'historique distant correspond exactement aux fichiers de `supabase/migrations` (`supabase db push` ne rejoue rien) |
 | `pg_cron` | Actif. Purges planifiées : réponses expirées à 3 h 17, sondages supprimés à 3 h 37 |
-| Storage | Bucket `survey-banners` créé, 4 policies, plafond 3 Mio et types d'image restreints |
+| Storage | Buckets `survey-banners` (3 Mio) et `organisation-logos` (1 Mio), 4 policies chacun, types d'image restreints |
 | Projet Vercel | `spankio`, relié à `grittdoof/spankio`, déploiement automatique sur `main` |
 | Protection Vercel | SSO activée sur tous les déploiements (hors domaine personnalisé) : le site n'est accessible qu'aux membres de l'équipe |
 | Node | `24.20.0` en CI (`.nvmrc`) et `24.x` sur Vercel. Si le réglage Vercel change, mettre `.nvmrc` à jour : la CI ne le lit pas depuis Vercel |
@@ -139,6 +139,31 @@ l'utilisateur : elle ne transite par aucune route Next. Le chemin enregistré
 dans `surveys.banner_path` est ensuite revérifié côté serveur — le bucket étant
 public, un chemin non contrôlé permettrait d'afficher le fichier d'un autre
 tenant.
+
+### Logos d'organisation
+
+Le bucket **`organisation-logos`** est public en lecture et contraint en
+écriture. Un logo peut aussi être désigné par un **lien externe**, sans dépôt.
+
+| Contrainte | Valeur | Vérifié |
+| ---------- | ------ | ------- |
+| Taille | 1 Mio | `413 EntityTooLarge` au-delà |
+| Types | `image/png`, `image/jpeg`, `image/webp`, `image/avif` | `415 InvalidMimeType` pour un SVG |
+| Dossier | `{organisation_id}/` | RLS, réservé à l'**administrateur** de l'organisation |
+| Dépôt anonyme | refusé | `403 new row violates row-level security policy` |
+
+Les trois contrôles ont été éprouvés sur le projet réel. Le SVG est exclu pour
+la même raison que sur les bannières : c'est un document XML pouvant porter du
+script, servi depuis une origine publique.
+
+L'URL enregistrée dans `organisations.logo_url` est revérifiée côté serveur :
+un lien externe passe tel quel, une URL de notre bucket doit désigner le
+dossier de l'organisation qui l'enregistre.
+
+**À savoir pour un lien externe** : le site qui héberge l'image voit passer
+l'adresse IP de chaque répondant qui ouvre un formulaire. L'interface le dit à
+l'organisation, qui décide. C'est aussi ce qui empêchera de restreindre
+`img-src` à l'étape 9 (risque R1).
 
 ### Géocodage (Nominatim / OpenStreetMap)
 

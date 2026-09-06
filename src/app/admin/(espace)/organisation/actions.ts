@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { eq } from '@/lib/data/port';
+import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { logger } from '@/lib/logger';
@@ -47,8 +48,12 @@ export async function saveOrganisationProfile(formData: FormData): Promise<void>
     context,
     profile.data.organisation_id,
     parsed.data,
+    publicEnv().NEXT_PUBLIC_SUPABASE_URL,
   );
   if (!updated.ok) {
+    // `PT400` : le logo désigne le bucket d'une autre organisation. Ce n'est
+    // pas une panne, c'est un refus — et il est nommé comme tel.
+    if (updated.error.code === 'PT400') redirect('/admin/organisation?erreur=logo');
     logger.warn('organisation.update_refused', 'Mise à jour du profil refusée.', {
       code: updated.error.code,
     });

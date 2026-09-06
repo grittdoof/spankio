@@ -246,6 +246,18 @@ changer.
   précoce, et le chemin enregistré est revérifié côté serveur
   (`isBannerPathOf`) : le bucket étant public, un chemin non vérifié
   laisserait une organisation afficher le fichier d'une autre.
+- **Le logo d'une organisation se dépose OU se désigne par un lien.** Les deux
+  chemins coexistent parce que les organisations ne sont pas dans la même
+  situation : la plupart ont leur logo dans un fichier, quelques-unes l'ont
+  déjà en ligne. Le fichier va dans son propre bucket
+  (`organisation-logos`, chemin `{organisation_id}/…`, 1 Mio, pas de SVG),
+  écrit par l'ADMINISTRATEUR de l'organisation — pas l'éditeur : un logo est
+  un réglage d'organisation, exactement la règle de `organisations_update`.
+  L'URL retenue est revérifiée côté serveur (`isLogoUrlOf`) : un lien externe
+  passe, une URL de notre bucket doit désigner le dossier de CETTE
+  organisation, sinon elle afficherait le logo d'une autre sans rien
+  téléverser. **Conséquence pour l'étape 9** : tant que le lien externe est
+  offert, `img-src` ne peut pas être restreint à nos seules origines — voir R1.
 - **Aucun appel direct du navigateur vers un tiers.** Nominatim passe par
   `/api/admin/geocode` : la politique d'usage d'OpenStreetMap exige un
   `User-Agent` identifiant l'application et plafonne à une requête par seconde
@@ -342,7 +354,7 @@ figure, avec sa raison et sa condition de lever.
 
 | # | Risque accepté | Raison | Lever quand |
 | - | -------------- | ------ | ----------- |
-| R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. | Le HMR de Next exige `eval`. | N/A (limite du framework). |
+| R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. **`img-src` restera ouvert aux origines `https:`** tant que le logo d'organisation pourra être désigné par un lien externe : le restreindre casserait les logos déjà en place. Conséquence assumée et dite dans l'interface — le site qui héberge un logo externe voit passer l'IP de chaque répondant. | Le HMR de Next exige `eval`. Pour `img-src`, l'alternative serait de n'accepter que le dépôt de fichier, ce qui obligerait chaque organisation à dupliquer une image déjà publiée. | N/A pour `unsafe-eval` (limite du framework). Pour `img-src` : si un client exige une CSP stricte, retirer le mode « lien » et rapatrier les logos existants. |
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
 | R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. Un audit programmatique dans un vrai navigateur (contraste calculé par rasterisation canvas, tailles de cibles, débordement horizontal à 375px) a été rejoué à la main lors de la refonte, mais **il n'est pas en CI**. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation, panneau événement), pas les composants serveur qui les assemblent — et **Leaflet y est remplacé par un double**, jsdom n'ayant ni moteur de rendu ni dimensions : la carte elle-même n'est pas couverte, seul l'est le chemin clavier qui la contourne — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |

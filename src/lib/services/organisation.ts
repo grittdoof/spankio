@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { eq, type DbError } from '@/lib/data/port';
+import { isLogoUrlOf } from '@/lib/organisation/logo';
 import type { RequestContext } from '@/lib/data/context';
 
 /**
@@ -121,7 +122,17 @@ export async function updateOrganisationProfile(
   context: RequestContext,
   organisationId: string,
   input: OrganisationProfileInput,
+  /** URL du projet Supabase, pour reconnaître nos propres objets. */
+  supabaseUrl: string,
 ): Promise<OrganisationOutcome<OrganisationRow>> {
+  // Le logo peut être un lien externe — accepté tel quel — ou un objet de
+  // notre bucket. Dans ce second cas il doit appartenir à CETTE organisation :
+  // le bucket est public, et sans cette vérification une organisation
+  // afficherait le logo d'une autre sans jamais rien téléverser.
+  if (input.logoUrl && !isLogoUrlOf(input.logoUrl, organisationId, supabaseUrl)) {
+    return { ok: false, error: { code: 'PT400', message: 'Logo invalide' } };
+  }
+
   const updated = await context.port.update<OrganisationRow>(
     'organisations',
     {
