@@ -1,8 +1,8 @@
 import Link from 'next/link';
 
 /**
- * En-tête d'écran : fil d'Ariane, titre, chapeau, actions — toujours dans cet
- * ordre, sur tous les écrans.
+ * En-tête d'écran : retour, titre, chapeau, actions — toujours dans cet ordre,
+ * sur tous les écrans.
  *
  * L'uniformité est le but. Un en-tête réinventé à chaque page oblige à
  * relocaliser le titre et l'action principale à chaque navigation ; c'est un
@@ -26,19 +26,33 @@ export interface PageHeaderProps {
 }
 
 export function PageHeader({ title, lead, crumbs, actions, meta }: PageHeaderProps) {
+  // Un seul lien de retour, vers le parent — et non la chaîne entière.
+  //
+  // Un fil d'Ariane complet est une phrase que l'œil doit lire pour en
+  // extraire un mot ; ce qu'on cherche presque toujours, c'est « remonter
+  // d'un cran ». Le chemin complet reste connu de l'URL, et le titre juste en
+  // dessous dit où l'on est.
+  const parent = [...(crumbs ?? [])].reverse().find((crumb) => crumb.href);
+
   return (
     <header className="sp-header">
       <div className="sp-header__text">
-        {crumbs && crumbs.length > 0 ? (
-          <nav aria-label="Fil d’Ariane">
-            <ol className="sp-crumbs">
-              {crumbs.map((crumb) => (
-                <li key={`${crumb.label}-${crumb.href ?? ''}`}>
-                  {crumb.href ? <Link href={crumb.href}>{crumb.label}</Link> : crumb.label}
-                </li>
-              ))}
-            </ol>
-          </nav>
+        {parent?.href ? (
+          <Link className="sp-back" href={parent.href}>
+            <svg
+              aria-hidden="true"
+              className="sp-back__icon"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="M14 6l-6 6 6 6" />
+            </svg>
+            {parent.label}
+          </Link>
         ) : null}
         <h1>{title}</h1>
         {meta ? <p className="sp-header__meta">{meta}</p> : null}

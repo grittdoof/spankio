@@ -143,8 +143,20 @@ describe('en-tête, encadré et état vide', () => {
       />,
     );
     await expectNoA11yViolations(container);
-    expect(screen.getByRole('navigation', { name: 'Fil d’Ariane' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 1, name: 'Formulaires' })).toBeTruthy();
+
+    // Un seul lien de retour, vers le parent — pas la chaîne entière. Un fil
+    // d'Ariane complet est une phrase qu'il faut lire pour en extraire un mot,
+    // alors que ce qu'on cherche est presque toujours « remonter d'un cran ».
+    const back = screen.getByRole('link', { name: 'Espace' });
+    expect(back).toHaveAttribute('href', '/admin');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+  });
+
+  it('ne rend aucun retour quand le parent n’a pas d’adresse', () => {
+    // Un « retour » qui ne mène nulle part est pire qu'un retour absent.
+    render(<PageHeader title="Formulaires" crumbs={[{ label: 'Formulaires' }]} />);
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('n’annonce pas un encadré explicatif comme un message d’état', async () => {

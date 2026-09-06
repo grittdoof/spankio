@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { canWriteSurveys, loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
+import { getOrganisation, organisationGaps } from '@/lib/services/organisation';
 import { listSurveys } from '@/lib/services/surveys';
 
 /**
@@ -58,6 +59,13 @@ export default async function AdminHomePage() {
       </div>
     );
   }
+
+  // Le profil de l'organisation conditionne ce que voient les répondants :
+  // son état est rappelé ici tant qu'il est incomplet.
+  const organisation = session.organisationId
+    ? await getOrganisation(context, session.organisationId)
+    : null;
+  const gaps = organisation?.ok ? organisationGaps(organisation.value) : [];
 
   const surveys = await listSurveys(context);
   const all = surveys.ok ? surveys.value : [];
@@ -146,27 +154,29 @@ export default async function AdminHomePage() {
         </section>
       )}
 
-      <section className="sp-section">
-        <h2 className="sp-section__title">Modules autorisés</h2>
-        <p className="sp-section__lead">
-          Les modules déterminent ce que votre organisation peut créer. Ils sont accordés
-          par un administrateur de la plateforme.
-        </p>
-        <ul className="sp-module-list">
-          {session.modules
-            .filter((module) => module.allowed)
-            .map((module) => (
-              <li className="sp-card sp-card--flat" key={module.key}>
-                <strong>{module.name}</strong>
-                {module.isCore ? (
-                  <span className="sp-badge">Toujours actif</span>
-                ) : (
-                  <span className="sp-badge sp-badge--success">Accordé</span>
-                )}
+      {gaps.length > 0 ? (
+        <section className="sp-card sp-stack sp-section">
+          <h2 className="sp-card__title">Terminer la prise en main</h2>
+          <p className="sp-muted">
+            Votre organisation est créée. Il reste {gaps.length} information
+            {gaps.length > 1 ? 's' : ''} à renseigner pour que vos formulaires vous
+            représentent correctement.
+          </p>
+          <ul className="sp-todo">
+            {gaps.map((gap) => (
+              <li key={gap.key}>
+                <strong>{gap.label}</strong>
+                <span>{gap.consequence}</span>
               </li>
             ))}
-        </ul>
-      </section>
+          </ul>
+          <p>
+            <Link className="sp-btn sp-btn--outline" href="/admin/organisation">
+              Compléter le profil
+            </Link>
+          </p>
+        </section>
+      ) : null}
 
       {session.isPlatformAdmin ? (
         <section className="sp-card sp-stack">

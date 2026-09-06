@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import {
   MembershipDecision,
   type ModuleOption,
@@ -10,7 +12,6 @@ import {
 import { eq } from '@/lib/data/port';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
-import { signOut } from '@/app/(auth)/actions';
 import { approve, reject } from './actions';
 
 /**
@@ -108,48 +109,52 @@ export default async function PendingRequestsPage({
   const okCode = typeof params['ok'] === 'string' ? params['ok'] : undefined;
 
   return (
-    <main className="sp-container" id="contenu" style={{ paddingBlock: '3rem' }}>
-      <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
-        <div>
-          <h1>Demandes de rattachement</h1>
-          <p className="sp-muted">
-            Choisissez le rôle et les modules autorisés pour chaque compte.
-          </p>
-        </div>
-
-        {okCode && NOTICES[okCode] ? <Alert tone="success">{NOTICES[okCode]}</Alert> : null}
-        {errorCode ? <Alert tone="error">{fr.errors.unexpected}</Alert> : null}
-
-        {pending.length === 0 ? (
-          <div className="sp-card">
-            <p className="sp-muted">Aucune demande en attente.</p>
-          </div>
-        ) : (
-          <ul className="sp-list">
-            {pending.map((request) => (
-              <MembershipDecision
-                key={request.id}
-                request={request}
-                modules={modules}
-                approveAction={approve}
-                rejectAction={reject}
-              />
-            ))}
-          </ul>
-        )}
-
-        <p>
-          <Link className="sp-btn sp-btn--outline sp-btn--sm" href="/admin">
-            Retour à mon espace
+    <div className="sp-rise">
+      <PageHeader
+        title="Demandes de rattachement"
+        lead="Chaque demande vous fait choisir le rôle ET les modules autorisés. C’est la seule voie d’accès à un espace d’organisation."
+        meta={
+          pending.length > 0 ? (
+            <span className="sp-badge sp-badge--warning">
+              {pending.length} en attente
+            </span>
+          ) : (
+            <span className="sp-badge sp-badge--success">Rien en attente</span>
+          )
+        }
+        actions={
+          <Link className="sp-btn sp-btn--outline" href="/super-admin/organisations">
+            Voir les organisations
           </Link>
-        </p>
+        }
+      />
 
-        <form action={signOut}>
-          <button className="sp-btn sp-btn--outline sp-btn--sm" type="submit">
-            {fr.nav.signOut}
-          </button>
-        </form>
-      </div>
-    </main>
+      {okCode && NOTICES[okCode] ? <Alert tone="success">{NOTICES[okCode]}</Alert> : null}
+      {errorCode ? <Alert tone="error">{fr.errors.unexpected}</Alert> : null}
+
+      {pending.length === 0 ? (
+        <EmptyState
+          title="Aucune demande en attente"
+          lead="Les nouvelles demandes apparaîtront ici. Le compte qui la dépose est prévenu par courriel de votre décision."
+          action={
+            <Link className="sp-btn sp-btn--outline" href="/super-admin/organisations">
+              Gérer les organisations
+            </Link>
+          }
+        />
+      ) : (
+        <ul className="sp-list">
+          {pending.map((request) => (
+            <MembershipDecision
+              key={request.id}
+              request={request}
+              modules={modules}
+              approveAction={approve}
+              rejectAction={reject}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

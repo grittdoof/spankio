@@ -78,12 +78,29 @@ export interface ExportColumn {
   readonly gridRow?: string;
 }
 
-/** Colonnes de métadonnées, présentes avant les réponses. */
+/**
+ * Colonnes de métadonnées, présentes avant les réponses.
+ *
+ * L'EXPORT les emporte toutes : le texte de consentement affiché est la preuve
+ * auditable de ce qui a été annoncé au répondant, et un export qui l'omettrait
+ * ne servirait pas de pièce.
+ *
+ * L'ÉCRAN n'en garde qu'une, la date. Le même paragraphe répété à l'identique
+ * sur chaque ligne n'apprend rien, occupe la moitié du tableau, et repousse
+ * hors de vue ce qu'on est venu lire — les réponses.
+ */
 const META_COLUMNS: readonly ExportColumn[] = [
   { key: '__submitted_at', header: 'Date de réponse' },
   { key: '__consent_given', header: 'Consentement' },
   { key: '__consent_text', header: 'Texte du consentement affiché' },
 ];
+
+const SCREEN_META_COLUMNS: readonly ExportColumn[] = [
+  { key: '__submitted_at', header: 'Date de réponse' },
+];
+
+/** Jeu de métadonnées : complet pour un fichier, réduit pour un écran. */
+export type MetaScope = 'export' | 'screen';
 
 /**
  * Colonnes déduites du SCHÉMA, pas des réponses.
@@ -93,8 +110,13 @@ const META_COLUMNS: readonly ExportColumn[] = [
  * deux exports du même sondage ont toujours les mêmes colonnes, dans le même
  * ordre — même si personne n'a répondu à une question.
  */
-export function exportColumns(schema: SurveySchema): ExportColumn[] {
-  const columns: ExportColumn[] = [...META_COLUMNS];
+export function exportColumns(
+  schema: SurveySchema,
+  meta: MetaScope = 'export',
+): ExportColumn[] {
+  const columns: ExportColumn[] = [
+    ...(meta === 'export' ? META_COLUMNS : SCREEN_META_COLUMNS),
+  ];
 
   for (const step of schema.steps) {
     for (const field of step.fields) {
@@ -191,10 +213,10 @@ function renderValue(
 export function responseRows(
   schema: SurveySchema,
   responses: readonly ExportableResponse[],
-  options: CsvOptions = {},
+  options: CsvOptions & { meta?: MetaScope } = {},
 ): string[][] {
   const multiValueSeparator = options.multiValueSeparator ?? ' | ';
-  const columns = exportColumns(schema);
+  const columns = exportColumns(schema, options.meta ?? 'export');
   const labels = optionLabels(schema);
 
   const rows: string[][] = [columns.map((column) => column.header)];

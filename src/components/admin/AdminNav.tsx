@@ -16,7 +16,7 @@ import { usePathname } from 'next/navigation';
  * annoncées en double du libellé.
  */
 
-export type AdminNavIcon = 'home' | 'forms' | 'requests';
+export type AdminNavIcon = 'home' | 'forms' | 'organisation' | 'requests';
 
 export interface AdminNavItem {
   readonly href: string;
@@ -30,6 +30,8 @@ export interface AdminNavItem {
 const PATHS: Readonly<Record<AdminNavIcon, string>> = {
   home: 'M4 11.5 12 4l8 7.5M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9',
   forms: 'M7 4h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM9 9h6M9 13h6M9 17h3',
+  organisation:
+    'M4 20h16M6 20V8l6-4 6 4v12M10 12h1m3 0h1m-5 4h1m3 0h1',
   requests: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20c0-3.3 3.6-5 8-5s8 1.7 8 5',
 };
 

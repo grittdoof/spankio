@@ -93,7 +93,9 @@ export default async function SurveyResponsesPage({
 
   const statistics = computeStatistics(schema.value, responses.value);
   const shown = responses.value.slice(0, TABLE_LIMIT);
-  const rows = responseRows(schema.value, shown);
+  // `meta: 'screen'` : la date suffit à l'écran. Le consentement et son texte
+  // restent dans l'export, où ils servent de preuve.
+  const rows = responseRows(schema.value, shown, { meta: 'screen' });
   const header = rows[0] ?? [];
   const body = rows.slice(1);
 
@@ -170,11 +172,11 @@ export default async function SurveyResponsesPage({
 
           <section className="sp-section sp-stack">
             <div>
-              <h2 className="sp-section__title">Détail des réponses</h2>
+              <h2 className="sp-section__title">Réponses</h2>
               <p className="sp-section__lead">
-                Ce tableau montre les réponses telles qu’elles ont été saisies. Elles
-                peuvent contenir des données personnelles : ne les diffusez qu’aux
-                destinataires annoncés aux répondants.
+                Les réponses telles qu’elles ont été saisies. Elles peuvent contenir des
+                données personnelles : ne les diffusez qu’aux destinataires annoncés.
+                Le consentement et son texte figurent dans l’export.
               </p>
             </div>
 
@@ -186,7 +188,7 @@ export default async function SurveyResponsesPage({
         ) : null}
 
             <div className="sp-table-wrapper">
-            <table className="sp-table">
+            <table className="sp-table sp-table--compact">
               <caption className="sp-visually-hidden">
                 Réponses au formulaire {survey.value.title}
               </caption>

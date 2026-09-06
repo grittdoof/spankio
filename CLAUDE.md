@@ -162,6 +162,31 @@ changer.
   suivante dès lors que celle qu'on quitte est valide. Sans cette liberté,
   l'écran de publication resterait inatteignable tant qu'une mention manque,
   et sa liste des manques ne servirait à rien.
+- **Un seul lien de retour, vers le parent** — pas un fil d'Ariane complet.
+  Une chaîne entière est une phrase qu'il faut lire pour en extraire un mot,
+  alors que ce qu'on cherche est presque toujours « remonter d'un cran ». Le
+  chemin complet reste dans l'URL, et le titre juste en dessous dit où l'on se
+  trouve.
+- **L'écran des réponses ne montre que la date et les réponses.** Le
+  consentement et son texte restent dans l'EXPORT, où ils servent de preuve
+  auditable — le même paragraphe répété à l'identique sur chaque ligne
+  n'apprend rien et repousse hors de vue ce qu'on est venu lire. C'est le rôle
+  de `MetaScope` dans `src/lib/export/csv.ts` : `export` emporte tout,
+  `screen` garde la date.
+- **Deux espaces distincts, deux mises en page** : `/admin` fabrique des
+  formulaires, `/super-admin` gouverne des organisations et des rattachements.
+  Ce ne sont pas les mêmes objets ; les mêler dans une navigation unique
+  obligerait à se demander, à chaque entrée, de quel côté on se trouve. Dans
+  les deux cas la barrière reste le RLS — les redirections évitent seulement
+  un écran vide et incompréhensible.
+- **Répartition des pouvoirs sur les modules**, déjà inscrite dans le RLS : le
+  super administrateur décide de ce qu'une organisation A LE DROIT d'utiliser
+  (l'existence de la ligne `organisation_modules`) ; l'administrateur de
+  l'organisation décide s'il l'active (colonne `enabled`). L'écran de la
+  plateforme ne touche donc jamais `enabled`.
+- **Un fichier `'use server'` n'exporte QUE des fonctions asynchrones.** Toute
+  autre valeur exportée — un schéma Zod, une constante — fait échouer la
+  collecte au build, avec un message qui ne nomme pas la cause.
 - **Un refus DÉSIGNE le champ** : message en ligne, focus posé dessus, champ
   ramené dans la vue. « Certains champs sont invalides » sur un écran qui en
   compte six laisse chercher lequel. Et la liste des messages n'est énumérée
@@ -397,5 +422,12 @@ npm run build       # build de production
       guidé de création en cinq écrans** avec état dans l'URL, liste permanente
       de ce qui manque avant publication, et `/atelier` hors production.
       Couleurs et Montserrat inchangés : c'est l'identité du client.
+- [x] Gouvernance et prise en main (6 septembre 2026) — espace plateforme
+      distinct (`/super-admin`) avec liste des organisations, comptages et
+      concession des modules ; page de profil d'organisation
+      (`/admin/organisation`) qui dit ce qui manque ET ce que l'absence coûte,
+      rappelée depuis l'accueil tant que le profil est incomplet ; fil d'Ariane
+      remplacé par un retour au parent ; écran des réponses réduit à
+      l'essentiel.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

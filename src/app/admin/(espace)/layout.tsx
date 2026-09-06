@@ -31,6 +31,7 @@ export default async function AdminWorkspaceLayout({ children }: { children: Rea
   const items: AdminNavItem[] = [{ href: '/admin', label: 'Mon espace', icon: 'home' }];
   if (session?.attached) {
     items.push({ href: '/admin/sondages', label: 'Formulaires', icon: 'forms' });
+    items.push({ href: '/admin/organisation', label: 'Mon organisation', icon: 'organisation' });
   }
   if (session?.isPlatformAdmin) {
     items.push({
@@ -38,6 +39,11 @@ export default async function AdminWorkspaceLayout({ children }: { children: Rea
       label: 'Demandes de rattachement',
       icon: 'requests',
       group: 'Plateforme',
+    });
+    items.push({
+      href: '/super-admin/organisations',
+      label: 'Organisations',
+      icon: 'organisation',
     });
   }
 
