@@ -93,6 +93,21 @@ changer.
   `validateResponse` avec le schéma et n'affiche que les erreurs du champ
   courant. Il n'existe aucune règle « d'interface » : l'écran ne peut donc pas
   accepter ce que le serveur refusera, ni l'inverse.
+- **Une condition se compose sur des listes fermées, jamais à la main.** Les
+  opérateurs proposés dépendent du type de la question observée
+  (`conditionOperators`) et les valeurs viennent de ses propres options
+  (`conditionValues`) : comparer à une chaîne tapée au clavier donnerait une
+  condition qui ne se déclenche jamais dès qu'un caractère diffère, sans que
+  rien ne le signale. `equals` n'est pas proposé sur une case à cocher
+  multiple — il échouerait dès qu'une seconde case est cochée, la réponse
+  cessant d'être une valeur unique. Défaut réel corrigé : l'éditeur ne savait
+  écrire que `answered`, si bien qu'une question conditionnée apparaissait dès
+  qu'une réponse — n'importe laquelle — avait été donnée. Le moteur, lui,
+  évaluait déjà les six opérateurs.
+- **Les conditions combinées (`all` / `any`) ne se construisent pas dans
+  l'éditeur.** Il les reconnaît, affiche qu'il ne sait pas les modifier, et
+  n'offre que de les supprimer — les éditer par bribes les écraserait au
+  premier changement.
 - **Une seule implémentation des conditions.** `src/lib/survey/conditions.ts`
   sert au rendu public (quel écran afficher) ET à la validation serveur (quel
   champ est requis). Deux implémentations divergeraient, et le serveur finirait

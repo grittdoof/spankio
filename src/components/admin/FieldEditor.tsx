@@ -6,6 +6,7 @@ import {
   uniqueIdentifier,
 } from '@/lib/survey/builder';
 import type { SurveyField, SurveyOption } from '@/lib/survey/schema';
+import { ConditionEditor } from './ConditionEditor';
 
 /**
  * Réglages d'une question.
@@ -249,38 +250,13 @@ export function FieldEditor({
         </div>
       ) : null}
 
-      <Field
-        id={`${prefix}-condition`}
-        label="N’afficher que si"
-        hint={
-          conditionCandidates.length === 0
-            ? 'Aucune question ne précède celle-ci : une condition ne peut regarder qu’en arrière.'
-            : 'La question reste masquée tant que la condition n’est pas remplie.'
-        }
-      >
-        {(attributes) => (
-          <select
-            {...attributes}
-            className="sp-select"
-            value={field.condition && 'field' in field.condition ? field.condition.field : ''}
-            disabled={conditionCandidates.length === 0}
-            onChange={(event) =>
-              patch({
-                condition: event.target.value
-                  ? { field: event.target.value, op: 'answered' }
-                  : undefined,
-              })
-            }
-          >
-            <option value="">Toujours afficher</option>
-            {conditionCandidates.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                « {candidate.label} » a une réponse
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
+      <ConditionEditor
+        candidates={conditionCandidates}
+        condition={field.condition}
+        prefix={prefix}
+        onChange={(condition) => patch(condition ? { condition } : { condition: undefined })}
+      />
+
     </li>
   );
 }

@@ -2917,3 +2917,25 @@ summary.sp-btn::-webkit-details-marker {
   background-position: 0 0, 0 6px, 6px -6px, -6px 0;
   object-fit: contain;
 }
+
+/* Éditeur de condition : trois listes, puis la phrase qu'elles composent.
+   Trois listes déroulantes se décodent ; une phrase se lit. */
+.sp-condition {
+  display: grid;
+  gap: var(--sp-space-3);
+  padding: var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface-muted);
+}
+
+.sp-condition .sp-field:last-of-type,
+.sp-condition .sp-row > .sp-field {
+  margin-bottom: 0;
+}
+
+.sp-condition__summary {
+  color: var(--sp-accent-text);
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+}
