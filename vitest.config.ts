@@ -7,11 +7,12 @@ export default defineConfig({
   resolve: {
     alias: { '@': srcAlias },
   },
-  // tsconfig déclare `jsx: preserve` pour Next ; Vitest doit transformer le JSX.
-  esbuild: {
-    jsx: 'automatic',
-    jsxImportSource: 'react',
+  // tsconfig déclare `jsx: preserve` pour Next ; le transformateur de Vitest
+  // doit donc être instruit explicitement.
+  oxc: {
+    jsx: { runtime: 'automatic', importSource: 'react' },
   },
+
   test: {
     globals: false,
     // Les suites PGlite montent chacune leur base : on sérialise les fichiers.

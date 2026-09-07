@@ -335,6 +335,64 @@ describe('accessibilité des écrans d’encadrement', () => {
   });
 });
 
+describe('enveloppe des écrans', () => {
+  const schemaOne = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [{ id: 'e1', fields: [{ id: 'nom', type: 'text', label: 'Votre nom' }] }],
+    });
+    if (!result.ok) throw new Error('Schéma invalide');
+    return result.schema;
+  })();
+
+  function renderRunner() {
+    return render(
+      <SurveyRenderer
+        schema={schemaOne}
+        branding={branding}
+        welcome={{ title: 'Invitation', ctaLabel: 'Commencer' }}
+        consent={{
+          required: false,
+          notice,
+          checkboxLabel: consentCheckboxLabel('consent'),
+          privacyHref: '/confidentialite',
+        }}
+        thankYou={{ title: 'Merci' }}
+        onSubmit={() => Promise.resolve({ ok: true as const })}
+      />,
+    );
+  }
+
+  it('place l’accueil dans la MÊME scène que les questions', () => {
+    // Défaut réel : l'accueil était rendu hors de `sp-runner`/`sp-stage`, donc
+    // sans aucune marge horizontale — le texte touchait les bords de l'écran
+    // là où chaque question respirait.
+    const { container } = renderRunner();
+    expect(container.querySelector('.sp-runner .sp-stage .sp-screen--welcome')).not.toBeNull();
+  });
+
+  it('place le remerciement dans la même scène', async () => {
+    const user = userEvent.setup();
+    const { container } = renderRunner();
+
+    await user.click(screen.getByRole('button', { name: 'Commencer' }));
+    await user.click(screen.getByRole('button', { name: /Envoyer/ }));
+    await screen.findByText('Merci');
+
+    expect(container.querySelector('.sp-runner .sp-stage .sp-screen--done')).not.toBeNull();
+  });
+
+  it('garde les questions dans cette scène', async () => {
+    const user = userEvent.setup();
+    const { container } = renderRunner();
+
+    await user.click(screen.getByRole('button', { name: 'Commencer' }));
+    // La même enveloppe partout : une marge réglée écran par écran finirait
+    // par diverger.
+    expect(container.querySelector('.sp-runner .sp-stage')).not.toBeNull();
+  });
+});
+
 describe('parcours complet', () => {
   const schema = (() => {
     const result = validateSurveySchema({

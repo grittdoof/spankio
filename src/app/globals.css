@@ -2965,3 +2965,20 @@ summary.sp-btn::-webkit-details-marker {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* Scène d'un écran sans progression ni pied de page (accueil, remerciement).
+
+   `sp-stage` est un conteneur flex : un enfant en `display: block` s'y
+   dimensionnerait sur son contenu et retomberait collé à gauche. On lui rend
+   donc la largeur, et on borne la colonne de lecture comme le fait
+   `sp-stage__focus` pour les questions — sauf pour l'accueil d'un événement,
+   qui se compose en deux colonnes et gère sa propre largeur. */
+.sp-stage--standalone > * {
+  width: 100%;
+  max-width: var(--sp-content-w);
+  margin-inline: auto;
+}
+
+.sp-stage--standalone > .sp-screen--welcome {
+  max-width: var(--sp-page-w);
+}

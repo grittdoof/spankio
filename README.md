@@ -62,6 +62,7 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
 | Storage | Buckets `survey-banners` (3 Mio) et `organisation-logos` (1 Mio), 4 policies chacun, types d'image restreints |
 | Projet Vercel | `spankio`, relié à `grittdoof/spankio`, déploiement automatique sur `main` |
 | Protection Vercel | SSO activée sur tous les déploiements (hors domaine personnalisé) : le site n'est accessible qu'aux membres de l'équipe |
+| Actions GitHub | `checkout@v7`, `setup-node@v7` — les v4 tournaient sur Node 20, déprécié par les exécuteurs |
 | Node | `24.20.0` en CI (`.nvmrc`) et `24.x` sur Vercel. Si le réglage Vercel change, mettre `.nvmrc` à jour : la CI ne le lit pas depuis Vercel |
 
 ### Reste à faire avant une mise en service

@@ -256,8 +256,16 @@ export function SurveyRenderer({
     [goNext, phase],
   );
 
+  // Accueil et remerciement passent par la MÊME scène que les questions.
+  //
+  // Ils en étaient sortis, et n'avaient donc aucune marge horizontale : le
+  // texte touchait les bords de l'écran, là où chaque question respirait. Ce
+  // n'était pas un réglage à retrouver écran par écran mais une enveloppe
+  // manquante — d'où une enveloppe unique, `StandaloneStage`, plutôt qu'un
+  // rembourrage recopié dans chaque écran.
   if (phase === 'welcome') {
     return (
+      <StandaloneStage>
       <WelcomeScreen
         branding={branding}
         badge={welcome.badge}
@@ -274,18 +282,21 @@ export function SurveyRenderer({
         // sont donc offerts dès l'accueil, pas seulement après l'envoi.
         {...(event ? { event: { calendar: event.calendar, directions: event.directions } } : {})}
       />
+      </StandaloneStage>
     );
   }
 
   if (phase === 'done') {
     return (
-      <ThankYouScreen
-        title={thankYou.title}
-        message={thankYou.message}
-        calendar={event?.calendar}
-        directions={event?.directions}
-        eventSummary={event?.summary}
-      />
+      <StandaloneStage>
+        <ThankYouScreen
+          title={thankYou.title}
+          message={thankYou.message}
+          calendar={event?.calendar}
+          directions={event?.directions}
+          eventSummary={event?.summary}
+        />
+      </StandaloneStage>
     );
   }
 
@@ -387,6 +398,22 @@ export function SurveyRenderer({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Enveloppe des écrans qui n'ont ni progression ni pied de page : accueil et
+ * remerciement.
+ *
+ * Elle réutilise `sp-runner` et `sp-stage`, donc exactement les marges et le
+ * centrage vertical des écrans de question. Les recopier ici les aurait fait
+ * diverger au premier ajustement.
+ */
+function StandaloneStage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sp-runner">
+      <div className="sp-stage sp-stage--standalone">{children}</div>
     </div>
   );
 }
