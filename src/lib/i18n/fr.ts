@@ -174,7 +174,9 @@ export const fr = {
     /** Erreurs d'envoi, par code de l'API. */
     submitErrors: {
       invalid_input: 'Certaines réponses doivent être corrigées.',
-      conflict: 'Une réponse a déjà été enregistrée pour cette personne.',
+      conflict:
+        'Une réponse a déjà été enregistrée avec ces coordonnées. Si c’est une erreur, ' +
+        'contactez l’organisateur : lui seul peut retirer la réponse précédente.',
       closed: 'Ce formulaire n’accepte plus de réponses.',
       consent_required: 'Le consentement est nécessaire pour envoyer cette réponse.',
       payload_too_large: 'Votre réponse est trop volumineuse.',

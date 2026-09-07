@@ -212,6 +212,31 @@ changer.
   saisir, ce qui est validé et ce qui sort à l'export ; et comme le changer
   après coup orphelinerait les réponses reçues, se tromper coûte une
   suppression suivie d'une recréation.
+- **Une carte Leaflet ne se démonte QU'UNE fois.** `Map.remove()` efface
+  `container._leaflet_id` ; un second appel compare cet identifiant à celui que
+  la carte a mémorisé et lève « Map container is being reused by another
+  instance ». Défaut réel : le nettoyage appelait `remove()` sur `mapRef` puis
+  sur la variable locale — la même carte — ce qui produisait une page blanche
+  au retour depuis l'écran de l'événement. Le double de Leaflet utilisé en
+  test reproduit désormais cette invariante, sinon il laisserait repasser le
+  défaut. Corollaire : le conteneur est relu APRÈS l'import dynamique, jamais
+  capturé avant — React peut avoir remplacé le nœud entre-temps.
+- **L'unicité des réponses n'est jamais imposée en silence.** Un modèle peut
+  la SUGGÉRER, `createSurvey` ne l'applique pas : le parcours de création la
+  propose explicitement, avec sa conséquence — un second envoi est refusé, et
+  le répondant ne peut pas se corriger lui-même. Défaut réel : la suggestion
+  du modèle d'inscription était appliquée d'office, et un invité qui se
+  réinscrivait recevait un `409` pour une règle que personne n'avait choisie.
+  Seuls un courriel ou un téléphone sont proposés comme clé : deux invités
+  peuvent porter le même nom.
+- **Le parcours de création DÉPEND du type.** Un événement a un écran « date et
+  lieu » de plus, placé avant les mentions d'information parce qu'un événement
+  sans date ne peut pas être publié. Un écran vide affiché aux sondages
+  apprendrait à l'utilisateur que certaines étapes ne le concernent pas, et il
+  finirait par les traverser sans les lire.
+- **Les modèles d'événement préconfigurent le comptage** (`settings.attendance`
+  pointant sur leurs propres questions) : un modèle sait quelles questions il
+  pose, l'organisation n'a rien à câbler pour obtenir un effectif.
 - **Le comptage des présents est DÉSIGNÉ, jamais devine.** La plateforme est
   générique : elle ne peut pas savoir laquelle des questions signifie « je
   viens ». L'organisation désigne la question de présence, la réponse qui vaut

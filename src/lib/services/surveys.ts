@@ -242,7 +242,10 @@ export async function createSurvey(
       status: 'draft',
       schema: template?.schema ?? { version: 1, steps: [] },
       settings: template?.settings ?? {},
-      dedup_field: template?.suggestedDedupField ?? null,
+      // La suggestion du modèle n'est PAS appliquée : l'unicité refuse des
+      // réponses, et personne ne doit découvrir cette règle en la subissant.
+      // Le parcours de création la propose explicitement.
+      dedup_field: null,
       created_by: context.userId,
     },
     SURVEY_COLUMNS,

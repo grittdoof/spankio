@@ -19,17 +19,49 @@ import { expectNoA11yViolations } from '../helpers/axe';
  * pas couverte (risque R3).
  */
 
+/**
+ * Double de Leaflet qui reproduit UNE invariante du vrai : une carte ne se
+ * démonte qu'une fois.
+ *
+ * Leaflet compare l'identifiant qu'il a mémorisé à celui du conteneur ; le
+ * premier `remove()` effaçant ce dernier, un second appel lève « Map container
+ * is being reused by another instance ». Un double qui accepterait deux
+ * `remove()` laisserait passer exactement le défaut qui produisait une page
+ * blanche en production.
+ */
+const leafletState = { maps: 0, removes: 0 };
+
 vi.mock('leaflet', () => {
-  const chain = () => ({ addTo: () => marker, on: () => marker, setLatLng: () => marker, setOpacity: () => marker, getLatLng: () => ({ lat: 0, lng: 0 }) });
-  const marker = chain();
-  const map = {
-    setView: () => map,
-    on: () => map,
-    remove: () => {},
-    getZoom: () => 12,
+  const marker = {
+    addTo: () => marker,
+    on: () => marker,
+    setLatLng: () => marker,
+    setOpacity: () => marker,
+    getLatLng: () => ({ lat: 0, lng: 0 }),
   };
+
+  const makeMap = () => {
+    let removed = false;
+    const map = {
+      setView: () => map,
+      on: () => map,
+      getZoom: () => 12,
+      remove: () => {
+        if (removed) {
+          throw new Error('Map container is being reused by another instance');
+        }
+        removed = true;
+        leafletState.removes += 1;
+      },
+    };
+    return map;
+  };
+
   return {
-    map: () => map,
+    map: () => {
+      leafletState.maps += 1;
+      return makeMap();
+    },
     tileLayer: () => ({ addTo: () => ({}) }),
     divIcon: () => ({}),
     marker: () => marker,
@@ -275,6 +307,36 @@ describe('comptage des présents', () => {
     );
     await waitFor(() => expect(screen.getByLabelText('Latitude')).toBeTruthy());
     await expectNoA11yViolations(container);
+  });
+});
+
+describe('cycle de vie de la carte', () => {
+  it('ne démonte la carte qu’UNE fois', async () => {
+    // Défaut réel corrigé : le nettoyage appelait `remove()` deux fois sur la
+    // même carte, ce qui faisait lever Leaflet et affichait une page blanche
+    // au retour depuis l'écran de l'événement.
+    leafletState.maps = 0;
+    leafletState.removes = 0;
+
+    const { unmount } = render(<LocationPicker value={null} onChange={() => {}} />);
+    await waitFor(() => expect(leafletState.maps).toBe(1));
+
+    expect(() => unmount()).not.toThrow();
+    expect(leafletState.removes).toBe(1);
+  });
+
+  it('remonte proprement après un démontage', async () => {
+    // Aller sur l'écran, revenir, y retourner : le geste qui a révélé le
+    // défaut.
+    leafletState.maps = 0;
+    leafletState.removes = 0;
+
+    for (let pass = 0; pass < 3; pass += 1) {
+      const { unmount } = render(<LocationPicker value={null} onChange={() => {}} />);
+      await waitFor(() => expect(leafletState.maps).toBe(pass + 1));
+      expect(() => unmount()).not.toThrow();
+    }
+    expect(leafletState.removes).toBe(3);
   });
 });
 

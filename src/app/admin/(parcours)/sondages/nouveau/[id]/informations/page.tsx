@@ -10,7 +10,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { previousCreationUrl } from '@/lib/admin/wizard';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
-import { getSurvey, LEGAL_BASES } from '@/lib/services/surveys';
+import { getSurvey, LEGAL_BASES, parseSurveySchema } from '@/lib/services/surveys';
 import { legalBasisGuide } from '@/lib/survey/consent';
 import { saveInformations } from '../../actions';
 
@@ -63,6 +63,16 @@ export default async function InformationsStepPage({
   const survey = await getSurvey(context, parsedId.data);
   if (!survey.ok) notFound();
 
+  // Champs pouvant servir de clé d'unicité : une adresse ou un numéro
+  // identifient une personne, un texte libre non — deux invités peuvent
+  // s'appeler pareil, et le second serait refusé sans comprendre pourquoi.
+  const schema = parseSurveySchema(survey.value);
+  const dedupCandidates = schema.ok
+    ? schema.value.steps
+        .flatMap((step) => step.fields)
+        .filter((field) => field.type === 'email' || field.type === 'tel')
+    : [];
+
   const errorCode = typeof query['erreur'] === 'string' ? query['erreur'] : undefined;
   const error = errorCode ? (ERRORS[errorCode] ?? fr.errors.unexpected) : null;
   const fieldError = (field: string) => (errorCode === field ? ERRORS[field] : undefined);
@@ -72,6 +82,7 @@ export default async function InformationsStepPage({
       <input name="surveyId" type="hidden" value={survey.value.id} />
       <WizardShell
         step="informations"
+        kind={survey.value.kind}
         question="Qu’allez-vous dire aux répondants ?"
         lead="Ces trois informations sont affichées avant l’envoi et conservées avec chaque réponse comme preuve de ce qui a été annoncé. Elles sont obligatoires pour publier."
         backHref={previousCreationUrl(
@@ -181,6 +192,57 @@ export default async function InformationsStepPage({
             </select>
           )}
         </Field>
+
+        <fieldset className="sp-fieldset">
+          <legend>
+            Une seule réponse par personne ?{' '}
+            <Tooltip label="réponse unique">
+              La plateforme refusera une seconde réponse portant la même valeur dans le
+              champ choisi. Le refus est définitif pour le répondant : il ne peut pas
+              corriger lui-même.
+            </Tooltip>
+          </legend>
+          <ul className="sp-picks">
+            <li>
+              <label className="sp-pick">
+                <input
+                  defaultChecked={survey.value.dedup_field === null}
+                  name="dedupField"
+                  type="radio"
+                  value=""
+                />
+                <span className="sp-pick__text">
+                  <span className="sp-pick__name">Autoriser plusieurs réponses</span>
+                  <span className="sp-pick__desc">
+                    Chaque envoi est enregistré. C’est le choix sûr : personne ne se
+                    retrouve bloqué.
+                  </span>
+                </span>
+              </label>
+            </li>
+            {dedupCandidates.map((field) => (
+              <li key={field.id}>
+                <label className="sp-pick">
+                  <input
+                    defaultChecked={survey.value.dedup_field === field.id}
+                    name="dedupField"
+                    type="radio"
+                    value={field.id}
+                  />
+                  <span className="sp-pick__text">
+                    <span className="sp-pick__name">
+                      Une seule réponse par « {field.label} »
+                    </span>
+                    <span className="sp-pick__desc">
+                      Un second envoi avec la même valeur sera refusé. Utile contre les
+                      doublons, gênant si plusieurs personnes partagent la même adresse.
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
 
         <Field
           id="recipients"

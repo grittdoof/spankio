@@ -75,6 +75,19 @@ const eventRegistration = template({
       message: 'Vous pouvez ajouter l’événement à votre agenda ci-dessous.',
       showCalendar: true,
     },
+    /**
+     * Comptage des présents, PRÉCONFIGURÉ sur les questions de ce modèle.
+     *
+     * L'organisation n'a rien à câbler : le modèle sait quelles questions il
+     * pose. `total` et non `extra`, parce que l'intitulé demande le nombre
+     * total de participants, le répondant compris.
+     */
+    attendance: {
+      presenceField: 'presence',
+      presenceValue: 'oui',
+      partyField: 'accompagnants',
+      partyMode: 'total',
+    },
   },
   schema: {
     version: 1,

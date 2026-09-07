@@ -71,13 +71,17 @@ export function LocationPicker({ value, onChange, onAddressPicked }: LocationPic
     let map: LeafletMap | null = null;
 
     const start = async () => {
-      const container = containerRef.current;
-      if (!container) return;
-
       // Import dynamique : les modules de Leaflet touchent `window` dès leur
       // évaluation, ce qui ferait échouer le rendu serveur.
       const leaflet = await import('leaflet');
-      if (cancelled || !containerRef.current) return;
+
+      // Le conteneur est relu APRÈS l'attente, jamais capturé avant : entre
+      // le début de l'import et sa résolution, React peut avoir démonté le
+      // composant ou remplacé le nœud. Monter une carte sur un nœud détaché
+      // en laisserait une seconde sur le nœud vivant, et Leaflet refuserait
+      // ensuite de la démonter.
+      const container = containerRef.current;
+      if (cancelled || !container) return;
 
       const center = value ?? DEFAULT_CENTER;
       map = leaflet.map(container, { scrollWheelZoom: false }).setView(
@@ -137,10 +141,20 @@ export function LocationPicker({ value, onChange, onAddressPicked }: LocationPic
 
     return () => {
       cancelled = true;
-      mapRef.current?.remove();
+
+      // UN SEUL `remove()`, et jamais deux.
+      //
+      // Défaut réel corrigé : ce nettoyage appelait `mapRef.current.remove()`
+      // PUIS `map.remove()` — la même carte. Le premier appel efface
+      // `container._leaflet_id`, et le second compare cet identifiant à celui
+      // que la carte a mémorisé : Leaflet lève alors « Map container is being
+      // reused by another instance ». En production, cela devenait une page
+      // blanche au retour depuis l'écran de l'événement.
+      const instance = mapRef.current ?? map;
       mapRef.current = null;
       markerRef.current = null;
-      map?.remove();
+      map = null;
+      instance?.remove();
     };
     // Volontairement monté une seule fois : les changements de valeur sont
     // répercutés par l'effet suivant, sans détruire la carte à chaque frappe.

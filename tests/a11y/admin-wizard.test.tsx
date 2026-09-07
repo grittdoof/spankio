@@ -5,7 +5,7 @@ import { WizardShell } from '@/components/admin/WizardShell';
 import { Callout, Example } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { SubmitButton } from '@/components/ui/SubmitButton';
-import { WIZARD_TOTAL, stepLabel } from '@/lib/admin/wizard';
+import { stepLabel, wizardTotal } from '@/lib/admin/wizard';
 import { LEGAL_BASIS_GUIDE } from '@/lib/survey/consent';
 import { LEGAL_BASES } from '@/lib/services/surveys';
 import { expectNoA11yViolations } from '../helpers/axe';
@@ -32,6 +32,7 @@ function Screen({ back = '/admin/sondages?etape=1' }: { back?: string | null } =
     <form>
       <WizardShell
         step="informations"
+        kind="survey"
         question="Qu’allez-vous dire aux répondants ?"
         lead="Ces informations sont affichées avant l’envoi et conservées avec chaque réponse."
         backHref={back}
@@ -61,11 +62,11 @@ describe('coquille du parcours', () => {
     render(<Screen />);
     const bar = screen.getByRole('progressbar');
     expect(bar.getAttribute('aria-valuetext')).toBe(
-      `Étape 4 sur ${WIZARD_TOTAL} — ${stepLabel('informations')}`,
+      `Étape 4 sur ${wizardTotal('survey')} — ${stepLabel('informations')}`,
     );
     // La position est aussi ÉCRITE dans le corps de l'écran, pour qui ne voit
     // ni la barre ni ne l'atteint au lecteur d'écran.
-    expect(screen.getByText(`Étape 4 sur ${WIZARD_TOTAL}`)).toBeTruthy();
+    expect(screen.getByText(`Étape 4 sur ${wizardTotal('survey')}`)).toBeTruthy();
   });
 
   it('donne une seule région principale et un titre de niveau 1', () => {
@@ -112,6 +113,69 @@ describe('coquille du parcours', () => {
     // pas.
     expect(screen.getAllByRole('progressbar')).toHaveLength(1);
     expect(screen.getAllByRole('link', { name: 'Terminer plus tard' })).toHaveLength(1);
+  });
+});
+
+describe('parcours d’un événement', () => {
+  it('compte un écran de plus qu’un sondage, et le dit', () => {
+    render(
+      <form>
+        <WizardShell
+          step="evenement"
+          kind="event"
+          question="Quand et où ?"
+          backHref="/admin/sondages/abc"
+          exitHref="/admin/sondages"
+          footer={<SubmitButton>Continuer</SubmitButton>}
+        >
+          <p>Contenu</p>
+        </WizardShell>
+      </form>,
+    );
+
+    // « Date et lieu » s'insère en quatrième position et décale la suite : un
+    // sondage n'a pas cet écran, et l'afficher vide apprendrait à
+    // l'utilisateur que certaines étapes ne le concernent pas.
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuetext')).toBe(
+      `Étape 4 sur ${wizardTotal('event')} — ${stepLabel('evenement')}`,
+    );
+    expect(screen.getByText(`Étape 4 sur ${wizardTotal('event')}`)).toBeTruthy();
+    expect(wizardTotal('event')).toBe(6);
+  });
+
+  it('numérote les informations différemment selon le type', () => {
+    const { unmount } = render(
+      <form>
+        <WizardShell
+          step="informations"
+          kind="survey"
+          question="Q"
+          backHref={null}
+          exitHref="/admin/sondages"
+          footer={<SubmitButton>Continuer</SubmitButton>}
+        >
+          <p>Contenu</p>
+        </WizardShell>
+      </form>,
+    );
+    expect(screen.getByText('Étape 4 sur 5')).toBeTruthy();
+    unmount();
+
+    render(
+      <form>
+        <WizardShell
+          step="informations"
+          kind="event"
+          question="Q"
+          backHref={null}
+          exitHref="/admin/sondages"
+          footer={<SubmitButton>Continuer</SubmitButton>}
+        >
+          <p>Contenu</p>
+        </WizardShell>
+      </form>,
+    );
+    expect(screen.getByText('Étape 5 sur 6')).toBeTruthy();
   });
 });
 

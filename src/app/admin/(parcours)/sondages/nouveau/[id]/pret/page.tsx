@@ -7,6 +7,7 @@ import { Callout } from '@/components/ui/Callout';
 import { previousCreationUrl } from '@/lib/admin/wizard';
 import { resolveRequestContext } from '@/lib/data/context';
 import { getSurvey } from '@/lib/services/surveys';
+import { eventLocation } from '@/lib/event/calendar-content';
 import { legalBasisGuide } from '@/lib/survey/consent';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,13 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Formulaire créé' };
 
 const idSchema = z.string().uuid();
+
+/** Récapitulatif : la date est relue dans le fuseau de l'événement. */
+const MOMENT_FORMAT = new Intl.DateTimeFormat('fr-FR', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Europe/Paris',
+});
 
 function durationLabel(days: number | null): string {
   if (days === null) return 'Non renseignée';
@@ -54,6 +62,7 @@ export default async function ReadyStepPage({
   return (
     <WizardShell
       step="pret"
+      kind={survey.value.kind}
       question="C’est créé."
       lead={`« ${survey.value.title} » existe en brouillon : il n’accepte aucune réponse tant que vous ne l’avez pas publié.`}
       backHref={previousCreationUrl(
@@ -83,6 +92,27 @@ export default async function ReadyStepPage({
             <dt>Adresse publique</dt>
             <dd>…/{survey.value.slug}</dd>
           </div>
+          {isEvent ? (
+            <div>
+              <dt>Date</dt>
+              <dd>
+                {survey.value.event_starts_at
+                  ? MOMENT_FORMAT.format(new Date(survey.value.event_starts_at))
+                  : 'Non renseignée'}
+              </dd>
+            </div>
+          ) : null}
+          {isEvent ? (
+            <div>
+              <dt>Lieu</dt>
+              <dd>
+                {eventLocation({
+                  locationLabel: survey.value.event_location_label,
+                  address: survey.value.event_address,
+                }) ?? 'Non renseigné'}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>Finalité</dt>
             <dd>{survey.value.purpose ?? 'Non renseignée'}</dd>
@@ -105,8 +135,8 @@ export default async function ReadyStepPage({
 
       <Callout title="Ce qu’il reste à faire pour publier">
         {isEvent
-          ? 'Renseigner la date de l’événement, puis ajouter au moins une question. Le bouton « Publier » se trouve dans l’éditeur.'
-          : 'Ajouter au moins une question. Le bouton « Publier » se trouve dans l’éditeur, en bas de l’écran.'}
+          ? 'Vérifier les questions, puis publier depuis l’éditeur. La carte, la bannière et l’heure de fin s’ajoutent dans les réglages de l’événement, quand vous voudrez.'
+          : 'Vérifier les questions, puis publier depuis l’éditeur — le bouton se trouve à la dernière étape.'}
       </Callout>
     </WizardShell>
   );

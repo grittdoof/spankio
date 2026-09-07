@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { creationUrl, guideUrl } from '@/lib/admin/wizard';
+import { wallClockToIso } from '@/lib/event/time';
+import { MAX_LENGTHS } from '@/lib/survey/limits';
 import { textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { eq } from '@/lib/data/port';
 import { resolveRequestContext } from '@/lib/data/context';
@@ -104,7 +106,60 @@ export async function createDraft(formData: FormData): Promise<void> {
   }
 
   revalidatePath('/admin/sondages');
-  redirect(guideUrl(created.value.id, 'informations'));
+  // Un événement passe d'abord par sa date et son lieu : sans eux il ne peut
+  // pas être publié, et les découvrir au récapitulatif ferait revenir en
+  // arrière.
+  redirect(guideUrl(created.value.id, kind.data === 'event' ? 'evenement' : 'informations'));
+}
+
+const eventStepSchema = z.object({
+  startsAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+  timezone: z.string().trim().min(1).max(60),
+  locationLabel: z.string().trim().max(200).nullable(),
+  address: z.string().trim().max(300).nullable(),
+});
+
+/**
+ * Écran « date et lieu » du parcours.
+ *
+ * L'heure est saisie dans le fuseau DE L'ÉVÉNEMENT et convertie ici : se fier
+ * au fuseau du serveur — UTC sur Vercel — décalerait l'événement de deux
+ * heures en été.
+ */
+export async function saveEventStep(formData: FormData): Promise<void> {
+  const surveyId = idSchema.safeParse(formData.get('surveyId'));
+  if (!surveyId.success) redirect(creationUrl('type', null));
+
+  const parsed = eventStepSchema.safeParse({
+    startsAt: textFieldOrEmpty(formData, 'startsAt'),
+    timezone: textFieldOrEmpty(formData, 'timezone') || 'Europe/Paris',
+    locationLabel: trimmedField(formData, 'locationLabel'),
+    address: trimmedField(formData, 'address'),
+  });
+  if (!parsed.success) {
+    const field = parsed.error.issues[0]?.path[0];
+    redirect(`${guideUrl(surveyId.data, 'evenement')}?erreur=${String(field ?? 'saisie')}`);
+  }
+
+  const startsAt = wallClockToIso(parsed.data.startsAt, parsed.data.timezone);
+  if (!startsAt) redirect(`${guideUrl(surveyId.data, 'evenement')}?erreur=startsAt`);
+
+  const context = await resolveRequestContext();
+  const updated = await updateSurvey(context, surveyId.data, {
+    eventStartsAt: startsAt,
+    eventTimezone: parsed.data.timezone,
+    eventLocationLabel: parsed.data.locationLabel,
+    eventAddress: parsed.data.address,
+  });
+
+  if (!updated.ok) {
+    logger.warn('surveys.event_step_refused', 'Date et lieu refusés.', {
+      code: updated.error.code,
+    });
+    redirect(`${guideUrl(surveyId.data, 'evenement')}?erreur=enregistrement`);
+  }
+
+  redirect(guideUrl(surveyId.data, 'informations'));
 }
 
 const informationsSchema = z.object({
@@ -112,6 +167,8 @@ const informationsSchema = z.object({
   legalBasis: z.enum(LEGAL_BASES),
   retentionDays: z.number().int().min(1).max(3650),
   recipients: z.string().trim().max(2000).nullable(),
+  /** Champ servant de clé d'unicité, ou vide pour n'en imposer aucune. */
+  dedupField: z.string().trim().max(MAX_LENGTHS.identifier).nullable(),
 });
 
 /** Écran 4 : les mentions d'information, exigées pour publier. */
@@ -125,6 +182,7 @@ export async function saveInformations(formData: FormData): Promise<void> {
     legalBasis: textFieldOrEmpty(formData, 'legalBasis'),
     retentionDays: rawRetention === '' ? Number.NaN : Number(rawRetention),
     recipients: trimmedField(formData, 'recipients'),
+    dedupField: trimmedField(formData, 'dedupField'),
   });
 
   if (!parsed.success) {
@@ -140,6 +198,7 @@ export async function saveInformations(formData: FormData): Promise<void> {
     legalBasis: parsed.data.legalBasis,
     retentionDays: parsed.data.retentionDays,
     recipients: parsed.data.recipients,
+    dedupField: parsed.data.dedupField,
   });
 
   if (!updated.ok) {

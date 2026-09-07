@@ -97,6 +97,7 @@ export default async function NewSurveyWizardPage({
       <form action={chooseKind}>
         <WizardShell
           step="type"
+          kind="survey"
           question="Que souhaitez-vous créer ?"
           lead="Ce choix détermine ce que le formulaire pourra contenir. Il se fixe maintenant : un événement porte une date et un lieu, un sondage non."
           backHref={null}
@@ -147,6 +148,7 @@ export default async function NewSurveyWizardPage({
         <input name="kind" type="hidden" value={choices.kind} />
         <WizardShell
           step="modele"
+          kind={choices.kind}
           question="Partir de zéro, ou d’un modèle ?"
           lead="Un modèle préremplit les questions les plus courantes. Tout reste modifiable ensuite : rien n’est figé par ce choix."
           backHref={previousCreationUrl('modele', choices, null)}
@@ -188,6 +190,7 @@ export default async function NewSurveyWizardPage({
       <Carried choices={choices} />
       <WizardShell
         step="titre"
+        kind={choices.kind}
         question="Comment s’appelle ce formulaire ?"
         lead="Le titre s’affiche aux répondants et sert à composer son adresse publique. Vous pourrez le changer à tout moment."
         backHref={previousCreationUrl('titre', choices, null)}

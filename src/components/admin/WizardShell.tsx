@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import { Steps } from '@/components/ui/Steps';
-import { WIZARD_TOTAL, stepLabel, stepNumber, type WizardStepKey } from '@/lib/admin/wizard';
+import {
+  stepLabel,
+  stepNumber,
+  wizardTotal,
+  type SurveyKind,
+  type WizardStepKey,
+} from '@/lib/admin/wizard';
 
 /**
  * Coquille d'un écran de parcours guidé.
@@ -24,6 +30,8 @@ import { WIZARD_TOTAL, stepLabel, stepNumber, type WizardStepKey } from '@/lib/a
 
 export interface WizardShellProps {
   step: WizardStepKey;
+  /** Le parcours dépend du type : un événement a un écran de plus. */
+  kind: SurveyKind;
   /** Titre de l'écran : formulé comme une question posée à l'utilisateur. */
   question: string;
   /** Une ou deux phrases : pourquoi on demande cela, et ce qu'il en advient. */
@@ -40,6 +48,7 @@ export interface WizardShellProps {
 
 export function WizardShell({
   step,
+  kind,
   question,
   lead,
   backHref,
@@ -48,7 +57,8 @@ export function WizardShell({
   children,
   footer,
 }: WizardShellProps) {
-  const current = stepNumber(step);
+  const current = stepNumber(step, kind);
+  const total = wizardTotal(kind);
   const label = stepLabel(step);
 
   return (
@@ -56,7 +66,7 @@ export function WizardShell({
       <main className="sp-wizard__body" id="contenu">
         <div className="sp-ask">
           <span className="sp-ask__step">
-            Étape {current} sur {WIZARD_TOTAL}
+            Étape {current} sur {total}
           </span>
           <h1 className="sp-ask__title">{question}</h1>
           {lead ? <p className="sp-ask__lead">{lead}</p> : null}
@@ -67,7 +77,7 @@ export function WizardShell({
       <div className="sp-wizard__foot">
         <div className="sp-wizard__foot-inner">
           <div className="sp-wizard__foot-progress">
-            <Steps current={current} total={WIZARD_TOTAL} label={label} />
+            <Steps current={current} total={total} label={label} />
             <Link className="sp-btn sp-btn--ghost sp-btn--sm" href={exitHref}>
               {exitLabel}
             </Link>

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  WIZARD_STEPS,
-  WIZARD_TOTAL,
+  wizardSteps,
+  wizardTotal,
   creationUrl,
   guideUrl,
   previousCreationUrl,
   resolveCreationStep,
+  nextStep,
   stepLabel,
   stepNumber,
   templatesFor,
@@ -24,19 +25,38 @@ import { SURVEY_TEMPLATES } from '@/lib/event/templates';
 const SURVEY = { kind: 'survey' as const, templateKey: null };
 
 describe('définition du parcours', () => {
-  it('compte cinq écrans, chacun avec un libellé', () => {
-    expect(WIZARD_TOTAL).toBe(5);
-    for (const step of WIZARD_STEPS) {
+  it('compte cinq écrans pour un sondage, six pour un événement', () => {
+    // L'écran « date et lieu » ne concerne pas un sondage : l'afficher vide
+    // apprendrait à l'utilisateur que certaines étapes ne le regardent pas,
+    // et il finirait par les traverser sans les lire.
+    expect(wizardTotal('survey')).toBe(5);
+    expect(wizardTotal('event')).toBe(6);
+    expect(wizardSteps('survey').map((step) => step.key)).not.toContain('evenement');
+    expect(wizardSteps('event').map((step) => step.key)).toContain('evenement');
+  });
+
+  it('donne un libellé à chaque écran', () => {
+    for (const step of wizardSteps('event')) {
       expect(step.label.length).toBeGreaterThan(3);
     }
   });
 
-  it('numérote les étapes dans l’ordre déclaré', () => {
-    expect(stepNumber('type')).toBe(1);
-    expect(stepNumber('modele')).toBe(2);
-    expect(stepNumber('titre')).toBe(3);
-    expect(stepNumber('informations')).toBe(4);
-    expect(stepNumber('pret')).toBe(5);
+  it('numérote les étapes selon le type', () => {
+    expect(stepNumber('type', 'survey')).toBe(1);
+    expect(stepNumber('informations', 'survey')).toBe(4);
+    expect(stepNumber('pret', 'survey')).toBe(5);
+
+    // Pour un événement, « date et lieu » s'insère en quatrième et décale la
+    // suite.
+    expect(stepNumber('evenement', 'event')).toBe(4);
+    expect(stepNumber('informations', 'event')).toBe(5);
+    expect(stepNumber('pret', 'event')).toBe(6);
+  });
+
+  it('chaîne les étapes selon le type', () => {
+    expect(nextStep('titre', 'survey')).toBe('informations');
+    expect(nextStep('titre', 'event')).toBe('evenement');
+    expect(nextStep('pret', 'event')).toBeNull();
   });
 
   it('donne le libellé de l’étape courante', () => {
@@ -146,6 +166,7 @@ describe('URL des écrans', () => {
   });
 
   it('compose les URL du parcours postérieur à la création', () => {
+    expect(guideUrl('abc', 'evenement')).toBe('/admin/sondages/nouveau/abc/evenement');
     expect(guideUrl('abc', 'informations')).toBe('/admin/sondages/nouveau/abc/informations');
     expect(guideUrl('abc', 'pret')).toBe('/admin/sondages/nouveau/abc/pret');
   });
@@ -167,6 +188,19 @@ describe('retour en arrière', () => {
     const back = previousCreationUrl('informations', SURVEY, 'abc');
     expect(back).toBe('/admin/sondages/abc');
     expect(back).not.toContain('nouveau');
+  });
+
+  it('remonte à « date et lieu » depuis les informations d’un événement', () => {
+    // Cet écran-là existe en base : le rejouer ne crée rien.
+    expect(
+      previousCreationUrl('informations', { kind: 'event', templateKey: null }, 'abc'),
+    ).toBe('/admin/sondages/nouveau/abc/evenement');
+  });
+
+  it('remonte à l’éditeur depuis « date et lieu »', () => {
+    expect(
+      previousCreationUrl('evenement', { kind: 'event', templateKey: null }, 'abc'),
+    ).toBe('/admin/sondages/abc');
   });
 
   it('remonte des informations depuis le récapitulatif', () => {

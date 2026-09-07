@@ -18,33 +18,59 @@ import { templateByKey, type SurveyTemplate } from '@/lib/event/templates';
  * clé de modèle, tous deux issus de listes fermées.
  */
 
-/** Les cinq écrans, dans l'ordre. Le libellé est annoncé avec la position. */
-export const WIZARD_STEPS = [
-  { key: 'type', label: 'Type de formulaire' },
-  { key: 'modele', label: 'Point de départ' },
-  { key: 'titre', label: 'Titre' },
-  { key: 'informations', label: 'Informations aux répondants' },
-  { key: 'pret', label: 'Récapitulatif' },
+/**
+ * Les écrans, dans l'ordre. Le parcours DÉPEND du type : un événement demande
+ * une date et un lieu, un sondage non.
+ *
+ * Un écran « date et lieu » vide, affiché aux sondages, apprendrait à
+ * l'utilisateur que certaines étapes ne le concernent pas — et il finirait par
+ * les traverser sans les lire.
+ */
+const ALL_STEPS = [
+  { key: 'type', label: 'Type de formulaire', kinds: ['survey', 'event'] },
+  { key: 'modele', label: 'Point de départ', kinds: ['survey', 'event'] },
+  { key: 'titre', label: 'Titre', kinds: ['survey', 'event'] },
+  { key: 'evenement', label: 'Date et lieu', kinds: ['event'] },
+  { key: 'informations', label: 'Informations aux répondants', kinds: ['survey', 'event'] },
+  { key: 'pret', label: 'Récapitulatif', kinds: ['survey', 'event'] },
 ] as const;
 
-export type WizardStepKey = (typeof WIZARD_STEPS)[number]['key'];
+export type WizardStepKey = (typeof ALL_STEPS)[number]['key'];
 
-export const WIZARD_TOTAL = WIZARD_STEPS.length;
+export type SurveyKind = 'survey' | 'event';
 
-/** Position (1-indexée) d'une étape, pour la barre de progression. */
-export function stepNumber(key: WizardStepKey): number {
-  return WIZARD_STEPS.findIndex((step) => step.key === key) + 1;
+/** Écrans applicables à ce type. */
+export function wizardSteps(
+  kind: SurveyKind,
+): readonly { key: WizardStepKey; label: string }[] {
+  return ALL_STEPS.filter((step) => (step.kinds as readonly string[]).includes(kind)).map(
+    (step) => ({ key: step.key, label: step.label }),
+  );
+}
+
+export function wizardTotal(kind: SurveyKind): number {
+  return wizardSteps(kind).length;
+}
+
+/** Position (1-indexée) d'une étape dans le parcours de ce type. */
+export function stepNumber(key: WizardStepKey, kind: SurveyKind): number {
+  return wizardSteps(kind).findIndex((step) => step.key === key) + 1;
 }
 
 export function stepLabel(key: WizardStepKey): string {
-  return WIZARD_STEPS.find((step) => step.key === key)?.label ?? '';
+  return ALL_STEPS.find((step) => step.key === key)?.label ?? '';
+}
+
+/** Étape suivante pour ce type, ou `null` sur la dernière. */
+export function nextStep(key: WizardStepKey, kind: SurveyKind): WizardStepKey | null {
+  const steps = wizardSteps(kind);
+  const index = steps.findIndex((step) => step.key === key);
+  return steps[index + 1]?.key ?? null;
 }
 
 // ---------------------------------------------------------------------------
 // Les trois premiers écrans : avant que le brouillon n'existe
 // ---------------------------------------------------------------------------
-
-export type SurveyKind = 'survey' | 'event';
 
 export interface DraftChoices {
   readonly kind: SurveyKind;
@@ -142,10 +168,17 @@ export function previousCreationUrl(
       return creationUrl('type', choices);
     case 'titre':
       return creationUrl('modele', choices);
-    case 'informations':
+    case 'evenement':
       // On ne revient PAS à l'écran du titre : le brouillon existe déjà, et y
       // retourner en créerait un second. Le titre se corrige dans l'éditeur.
       return surveyId ? `/admin/sondages/${surveyId}` : null;
+    case 'informations':
+      // Même raison, sauf pour un événement : l'écran précédent existe alors
+      // en base et se rejoue sans risque.
+      if (!surveyId) return null;
+      return choices.kind === 'event'
+        ? guideUrl(surveyId, 'evenement')
+        : `/admin/sondages/${surveyId}`;
     case 'pret':
       return surveyId ? guideUrl(surveyId, 'informations') : null;
   }
@@ -158,7 +191,10 @@ export function previousCreationUrl(
  * qu'on est en train de faire, et le brouillon garde son identifiant sans
  * entrer en concurrence avec les écrans d'édition de `sondages/[id]`.
  */
-export function guideUrl(surveyId: string, step: 'informations' | 'pret'): string {
+export function guideUrl(
+  surveyId: string,
+  step: 'evenement' | 'informations' | 'pret',
+): string {
   return `/admin/sondages/nouveau/${surveyId}/${step}`;
 }
 

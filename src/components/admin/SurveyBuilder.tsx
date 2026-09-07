@@ -188,6 +188,19 @@ export function SurveyBuilder({
   const used = useMemo(() => usedIdentifiers(schema), [schema]);
 
   /**
+   * Champs pouvant servir de clé d'unicité : une adresse ou un numéro
+   * identifient une personne, un texte libre non — deux invités peuvent
+   * s'appeler pareil, et le second serait refusé sans comprendre pourquoi.
+   */
+  const dedupCandidates = useMemo(
+    () =>
+      schema.steps
+        .flatMap((step) => step.fields)
+        .filter((field) => field.type === 'email' || field.type === 'tel'),
+    [schema],
+  );
+
+  /**
    * Ce qui manque pour publier, recalculé à chaque frappe avec la MÊME
    * fonction que le serveur. On ne découvre donc pas au moment de publier
    * qu'il manquait une mention — et l'écran ne peut pas annoncer « prêt »
@@ -671,6 +684,30 @@ export function SurveyBuilder({
                 maxLength={2000}
                 onChange={(event) => setDraft({ ...draft, recipients: event.target.value || null })}
               />
+            )}
+          </Field>
+
+          <Field
+            id="dedupField"
+            label="Une seule réponse par personne ?"
+            hint="Un second envoi portant la même valeur sera REFUSÉ, définitivement pour le répondant : il ne peut pas corriger lui-même. À réserver aux cas où le doublon coûte plus que le refus."
+          >
+            {(attributes) => (
+              <select
+                {...attributes}
+                className="sp-select"
+                onChange={(event) =>
+                  setDraft({ ...draft, dedupField: event.target.value || null })
+                }
+                value={draft.dedupField ?? ''}
+              >
+                <option value="">Autoriser plusieurs réponses</option>
+                {dedupCandidates.map((field) => (
+                  <option key={field.id} value={field.id}>
+                    Une seule réponse par « {field.label} »
+                  </option>
+                ))}
+              </select>
             )}
           </Field>
 

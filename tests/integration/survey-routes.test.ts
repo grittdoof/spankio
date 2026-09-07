@@ -71,6 +71,52 @@ describe('routes de gestion des sondages', () => {
     api.actAs(a.editor);
   });
 
+  describe('unicité des réponses', () => {
+    it('ne l’impose PAS à la création, même depuis un modèle qui la suggère', async () => {
+      // Défaut réel corrigé : le modèle « Inscription à un événement »
+      // suggérait l'unicité par courriel, et `createSurvey` l'appliquait en
+      // silence. Un invité qui se réinscrivait recevait un refus définitif,
+      // pour une règle que personne n'avait choisie.
+      const { status, body } = await readJson<{
+        survey: { id: string; dedup_field: string | null };
+      }>(
+        await createSurvey(
+          jsonRequest('POST', '/api/admin/surveys', {
+            title: 'Soirée annuelle',
+            kind: 'event',
+            templateKey: 'event_registration',
+          }),
+        ),
+      );
+
+      expect(status).toBe(201);
+      expect(body.survey.dedup_field).toBeNull();
+    });
+
+    it('reprend le comptage des présents préconfiguré par le modèle', async () => {
+      // Le modèle sait quelles questions il pose : l'organisation n'a rien à
+      // câbler pour obtenir un effectif.
+      const { body } = await readJson<{ survey: { id: string; settings: unknown } }>(
+        await createSurvey(
+          jsonRequest('POST', '/api/admin/surveys', {
+            title: 'Gala préconfiguré',
+            kind: 'event',
+            templateKey: 'event_registration',
+          }),
+        ),
+      );
+
+      expect(body.survey.settings).toMatchObject({
+        attendance: {
+          presenceField: 'presence',
+          presenceValue: 'oui',
+          partyField: 'accompagnants',
+          partyMode: 'total',
+        },
+      });
+    });
+  });
+
   describe('liste', () => {
     it("ne montre que les sondages de sa propre organisation", async () => {
       const { status, body } = await readJson<{
