@@ -16,6 +16,7 @@ import { parseStatisticsView } from '@/lib/admin/statistics-view';
 import { guestList, type GuestList as GuestListModel } from '@/lib/survey/guests';
 import { eventInsights } from '@/lib/survey/insights';
 import { responsePace } from '@/lib/survey/pace';
+import { ctaPalette } from '@/lib/design/cta';
 import { countdownParts } from '@/lib/event/countdown';
 import { validateSurveySchema } from '@/lib/survey/schema';
 import { countAttendance, type AttendanceSettings } from '@/lib/survey/attendance';
@@ -212,6 +213,10 @@ const DEMO_INVITATION = {
   privacyNote:
     'Les données enregistrées sont celles des champs de ce formulaire ; aucune donnée technique de traçage n’est collectée.',
   ctaLabel: 'Je m’inscris',
+  // Couleur personnalisée volontairement CLAIRE : c'est la branche
+  // intéressante, celle où l'encre doit basculer au foncé et le survol
+  // s'éclaircir. Un bleu foncé se comporterait comme la charte.
+  ctaPalette: ctaPalette('#F5C518'),
 };
 
 const BUTTONS: readonly [string, string][] = [
@@ -513,7 +518,9 @@ export default function DesignWorkshopPage() {
           <p className="sp-section__lead">
             Tous les blocs ouverts à la fois. Sur une page réelle, l’organisation
             n’en laisse que ceux qu’elle veut — et un bloc sans contenu ne s’affiche
-            pas, même ouvert.
+            pas, même ouvert. Le bouton d’inscription porte ici une couleur
+            personnalisée volontairement CLAIRE : l’encre du libellé bascule alors
+            au foncé, et le survol s’éclaircit au lieu de s’assombrir.
           </p>
           <InvitationDemo content={DEMO_INVITATION} />
         </section>

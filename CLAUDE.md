@@ -272,6 +272,36 @@ changer.
   leur propre carte ; les autres sont regroupés là où il n'y a rien à saisir.
   Ailleurs, on chercherait quel bouton commande quoi. Et **fermer un bloc ne
   détruit pas son contenu** — un test le vérifie.
+- **Une organisation choisit le FOND de son bouton d'inscription, jamais son
+  encre.** Blanc ou encre foncée de la charte, celle des deux qui contraste le
+  mieux — laisser choisir les deux reviendrait à laisser fabriquer un bouton
+  illisible, sur le seul appel à l'action d'une page publique. Le survol
+  s'ÉLOIGNE de l'encre (encre blanche → fond assombri, encre foncée → fond
+  éclairci) : le contraste ne peut donc que monter, ce qui rend la vérification
+  au repos suffisante. Défaut attrapé par mutation pendant l'écriture : la
+  première règle assombrissait tout, y compris un bouton jaune à encre foncée,
+  et seule la vérification du survol mordait — l'inverse de l'intention.
+- **Trois remparts, aucun destructeur, sur la couleur du bouton.** Le SCHÉMA
+  n'exige que le format `#RRGGBB` — une contrainte de contraste y ferait
+  échouer `validateSurveySettings` en entier, et la page publique perdrait
+  TOUS ses réglages d'un coup (`settings.ok ? … : {}`). L'ÉCRAN de réglages
+  refuse à la saisie en nommant le ratio mesuré. Le RENDU (`ctaPalette`)
+  renvoie `null` pour toute couleur invalide ou illisible, et le bouton reprend
+  la charte : quoi qu'il y ait en base, la page publique ne peut pas afficher
+  un appel à l'action qu'on ne lit pas.
+- **Une couleur qui arrive de la base ne traverse jamais un attribut `style`
+  telle quelle.** React n'assainit pas les valeurs CSS : ce que `normaliseHex`
+  renvoie est RECONSTRUIT depuis trois composantes analysées, donc ne peut
+  contenir que des chiffres hexadécimaux. La peinture passe par les variables
+  internes de `sp-btn` (`--_bg`, `--_bg-hover`, `--_fg`), si bien que tailles,
+  transitions, cible tactile et anneau de focus restent ceux de la charte.
+- **Le contraste du bouton avec le FOND DE PAGE est signalé, pas imposé.**
+  WCAG 1.4.11 dispense de la règle des 3:1 un contrôle identifiable par son
+  libellé, ce qui est toujours le cas ici. Refuser tous les tons pâles au nom
+  d'une règle qui ne s'applique pas serait un excès de zèle déguisé en
+  accessibilité : l'écran mesure, le dit, et laisse choisir. La bande
+  réellement refusée est étroite — les gris moyens autour de `#7F7F7F`, où
+  aucune encre n'atteint 4,5:1.
 - **Aucune carte n'est affichée sur la page publique.** L'itinéraire est fait
   de LIENS : rien ne part vers un tiers avant le clic. Des tuiles
   OpenStreetMap sur une page publique enverraient l'adresse IP de chaque
@@ -670,9 +700,13 @@ npm run build       # build de production
       et barre d'inscription collante. **Quatorze blocs, tous ouvrables ou
       fermables** depuis un écran dédié (`/admin/sondages/[id]/invitation`),
       avec leur contenu propre rangé dans `settings.publicPage` — aucune
-      migration. Deux défauts réels corrigés au passage : les dates étaient
-      mises en forme dans `Europe/Paris` en dur, et la finalité déclarée par
-      l'organisation était recopiée au milieu d'une phrase. 1454 tests dont 27
-      d'accessibilité sur l'invitation et son écran de réglages.
+      migration. **La couleur du bouton d'inscription est personnalisable** :
+      l'organisation choisit le fond, l'encre et le survol en découlent, et
+      toute couleur qu'aucune encre ne rendrait lisible est refusée à la
+      saisie comme au rendu. Deux défauts réels corrigés au passage : les
+      dates étaient mises en forme dans `Europe/Paris` en dur, et la finalité
+      déclarée par l'organisation était recopiée au milieu d'une phrase.
+      1486 tests dont 37 d'accessibilité sur l'invitation et son écran de
+      réglages.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

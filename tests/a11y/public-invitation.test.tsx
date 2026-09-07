@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Invitation } from '@/components/public/Invitation';
+import { ctaPalette } from '@/lib/design/cta';
 import { countdownParts } from '@/lib/event/countdown';
 import { expectNoA11yViolations } from '../helpers/axe';
 
@@ -201,5 +202,41 @@ describe('blocs fermés', () => {
   it('affiche le nom de l’organisation même sans logo : une invitation a un émetteur', () => {
     render(<Invitation {...bare} onStart={noop} />);
     expect(screen.getByText('Organisation Témoin')).toBeTruthy();
+  });
+});
+
+describe('couleur du bouton d’inscription', () => {
+  it('peint le bouton avec la palette reçue, sans toucher au reste', () => {
+    const palette = ctaPalette('#0B4A96')!;
+    render(<Invitation {...full} ctaPalette={palette} onStart={noop} />);
+    const button = screen.getByRole('button', { name: 'Je m’inscris' });
+    // Seule la peinture change : le composant garde sa classe, donc ses
+    // tailles, sa cible tactile et son anneau de focus.
+    expect(button.className).toContain('sp-btn--lg');
+    expect(button.getAttribute('style')).toContain('#0B4A96');
+    expect(button.getAttribute('style')).toContain('#FFFFFF');
+  });
+
+  it('retombe sur la charte quand aucune palette n’est fournie', () => {
+    render(<Invitation {...full} onStart={noop} />);
+    expect(
+      screen.getByRole('button', { name: 'Je m’inscris' }).getAttribute('style'),
+    ).toBeNull();
+  });
+
+  it('ne peut pas recevoir de couleur illisible : la palette n’existe pas', () => {
+    // Le composant ne juge rien — c'est `ctaPalette` qui refuse, en amont.
+    expect(ctaPalette('#7F7F7F')).toBeNull();
+    render(<Invitation {...full} ctaPalette={ctaPalette('#7F7F7F')} onStart={noop} />);
+    expect(
+      screen.getByRole('button', { name: 'Je m’inscris' }).getAttribute('style'),
+    ).toBeNull();
+  });
+
+  it('ne signale aucune violation avec une couleur personnalisée', async () => {
+    const { container } = render(
+      <Invitation {...full} ctaPalette={ctaPalette('#F5C518')} onStart={noop} />,
+    );
+    await expectNoA11yViolations(container);
   });
 });

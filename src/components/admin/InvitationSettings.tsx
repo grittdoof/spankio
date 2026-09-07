@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Callout } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { checkCtaColor, CTA_MIN_RATIO, CTA_PAGE_RATIO } from '@/lib/design/cta';
 import {
   isBlockAllowed,
   PUBLIC_BLOCK_META,
@@ -65,6 +66,16 @@ export function InvitationSettings({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * La couleur saisie vit à part du brouillon tant qu'elle n'est pas valide.
+   *
+   * Sans cela, taper « #2F » au clavier écrirait une valeur invalide dans les
+   * réglages, et le champ deviendrait inutilisable dès le second caractère —
+   * on ne peut pas atteindre `#2F6FDB` sans passer par des états incomplets.
+   */
+  const [colorInput, setColorInput] = useState(initial.ctaColor ?? '');
+  const verdict = colorInput.trim() === '' ? null : checkCtaColor(colorInput);
+
   const patch = (changes: Partial<PublicPageSettings>) => {
     setDraft((previous) => ({ ...previous, ...changes }));
     setNotice(null);
@@ -79,9 +90,30 @@ export function InvitationSettings({
   const faq = draft.faq ?? [];
 
   const save = async () => {
+    // Refus AVANT l'appel réseau : le message nomme le ratio mesuré, ce
+    // qu'une erreur du serveur ne saurait pas dire.
+    if (verdict && !verdict.ok) {
+      setNotice(null);
+      setError(
+        verdict.reason === 'format'
+          ? 'La couleur du bouton doit s’écrire au format #RRGGBB — six chiffres hexadécimaux.'
+          : `Cette couleur ne permet pas un libellé lisible : ${verdict.ratio.toFixed(2)}:1 au mieux, alors que ${CTA_MIN_RATIO}:1 sont exigés. Assombrissez-la ou éclaircissez-la.`,
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
-    const result = await onSave(draft);
+
+    // La couleur est composée AU MOMENT de l'enregistrement, depuis la palette
+    // validée — jamais recopiée du champ de saisie. Une seule source de vérité,
+    // et ce qui partira est exactement ce que l'aperçu montrait.
+    const result = await onSave({
+      ...draft,
+      ...(verdict?.ok
+        ? { ctaColor: verdict.palette.background }
+        : { ctaColor: undefined }),
+    });
     setSaving(false);
     if (result.ok) {
       setNotice('Page publique enregistrée.');
@@ -164,6 +196,124 @@ export function InvitationSettings({
               />
             )}
           </Field>
+        ) : null}
+      </section>
+
+      {/* --- Couleur du bouton -------------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <h2 className="sp-card__title">
+          Couleur du bouton d’inscription{' '}
+          <Tooltip label="couleur du bouton">
+            Vous choisissez le FOND ; la couleur du libellé et celle du survol en
+            découlent. Les laisser choisir aussi permettrait de fabriquer un bouton
+            qu’on ne lit pas — c’est le seul appel à l’action de la page.
+          </Tooltip>
+        </h2>
+        <p className="sp-muted">
+          Par défaut, le bouton prend la couleur d’accent de la charte. Une couleur
+          dont le libellé n’atteindrait pas {CTA_MIN_RATIO}:1 est refusée : sur une
+          page publique, un bouton illisible n’est pas un choix esthétique.
+        </p>
+
+        <div className="sp-row">
+          <Field
+            hint="Sélecteur du système. Le code hexadécimal reste modifiable à côté."
+            id="inv-cta-couleur"
+            label="Choisir une couleur"
+          >
+            {(attributes) => (
+              <input
+                {...attributes}
+                className="sp-color"
+                onChange={(event) => setColorInput(event.target.value.toUpperCase())}
+                type="color"
+                value={verdict?.ok ? verdict.palette.background : '#2F6FDB'}
+              />
+            )}
+          </Field>
+
+          <Field
+            error={
+              verdict && !verdict.ok
+                ? verdict.reason === 'format'
+                  ? 'Format attendu : #RRGGBB.'
+                  : `Libellé illisible : ${verdict.ratio.toFixed(2)}:1 au mieux.`
+                : null
+            }
+            hint="Collez ici le code de votre charte, par exemple #0B4A96."
+            id="inv-cta-hex"
+            label="Code hexadécimal"
+          >
+            {(attributes) => (
+              <input
+                {...attributes}
+                className="sp-input"
+                maxLength={7}
+                onChange={(event) => setColorInput(event.target.value.toUpperCase())}
+                placeholder="#RRGGBB"
+                spellCheck={false}
+                type="text"
+                value={colorInput}
+              />
+            )}
+          </Field>
+        </div>
+
+        {/* Aperçu du VRAI bouton, peint par la vraie palette : un carré de
+            couleur ne dirait rien de la lisibilité du libellé, qui est
+            justement ce qu'on vérifie ici. */}
+        <div className="sp-cta-preview">
+          <button
+            className="sp-btn sp-btn--lg"
+            disabled
+            style={
+              verdict?.ok
+                ? ({
+                    '--_bg': verdict.palette.background,
+                    '--_bg-hover': verdict.palette.hover,
+                    '--_fg': verdict.palette.ink,
+                  } as React.CSSProperties)
+                : undefined
+            }
+            type="button"
+          >
+            Je m’inscris
+          </button>
+          <div>
+            <p className="sp-hint">
+              {verdict?.ok
+                ? `Contraste du libellé : ${verdict.palette.ratio.toFixed(2)}:1 au repos, ${verdict.palette.hoverRatio.toFixed(2)}:1 au survol.`
+                : verdict
+                  ? 'Aperçu indisponible : la couleur est refusée.'
+                  : 'Aperçu avec la couleur d’accent de la charte.'}
+            </p>
+            {/* Signalé, pas refusé : un bouton reste identifiable par son
+                libellé, et interdire tous les tons pâles au nom d'une règle
+                qui ne s'applique pas serait un excès de zèle. */}
+            {verdict?.ok && verdict.palette.pageRatio < CTA_PAGE_RATIO ? (
+              <p className="sp-hint">
+                Cette couleur se détache peu du fond de page sur thème clair
+                ({verdict.palette.pageRatio.toFixed(2)}:1) : le libellé reste
+                lisible, mais le contour du bouton se devine à peine.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {colorInput.trim() !== '' ? (
+          <p>
+            <button
+              className="sp-btn sp-btn--ghost sp-btn--sm"
+              onClick={() => {
+                setColorInput('');
+                setNotice(null);
+                setError(null);
+              }}
+              type="button"
+            >
+              Revenir à la couleur de la charte
+            </button>
+          </p>
         ) : null}
       </section>
 

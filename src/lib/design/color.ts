@@ -1,7 +1,11 @@
 /**
  * Conversions de couleur pures (sRGB ↔ OKLCh) et calcul de contraste WCAG.
- * Aucune dépendance : utilisé par les tests qui vérifient que les tokens CSS
- * correspondent bien à la charte et respectent WCAG 2.1 AA.
+ *
+ * Aucune dépendance. Deux usages, et le second explique pourquoi ce module ne
+ * vit pas dans les tests : il sert aux tests qui vérifient la concordance des
+ * tokens CSS avec la charte, ET au code d'exécution qui accepte une couleur
+ * choisie par une organisation — il faut alors mesurer un contraste pour de
+ * vrai, avec la même arithmétique.
  */
 
 export interface Rgb {
@@ -118,4 +122,47 @@ export function parseOklch(value: string): Oklch | null {
   const m = OKLCH_RE.exec(value);
   if (!m?.[1] || m[2] === undefined || m[3] === undefined) return null;
   return { l: Number(m[1]) / 100, c: Number(m[2]), h: Number(m[3]) };
+}
+
+/** Forme canonique acceptée en base et rendue dans une feuille de style. */
+const CANONICAL_HEX = /^#[0-9A-Fa-f]{6}$/;
+
+/**
+ * La valeur est-elle une couleur hexadécimale de six chiffres ?
+ *
+ * Volontairement STRICT — pas de forme courte, pas de nom de couleur, pas
+ * d'espaces. Cette valeur finit dans un attribut `style`, et React n'assainit
+ * pas les valeurs CSS : une chaîne libre y serait une injection de style.
+ */
+export function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && CANONICAL_HEX.test(value);
+}
+
+/**
+ * Couleur ramenée à sa forme canonique `#RRGGBB` en majuscules, ou `null`.
+ *
+ * Le résultat est RECONSTRUIT depuis les composantes analysées, jamais la
+ * chaîne d'entrée recopiée : ce qui sort d'ici ne peut donc contenir que des
+ * chiffres hexadécimaux, quelle que soit l'entrée.
+ */
+export function normaliseHex(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    return rgbToHex(hexToRgb(value)).toUpperCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Éclaircit ou assombrit une couleur en jouant sur sa LUMINOSITÉ
+ * perceptuelle, pas sur ses composantes rouge/vert/bleu.
+ *
+ * Multiplier les composantes sRGB décale la teinte des couleurs saturées : un
+ * rouge assombri de 12 % tire vers le brun. OKLCh garde la teinte et le
+ * chroma, ce qui est exactement ce qu'on attend d'un état de survol.
+ */
+export function shade(hex: string, delta: number): string {
+  const { l, c, h } = hexToOklch(hex);
+  return oklchToHex({ l: clamp01(l + delta), c, h });
 }

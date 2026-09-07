@@ -185,3 +185,76 @@ describe('contenus répétables', () => {
     expect(saved.organiserWord).toBeUndefined();
   });
 });
+
+describe('couleur du bouton', () => {
+  it('n’écrit rien tant que la saisie est incomplète', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{}} />);
+
+    // On ne peut pas atteindre « #0B4A96 » sans passer par « #0 », « #0B »…
+    // Écrire ces états intermédiaires rendrait le champ inutilisable.
+    await user.type(screen.getByLabelText('Code hexadécimal'), '#0B4A96');
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+    const saved = JSON.parse(
+      screen.getByTestId('enregistre').textContent ?? '',
+    ) as PublicPageSettings;
+    expect(saved.ctaColor).toBe('#0B4A96');
+  });
+
+  it('refuse une couleur illisible AVANT d’appeler le serveur, et dit le ratio', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{}} />);
+
+    await user.type(screen.getByLabelText('Code hexadécimal'), '#7F7F7F');
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+    expect(screen.getByRole('alert').textContent).toMatch(/ne permet pas un libellé lisible/);
+    // Rien n'a été envoyé : le refus est en amont.
+    expect(screen.getByTestId('enregistre').textContent).toBe('');
+  });
+
+  it('annonce le contraste mesuré quand la couleur convient', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{}} />);
+
+    await user.type(screen.getByLabelText('Code hexadécimal'), '#0B4A96');
+    expect(screen.getByText(/Contraste du libellé/)).toBeTruthy();
+  });
+
+  it('peint l’aperçu avec la palette, encre comprise', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Harness initial={{}} />);
+
+    await user.type(screen.getByLabelText('Code hexadécimal'), '#F5C518');
+    const preview = container.querySelector('.sp-cta-preview .sp-btn');
+    // Fond clair : l'encre passe au foncé, sinon le libellé disparaîtrait.
+    expect(preview?.getAttribute('style')).toContain('#F5C518');
+    expect(preview?.getAttribute('style')).toContain('#1A1D26');
+  });
+
+  it('revient à la charte, et efface la couleur enregistrée', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{ ctaColor: '#0B4A96' }} />);
+
+    await user.click(screen.getByRole('button', { name: /Revenir à la couleur de la charte/ }));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+    const saved = JSON.parse(
+      screen.getByTestId('enregistre').textContent ?? '',
+    ) as PublicPageSettings;
+    expect(saved.ctaColor).toBeUndefined();
+  });
+
+  it('ne signale aucune violation avec le sélecteur de couleur', async () => {
+    const { container } = render(
+      <InvitationSettings
+        initial={{ ctaColor: '#0B4A96' }}
+        onSave={noop}
+        publicUrl="https://spankio.test/s/org/invitation"
+        published
+      />,
+    );
+    await expectNoA11yViolations(container);
+  });
+});

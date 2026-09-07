@@ -11,6 +11,7 @@ import { bannerPublicUrl } from '@/lib/event/banner';
 import { resolveRequestContext } from '@/lib/data/context';
 import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
 import { eventLocation, eventNote } from '@/lib/event/calendar-content';
+import { ctaPalette } from '@/lib/design/cta';
 import { countdownParts } from '@/lib/event/countdown';
 import { fr } from '@/lib/i18n/fr';
 import { loadPublicSurvey, type PublicSurvey } from '@/lib/services/submission';
@@ -180,6 +181,11 @@ function invitationContent(
     title: survey.settings.welcome?.title ?? survey.title,
     description: survey.settings.welcome?.description ?? survey.description ?? undefined,
     ctaLabel: survey.settings.welcome?.ctaLabel ?? fr.survey.start,
+
+    // Dernier rempart : une couleur invalide ou illisible renvoie `null`, et
+    // le bouton reprend la charte. La page publique ne peut donc pas afficher
+    // un appel à l'action qu'on ne lit pas, quoi qu'il y ait en base.
+    ctaPalette: ctaPalette(page?.ctaColor),
 
     // La page publique n'existe QUE pour un formulaire publié et ouvert : la
     // pastille énonce donc un fait, elle n'est jamais un vœu.

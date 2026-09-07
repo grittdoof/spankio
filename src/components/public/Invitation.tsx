@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { BannerFrame } from '@/components/ui/BannerFrame';
+import type { CtaPalette } from '@/lib/design/cta';
 import type { CountdownParts } from '@/lib/event/countdown';
 import { fr } from '@/lib/i18n/fr';
 import type {
@@ -78,6 +79,13 @@ export interface InvitationProps {
   shareUrl?: string | null;
   privacyNote?: string | null;
   ctaLabel: string;
+  /**
+   * Couleur du bouton d'inscription, DÉJÀ validée et mesurée. `null` : la
+   * charte s'applique. Le composant ne calcule rien ici — recevoir une palette
+   * toute faite est ce qui garantit qu'aucune couleur illisible ne peut
+   * atteindre le rendu.
+   */
+  ctaPalette?: CtaPalette | null;
   onStart: () => void;
   /** Contenu inséré avant l'appel à l'action (message d'erreur d'envoi…). */
   children?: React.ReactNode;
@@ -224,6 +232,7 @@ export function Invitation({
   shareUrl,
   privacyNote,
   ctaLabel,
+  ctaPalette,
   onStart,
   children,
 }: InvitationProps) {
@@ -449,7 +458,26 @@ export function Invitation({
             </span>
           ) : null}
         </div>
-        <button className="sp-btn sp-btn--lg" onClick={onStart} type="button">
+        {/* La couleur passe par les variables internes de `sp-btn`
+            (`--_bg`, `--_bg-hover`, `--_fg`) : le composant garde ses tailles,
+            ses transitions et son anneau de focus, seule la peinture change.
+            L'anneau de focus reste celui de la charte, décalé de 2 px — il se
+            détache donc du FOND DE PAGE, dont le contraste est déjà vérifié,
+            et non du bouton. */}
+        <button
+          className="sp-btn sp-btn--lg"
+          onClick={onStart}
+          style={
+            ctaPalette
+              ? ({
+                  '--_bg': ctaPalette.background,
+                  '--_bg-hover': ctaPalette.hover,
+                  '--_fg': ctaPalette.ink,
+                } as React.CSSProperties)
+              : undefined
+          }
+          type="button"
+        >
           {ctaLabel}
         </button>
       </div>

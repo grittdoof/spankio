@@ -85,6 +85,24 @@ export const publicPageSchema = z.object({
   /** Remplace « Inscriptions ouvertes » sur la pastille du visuel. */
   statusLabel: text(60).optional(),
 
+  /**
+   * Fond du bouton d'inscription, en `#RRGGBB`.
+   *
+   * Le FORMAT est exigé ici — cette valeur finit dans un attribut `style`, et
+   * React n'assainit pas les valeurs CSS. La LISIBILITÉ, elle, n'est pas
+   * vérifiée à ce niveau : une contrainte de contraste dans le schéma ferait
+   * échouer `validateSurveySettings` en entier sur une valeur héritée, et la
+   * page publique perdrait TOUS ses réglages d'un coup
+   * (`settings.ok ? … : {}`). C'est donc `ctaPalette` qui refuse au rendu, et
+   * l'écran de réglages qui refuse à la saisie — deux remparts, aucun
+   * destructeur.
+   */
+  ctaColor: z
+    .string()
+    .trim()
+    .regex(/^#[0-9A-Fa-f]{6}$/, 'Couleur attendue au format #RRGGBB.')
+    .optional(),
+
   /** Précisions pratiques libres : tenue, vestiaire, accès, stationnement. */
   details: z.array(detailSchema).max(8).optional(),
 
