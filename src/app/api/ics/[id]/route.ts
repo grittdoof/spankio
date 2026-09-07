@@ -1,5 +1,5 @@
 import { resolveRequestContext } from '@/lib/data/context';
-import { eventDescription, eventLocation } from '@/lib/event/calendar-content';
+import { eventLocation, eventNote } from '@/lib/event/calendar-content';
 import { buildIcs, icsFileName, IcsError } from '@/lib/event/ics';
 import { logger } from '@/lib/logger';
 import { publicEnv } from '@/lib/config/env';
@@ -43,9 +43,9 @@ export async function GET(
       allDay: survey.value.event.allDay,
       // Même composition que les liens Google / Outlook de la page : un
       // rendez-vous doit être identique quel que soit le bouton cliqué.
-      description: eventDescription({
+      description: eventNote({
+        custom: survey.value.event.details,
         description: survey.value.description,
-        details: survey.value.event.details,
         organiser: survey.value.event.organiser ?? survey.value.organisationName,
         url,
       }),

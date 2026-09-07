@@ -5,7 +5,7 @@ import { publicEnv } from '@/lib/config/env';
 import { bannerPublicUrl } from '@/lib/event/banner';
 import { resolveRequestContext } from '@/lib/data/context';
 import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
-import { eventDescription, eventLocation } from '@/lib/event/calendar-content';
+import { eventLocation, eventNote } from '@/lib/event/calendar-content';
 import { fr } from '@/lib/i18n/fr';
 import { loadPublicSurvey, type PublicSurvey } from '@/lib/services/submission';
 import { composeConsentNotice, consentCheckboxLabel } from '@/lib/survey/consent';
@@ -116,9 +116,9 @@ export default async function PublicSurveyPage({ params }: PageProps) {
               // Contenu composé par la MÊME fonction que le fichier `.ics` :
               // deux compositions donneraient deux rendez-vous différents
               // selon le bouton cliqué.
-              description: eventDescription({
+              description: eventNote({
+                custom: survey.event.details,
                 description: survey.description,
-                details: survey.event.details,
                 organiser: survey.event.organiser ?? survey.organisationName,
                 url: publicUrl(survey),
               }),

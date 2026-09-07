@@ -23,10 +23,17 @@ export function EventSettingsClient({
   initial,
   schema,
   settings,
+  surveyDescription,
+  organisationName,
+  publicUrl,
 }: {
   organisationId: string;
   surveyId: string;
   initial: EventDraft;
+  /** Contexte de la note automatique d'agenda. */
+  surveyDescription: string | null;
+  organisationName: string;
+  publicUrl: string;
   /** Schéma du formulaire : il fournit les questions à désigner. */
   schema: SurveySchema;
   /**
@@ -88,6 +95,9 @@ export function EventSettingsClient({
       surveyId={surveyId}
       initial={initial}
       schema={schema}
+      surveyDescription={surveyDescription}
+      organisationName={organisationName}
+      publicUrl={publicUrl}
       onSave={onSave}
     />
   );

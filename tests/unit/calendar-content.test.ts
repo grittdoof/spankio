@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventDescription, eventLocation } from '@/lib/event/calendar-content';
+import { composeEventNote, eventLocation, eventNote } from '@/lib/event/calendar-content';
 
 /**
  * Ce que le répondant retrouvera dans son agenda.
@@ -39,10 +39,10 @@ describe('lieu', () => {
   });
 });
 
-describe('description', () => {
+describe('note composée automatiquement', () => {
   it('compose ce dont il s’agit, qui organise, et où revenir', () => {
     expect(
-      eventDescription({
+      composeEventNote({
         description: 'Soirée des 180 ans du groupe.',
         organiser: 'Spie batignolles',
         url: 'https://exemple.test/s/org/invitation',
@@ -52,35 +52,18 @@ describe('description', () => {
     );
   });
 
-  it('place les précisions de l’événement AVANT la description du formulaire', () => {
-    // Les précisions ont été écrites pour l'agenda ; la description l'a été
-    // pour la page. La première est plus utile dans un rendez-vous.
-    const composed = eventDescription({
-      description: 'Texte de la page.',
-      details: 'Tenue de ville. Accueil dès 19 h.',
-    });
-    expect(composed?.indexOf('Tenue de ville')).toBeLessThan(
-      composed?.indexOf('Texte de la page.') ?? 0,
-    );
-  });
-
-  it('ne répète pas un texte identique', () => {
-    const composed = eventDescription({ description: 'Même texte', details: 'Même texte' });
-    expect(composed).toBe('Même texte');
-  });
-
   it('n’invente rien quand tout est vide', () => {
-    expect(eventDescription({})).toBeNull();
-    expect(eventDescription({ description: '   ', organiser: null })).toBeNull();
+    expect(composeEventNote({})).toBeNull();
+    expect(composeEventNote({ description: '   ', organiser: null })).toBeNull();
   });
 
   it('omet l’organisateur absent plutôt que d’écrire « Organisé par »', () => {
-    expect(eventDescription({ description: 'Réunion', organiser: '  ' })).toBe('Réunion');
+    expect(composeEventNote({ description: 'Réunion', organiser: '  ' })).toBe('Réunion');
   });
 
   it('tronque un texte démesuré sur un espace', () => {
     const long = `${'mot '.repeat(400)}fin`;
-    const composed = eventDescription({ description: long });
+    const composed = composeEventNote({ description: long });
     expect(composed!.length).toBeLessThanOrEqual(901);
     expect(composed!.endsWith('…')).toBe(true);
 
@@ -93,6 +76,41 @@ describe('description', () => {
 
   it('garde un texte juste sous la limite intact', () => {
     const text = 'a'.repeat(900);
-    expect(eventDescription({ description: text })).toBe(text);
+    expect(composeEventNote({ description: text })).toBe(text);
+  });
+});
+
+describe('note de l’organisation', () => {
+  const context = {
+    description: 'Texte de la page.',
+    organiser: 'Spie batignolles',
+    url: 'https://exemple.test/s/org/invitation',
+  };
+
+  it('REMPLACE le texte automatique, elle ne s’y ajoute pas', () => {
+    // C'est le contrat le plus prévisible : ce que l'organisation écrit est ce
+    // que le répondant lit, sans mention ni lien ajoutés dans son dos.
+    expect(eventNote({ ...context, custom: 'Tenue de ville. Accueil dès 19 h.' })).toBe(
+      'Tenue de ville. Accueil dès 19 h.',
+    );
+  });
+
+  it.each([null, undefined, '', '   ', '\n\n'])(
+    'retombe sur le texte automatique pour une note vide (%j)',
+    (custom) => {
+      // Sans cette précaution, un champ effacé produirait un rendez-vous muet,
+      // alors que le texte automatique vaut mieux que rien.
+      expect(eventNote({ ...context, custom })).toBe(composeEventNote(context));
+    },
+  );
+
+  it('tronque aussi une note démesurée', () => {
+    const note = eventNote({ ...context, custom: `${'mot '.repeat(400)}fin` });
+    expect(note!.length).toBeLessThanOrEqual(901);
+    expect(note!.endsWith('…')).toBe(true);
+  });
+
+  it('rend une note nulle quand il n’y a ni note ni contexte', () => {
+    expect(eventNote({})).toBeNull();
   });
 });

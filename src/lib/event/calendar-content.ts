@@ -42,8 +42,6 @@ export function eventLocation(place: EventPlace): string | null {
 export interface EventNarrative {
   /** Description du formulaire — le texte de l'invitation. */
   readonly description?: string | null;
-  /** Précisions propres à l'événement, saisies par l'organisation. */
-  readonly details?: string | null;
   readonly organiser?: string | null;
   /** Adresse publique du formulaire, pour revenir à l'invitation. */
   readonly url?: string | null;
@@ -61,23 +59,17 @@ function clamp(value: string): string {
 }
 
 /**
- * Description du rendez-vous.
+ * Note composée automatiquement, quand l'organisation n'en a pas écrit.
  *
- * Ordre voulu : ce dont il s'agit d'abord, les précisions ensuite, puis qui
- * organise, puis le lien. C'est l'ordre dans lequel on lit un rendez-vous
- * qu'on rouvre — et les agendas qui tronquent l'aperçu coupent par la fin.
+ * Ordre voulu : ce dont il s'agit, puis qui organise, puis le lien. C'est
+ * l'ordre dans lequel on lit un rendez-vous qu'on rouvre — et les agendas qui
+ * tronquent l'aperçu coupent par la fin.
  */
-export function eventDescription(input: EventNarrative): string | null {
+export function composeEventNote(input: EventNarrative): string | null {
   const parts: string[] = [];
 
-  const details = input.details?.trim();
   const description = input.description?.trim();
-
-  // Les précisions de l'événement priment sur la description du formulaire :
-  // elles ont été écrites POUR l'agenda. Les deux sont reprises si elles
-  // existent et diffèrent.
-  if (details) parts.push(details);
-  if (description && description !== details) parts.push(description);
+  if (description) parts.push(description);
 
   const organiser = input.organiser?.trim();
   if (organiser) parts.push(`Organisé par ${organiser}`);
@@ -87,4 +79,31 @@ export function eventDescription(input: EventNarrative): string | null {
 
   if (parts.length === 0) return null;
   return clamp(parts.join('\n\n'));
+}
+
+export interface EventNoteInput extends EventNarrative {
+  /**
+   * Note écrite par l'organisation. Quand elle existe, elle REMPLACE le texte
+   * composé — elle ne s'y ajoute pas.
+   */
+  readonly custom?: string | null;
+}
+
+/**
+ * Note déposée dans l'agenda du répondant.
+ *
+ * Une note écrite par l'organisation fait autorité, entière : elle n'est ni
+ * complétée par le lien, ni suivie d'une mention d'organisateur. C'est le
+ * contrat le plus prévisible — ce qu'on écrit est ce que le répondant lit — et
+ * l'écran de réglage propose de partir du texte automatique pour ne pas perdre
+ * le lien par inadvertance.
+ *
+ * Une note vide, ou faite d'espaces, ne compte pas : sans cette précaution un
+ * champ effacé produirait un rendez-vous muet, alors que le texte automatique
+ * reste préférable à rien.
+ */
+export function eventNote(input: EventNoteInput): string | null {
+  const custom = input.custom?.trim();
+  if (custom) return clamp(custom);
+  return composeEventNote(input);
 }

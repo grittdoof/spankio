@@ -6,6 +6,7 @@ import { Alert } from '@/components/ui/Alert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import type { EventDraft } from '@/components/admin/EventSettings';
 import { loadAdminSession } from '@/lib/admin/session';
+import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
 import { getSurvey, parseSurveySchema } from '@/lib/services/surveys';
@@ -102,6 +103,9 @@ export default async function EventSettingsPage({
         initial={initial}
         schema={schema.value}
         settings={settings.settings}
+        surveyDescription={survey.value.description}
+        organisationName={session.organisationName ?? ''}
+        publicUrl={`${publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/s/${session.organisationSlug}/${survey.value.slug}`}
       />
     </div>
   );

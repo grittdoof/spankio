@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Callout } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { composeEventNote, eventNote } from '@/lib/event/calendar-content';
 import { availableTimeZones, isoToWallClock, wallClockToIso } from '@/lib/event/time';
 import {
   partyCandidates,
@@ -50,6 +51,11 @@ export interface EventSettingsProps {
   initial: EventDraft;
   /** Schéma du formulaire : il fournit les questions à désigner. */
   schema: SurveySchema;
+  /** Description du formulaire, reprise par la note automatique. */
+  surveyDescription: string | null;
+  organisationName: string;
+  /** Adresse publique du formulaire, reprise par la note automatique. */
+  publicUrl: string;
   onSave: (
     draft: EventDraft,
   ) => Promise<{ ok: true } | { ok: false; fields?: Record<string, string>; message?: string }>;
@@ -75,6 +81,9 @@ export function EventSettings({
   surveyId,
   initial,
   schema,
+  surveyDescription,
+  organisationName,
+  publicUrl,
   onSave,
 }: EventSettingsProps) {
   const [draft, setDraft] = useState<EventDraft>(initial);
@@ -88,6 +97,24 @@ export function EventSettings({
   };
 
   const zone = draft.eventTimezone || 'Europe/Paris';
+
+  /**
+   * Note automatique et aperçu, calculés par les MÊMES fonctions que les liens
+   * d'agenda et le fichier `.ics`. Un aperçu qui recomposerait le texte de son
+   * côté finirait par montrer autre chose que ce que reçoit le répondant.
+   */
+  const automaticNote = composeEventNote({
+    description: surveyDescription,
+    organiser: draft.eventOrganiser ?? organisationName,
+    url: publicUrl,
+  });
+  const custom = (draft.eventDetails ?? '').trim() !== '';
+  const preview = eventNote({
+    custom: draft.eventDetails,
+    description: surveyDescription,
+    organiser: draft.eventOrganiser ?? organisationName,
+    url: publicUrl,
+  });
 
   const presenceOptions = presenceCandidates(schema);
   const partyOptions = partyCandidates(schema);
@@ -482,22 +509,107 @@ export function EventSettings({
           )}
         </Field>
 
-        <Field
-          id="evt-details"
-          label="Précisions"
-          hint="Reprises dans le fichier d’agenda téléchargé par les répondants."
-        >
-          {(attributes) => (
-            <textarea
-              {...attributes}
-              className="sp-textarea"
-              maxLength={4000}
-              rows={4}
-              value={draft.eventDetails ?? ''}
-              onChange={(event) => patch({ eventDetails: event.target.value || null })}
-            />
-          )}
-        </Field>
+        <fieldset className="sp-fieldset">
+          <legend>
+            Note ajoutée à l’agenda{' '}
+            <Tooltip label="note d’agenda">
+              C’est le texte que le répondant retrouvera dans son rendez-vous, des
+              semaines plus tard. Le même part vers Google Agenda, Outlook et le
+              fichier .ics.
+            </Tooltip>
+          </legend>
+
+          <ul className="sp-picks">
+            <li>
+              <label className="sp-pick">
+                <input
+                  checked={!custom}
+                  name="noteMode"
+                  onChange={() => patch({ eventDetails: null })}
+                  type="radio"
+                  value="auto"
+                />
+                <span className="sp-pick__text">
+                  <span className="sp-pick__name">Texte automatique</span>
+                  <span className="sp-pick__desc">
+                    Composé de la description du formulaire, de l’organisateur et du
+                    lien vers l’invitation.
+                  </span>
+                </span>
+              </label>
+            </li>
+            <li>
+              <label className="sp-pick">
+                <input
+                  checked={custom}
+                  name="noteMode"
+                  onChange={() =>
+                    // On part du texte automatique : commencer d'une page
+                    // blanche ferait perdre le lien vers l'invitation sans que
+                    // personne s'en aperçoive.
+                    patch({ eventDetails: automaticNote ?? ' ' })
+                  }
+                  type="radio"
+                  value="custom"
+                />
+                <span className="sp-pick__text">
+                  <span className="sp-pick__name">Note personnalisée</span>
+                  <span className="sp-pick__desc">
+                    Vous écrivez le texte entier. Il remplace le texte automatique —
+                    le lien n’y figurera que si vous l’y mettez.
+                  </span>
+                </span>
+              </label>
+            </li>
+          </ul>
+
+          {custom ? (
+            <>
+              <Field
+                id="evt-details"
+                label="Votre note"
+                hint="Elle est reprise telle quelle, sauf au-delà de 900 caractères où elle est tronquée sur un espace."
+              >
+                {(attributes) => (
+                  <textarea
+                    {...attributes}
+                    className="sp-textarea"
+                    maxLength={4000}
+                    onChange={(event) => patch({ eventDetails: event.target.value })}
+                    rows={6}
+                    value={draft.eventDetails ?? ''}
+                  />
+                )}
+              </Field>
+
+              {automaticNote ? (
+                <p>
+                  <button
+                    className="sp-btn sp-btn--outline sp-btn--sm"
+                    type="button"
+                    onClick={() => patch({ eventDetails: automaticNote })}
+                  >
+                    Reprendre le texte automatique
+                  </button>
+                </p>
+              ) : null}
+            </>
+          ) : null}
+
+          {/* L'aperçu est produit par la MÊME fonction que les liens d'agenda
+              et le fichier .ics : il ne peut donc pas montrer autre chose que
+              ce que recevra le répondant. */}
+          <div className="sp-note-preview">
+            <p className="sp-note-preview__title">Ce que verra le répondant</p>
+            {preview ? (
+              <p className="sp-note-preview__body">{preview}</p>
+            ) : (
+              <p className="sp-muted">
+                Aucune note : le rendez-vous n’aura ni description ni lien de retour.
+              </p>
+            )}
+          </div>
+        </fieldset>
 
         <BannerUpload
           organisationId={organisationId}

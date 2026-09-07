@@ -129,6 +129,9 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={draft}
         onSave={saved}
@@ -143,6 +146,9 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={draft}
         onSave={saved}
@@ -159,6 +165,9 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={draft}
         onSave={saved}
@@ -181,6 +190,9 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={{ ...draft, eventTimezone: 'UTC' }}
         onSave={saved}
@@ -196,6 +208,9 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={draft}
         onSave={saved}
@@ -217,6 +232,9 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={draft}
         onSave={saved}
@@ -244,6 +262,9 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={{
           ...draft,
@@ -268,6 +289,9 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={{
           ...draft,
@@ -292,6 +316,9 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
         surveyId={SURVEY}
         initial={{
           ...draft,
@@ -305,6 +332,108 @@ describe('comptage des présents', () => {
         onSave={saved}
       />,
     );
+    await waitFor(() => expect(screen.getByLabelText('Latitude')).toBeTruthy());
+    await expectNoA11yViolations(container);
+  });
+});
+
+describe('note ajoutée à l’agenda', () => {
+  const context = {
+    surveyDescription: 'Une soirée d’exception.',
+    organisationName: 'Organisation Témoin',
+    publicUrl: 'https://exemple.test/s/org/invitation',
+  };
+
+  function renderSettings(initial: EventDraft) {
+    return render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyDescription={context.surveyDescription}
+        organisationName={context.organisationName}
+        publicUrl={context.publicUrl}
+        surveyId={SURVEY}
+        initial={initial}
+        onSave={saved}
+      />,
+    );
+  }
+
+  it('affiche par défaut le texte automatique, et l’aperçu le montre', () => {
+    renderSettings(draft);
+
+    const auto: HTMLInputElement = screen.getByRole('radio', { name: /Texte automatique/ });
+    expect(auto.checked).toBe(true);
+    // L'aperçu vient de la MÊME fonction que les liens d'agenda : il ne peut
+    // pas montrer autre chose que ce que recevra le répondant.
+    expect(screen.getByText(/Une soirée d’exception\./)).toBeTruthy();
+    expect(screen.getByText(/Organisé par Organisation Témoin/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(context.publicUrl))).toBeTruthy();
+  });
+
+  it('part du texte automatique quand on passe en note personnalisée', async () => {
+    // Commencer d'une page blanche ferait perdre le lien vers l'invitation
+    // sans que personne s'en aperçoive.
+    const user = userEvent.setup();
+    renderSettings(draft);
+
+    await user.click(screen.getByRole('radio', { name: /Note personnalisée/ }));
+    const zone: HTMLTextAreaElement = screen.getByLabelText('Votre note');
+    expect(zone.value).toContain('Une soirée d’exception.');
+    expect(zone.value).toContain(context.publicUrl);
+  });
+
+  it('remplace entièrement le texte automatique', async () => {
+    const user = userEvent.setup();
+    const { container } = renderSettings({
+      ...draft,
+      eventDetails: 'Tenue de ville. Accueil dès 19 h.',
+    });
+
+    const custom: HTMLInputElement = screen.getByRole('radio', { name: /Note personnalisée/ });
+    expect(custom.checked).toBe(true);
+
+    // L'aperçu ne porte QUE la note : ni mention d'organisateur, ni lien
+    // ajoutés dans le dos de l'organisation. On le lit dans l'aperçu, la note
+    // figurant aussi dans la zone de saisie.
+    const preview = container.querySelector('.sp-note-preview__body');
+    expect(preview?.textContent).toBe('Tenue de ville. Accueil dès 19 h.');
+    expect(screen.queryByText(/Organisé par/)).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Reprendre le texte automatique' }));
+    const zone: HTMLTextAreaElement = screen.getByLabelText('Votre note');
+    expect(zone.value).toContain(context.publicUrl);
+  });
+
+  it('revient au texte automatique en changeant de mode', async () => {
+    const user = userEvent.setup();
+    renderSettings({ ...draft, eventDetails: 'Ma note.' });
+
+    await user.click(screen.getByRole('radio', { name: /Texte automatique/ }));
+    expect(screen.queryByLabelText('Votre note')).toBeNull();
+    expect(screen.getByText(/Organisé par Organisation Témoin/)).toBeTruthy();
+  });
+
+  it('annonce un rendez-vous muet plutôt que de le laisser deviner', () => {
+    // Sans description, sans organisateur et sans lien, il n'y a rien à
+    // déposer : le dire vaut mieux qu'un aperçu vide.
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyDescription={null}
+        organisationName=""
+        publicUrl=""
+        surveyId={SURVEY}
+        initial={{ ...draft, eventOrganiser: null }}
+        onSave={saved}
+      />,
+    );
+    expect(screen.getByText(/n’aura ni description ni lien de retour/)).toBeTruthy();
+  });
+
+  it('ne signale aucune violation, note personnalisée ouverte', async () => {
+    const { container } = renderSettings({ ...draft, eventDetails: 'Ma note.' });
     await waitFor(() => expect(screen.getByLabelText('Latitude')).toBeTruthy());
     await expectNoA11yViolations(container);
   });

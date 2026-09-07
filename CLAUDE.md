@@ -340,6 +340,18 @@ changer.
   pour l'application ENTIÈRE — un verrou `SET NX EX` partagé, distinct du
   rate-limit par appelant. Relayer évite en outre de livrer à un tiers l'IP de
   chaque personne qui tape une adresse.
+- **Une note d'agenda écrite par l'organisation REMPLACE le texte
+  automatique**, elle ne s'y ajoute pas (`eventNote`). C'est le contrat le plus
+  prévisible — ce qu'on écrit est ce que le répondant lit, sans mention
+  d'organisateur ni lien ajoutés dans son dos. Conséquence assumée : le lien de
+  retour disparaît d'une note personnalisée, d'où le bouton « Reprendre le
+  texte automatique » qui prégarnit la zone de saisie plutôt que d'ouvrir une
+  page blanche. Une note vide ou faite d'espaces ne compte pas : un champ
+  effacé produirait un rendez-vous muet, alors que le texte automatique vaut
+  mieux que rien.
+- **L'aperçu d'une note est produit par la MÊME fonction que les liens
+  d'agenda et le fichier `.ics`.** Un aperçu qui recomposerait le texte de son
+  côté finirait par montrer autre chose que ce que reçoit le répondant.
 - **Une heure de calendrier n'est pas un instant.** Les dates d'événement sont
   saisies dans le fuseau DE L'ÉVÉNEMENT, converties par
   `src/lib/event/time.ts`. Se fier au fuseau du navigateur rendrait le champ
