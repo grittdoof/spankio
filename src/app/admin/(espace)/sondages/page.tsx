@@ -163,8 +163,10 @@ export default async function SurveysPage({
                       className="sp-btn sp-btn--ghost sp-btn--sm"
                       href={`/admin/sondages/${survey.id}/reponses`}
                     >
-                      <span aria-hidden="true">Réponses</span>
-                      <span className="sp-visually-hidden">Réponses de {survey.title}</span>
+                      <span aria-hidden="true">Statistiques</span>
+                      <span className="sp-visually-hidden">
+                        Statistiques de {survey.title}
+                      </span>
                     </Link>
                   </div>
                 </div>

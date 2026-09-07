@@ -779,7 +779,7 @@ export function SurveyBuilder({
                 className="sp-btn sp-btn--outline sp-btn--sm"
                 href={`/admin/sondages/${surveyId}/reponses`}
               >
-                Voir les réponses
+                Voir les statistiques
               </a>
             </p>
           </section>
