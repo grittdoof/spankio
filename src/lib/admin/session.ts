@@ -25,6 +25,8 @@ export interface AdminSession {
   readonly organisationName: string | null;
   /** Segment d'URL publique des formulaires : `/s/<slug>/<sondage>`. */
   readonly organisationSlug: string | null;
+  /** Logo déposé dans `/admin/organisation`, affiché dans la barre latérale. */
+  readonly organisationLogoUrl: string | null;
   readonly fullName: string | null;
   /** Rattaché ET actif : les deux conditions d'un espace d'organisation. */
   readonly attached: boolean;
@@ -60,9 +62,9 @@ export async function loadAdminSession(
 
   const organisation =
     attached && profile.data.organisation_id
-      ? await context.port.selectOne<{ name: string; slug: string }>({
+      ? await context.port.selectOne<{ name: string; slug: string; logo_url: string | null }>({
           table: 'organisations',
-          columns: 'name, slug',
+          columns: 'name, slug, logo_url',
           where: [eq('id', profile.data.organisation_id)],
         })
       : null;
@@ -76,6 +78,7 @@ export async function loadAdminSession(
     organisationId: profile.data.organisation_id,
     organisationName: organisation?.data?.name ?? null,
     organisationSlug: organisation?.data?.slug ?? null,
+    organisationLogoUrl: organisation?.data?.logo_url ?? null,
     fullName: profile.data.full_name,
     attached,
     isPlatformAdmin: profile.data.role === 'super_admin',

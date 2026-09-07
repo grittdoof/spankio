@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
 import { Callout, Example } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { BrandMark } from '@/components/ui/BrandMark';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Steps } from '@/components/ui/Steps';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -27,6 +28,21 @@ import { SPACE_SCALE_REM } from '@/lib/design/tokens';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Atelier de design', robots: { index: false } };
+
+/**
+ * Logo de démonstration, dessiné en SVG et embarqué en `data:`.
+ *
+ * Aucun chargement réseau, aucune origine à autoriser, et il illustre le cas
+ * réel : un rectangle nettement plus large que haut.
+ */
+const DEMO_LOGO =
+  'data:image/svg+xml;charset=utf-8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 80">' +
+      '<rect width="300" height="80" rx="8" fill="#042F64"/>' +
+      '<text x="150" y="52" font-family="sans-serif" font-size="30" ' +
+      'fill="#ffffff" text-anchor="middle">TÉMOIN</text></svg>',
+  );
 
 const BUTTONS: readonly [string, string][] = [
   ['sp-btn', 'Action principale'],
@@ -229,6 +245,31 @@ export default function DesignWorkshopPage() {
               lead="Un parcours guidé vous accompagne : titre, type, informations aux répondants."
               action={<button className="sp-btn sp-btn--lg" type="button">Créer</button>}
             />
+          </div>
+        </section>
+
+        <section className="sp-section">
+          <h2 className="sp-section__title">Marque d’une organisation</h2>
+          <p className="sp-section__lead">
+            Le logo déposé dans le profil de l’organisation, ou son initiale à défaut.
+            Un logo est presque toujours plus large que haut : seule sa hauteur est
+            contrainte.
+          </p>
+          <div className="sp-card">
+            <div className="sp-sidebar" style={{ maxWidth: 'var(--sp-sidebar-w)', border: 0 }}>
+              <span className="sp-sidebar__brand">
+                <BrandMark
+                  className="sp-sidebar__mark"
+                  logoUrl={DEMO_LOGO}
+                  name="Organisation Témoin"
+                />
+                <span className="sp-sidebar__name">Avec un logo</span>
+              </span>
+              <span className="sp-sidebar__brand">
+                <BrandMark className="sp-sidebar__mark" name="Organisation Témoin" />
+                <span className="sp-sidebar__name">Sans logo</span>
+              </span>
+            </div>
           </div>
         </section>
 

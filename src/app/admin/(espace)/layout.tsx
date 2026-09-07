@@ -51,7 +51,14 @@ export default async function AdminWorkspaceLayout({ children }: { children: Rea
     <div className="sp-admin">
       <div className="sp-sidebar">
         <Link className="sp-sidebar__brand" href="/admin">
-          <BrandMark className="sp-sidebar__mark" name={name} />
+          {/* Le logo de l'organisation quand elle en a déposé un ; son
+              initiale sinon. Le nom reste écrit à côté : à cette taille, la
+              plupart des logos ne se lisent pas. */}
+          <BrandMark
+            className="sp-sidebar__mark"
+            logoUrl={session?.organisationLogoUrl}
+            name={name}
+          />
           <span className="sp-sidebar__name">{name}</span>
         </Link>
 

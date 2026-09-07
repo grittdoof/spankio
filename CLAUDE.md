@@ -313,6 +313,15 @@ changer.
   précoce, et le chemin enregistré est revérifié côté serveur
   (`isBannerPathOf`) : le bucket étant public, un chemin non vérifié
   laisserait une organisation afficher le fichier d'une autre.
+- **La marque d'une organisation est son logo, l'initiale n'est qu'un repli.**
+  `BrandMark` affiche le logo déposé dans `/admin/organisation` dès qu'il
+  existe, et un carré portant l'initiale sinon — une organisation sans logo
+  doit tout de même se distinguer d'une autre dans la barre latérale. Le nom
+  reste écrit à côté : à 32 px de haut, la plupart des logos ne se lisent pas.
+  Les deux formes sont décoratives (`aria-hidden` / `alt=""`), sinon le nom
+  s'entendrait deux fois. Côté CSS, seule la HAUTEUR du logo est contrainte :
+  un logo est presque toujours plus large que haut, et l'enfermer dans le
+  carré de 2rem le réduirait à un timbre illisible.
 - **Le logo d'une organisation se dépose OU se désigne par un lien.** Les deux
   chemins coexistent parce que les organisations ne sont pas dans la même
   situation : la plupart ont leur logo dans un fichier, quelques-unes l'ont

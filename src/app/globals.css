@@ -1423,6 +1423,26 @@ video {
   font-weight: 700;
 }
 
+/* Le logo remplace le carré : mêmes contraintes de hauteur, mais la largeur
+   reste libre. Un logo est presque toujours plus large que haut ; l'enfermer
+   dans un carré de 2rem le réduirait à un timbre illisible, et `object-fit`
+   ne peut pas élargir une boîte qu'on a fixée.
+
+   Sélecteur qualifié par l'élément (0,1,1) : il l'emporte sur la règle du
+   carré (0,1,0) sans avoir à dupliquer la classe. Ce n'est pas un défaut
+   d'élément — c'est une variante de composant, et la règle du projet ne visait
+   que les défauts nus. */
+img.sp-sidebar__mark {
+  width: auto;
+  max-width: 8.5rem;
+  height: 2rem;
+  padding: 0;
+  background: none;
+  border-radius: var(--sp-radius-sm);
+  object-fit: contain;
+  object-position: left center;
+}
+
 .sp-sidebar__name {
   min-width: 0;
   overflow-wrap: anywhere;
