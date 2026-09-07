@@ -13,3 +13,6 @@ next-env.d.ts
 supabase/.branches/
 supabase/.temp/
 .vitest-cache/
+
+# Configuration locale de Claude Code (préréglage du serveur de développement).
+.claude/

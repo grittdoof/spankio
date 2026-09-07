@@ -31,6 +31,22 @@ export const attendanceSettingsSchema = z.object({
    * `total` : le nombre inclut déjà le répondant (« combien serez-vous »).
    */
   partyMode: z.enum(['extra', 'total']).optional(),
+  /**
+   * Nombre de places, quand l'événement en a un.
+   *
+   * Facultatif et jamais deviné : sans capacité, l'écran affiche l'effectif
+   * attendu sans anneau de remplissage ni « places libres ». Inventer un
+   * dénominateur donnerait un pourcentage faux.
+   */
+  capacity: z.number().int().positive().max(1_000_000).optional(),
+  /**
+   * Question dont la réponse NOMME l'invité, pour la liste d'accueil. Même
+   * raisonnement que pour la présence : la plateforme ne peut pas savoir
+   * laquelle des questions porte un nom, elle est désignée.
+   */
+  identityField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
+  /** Seconde question affichée sous le nom dans la liste (société, e-mail…). */
+  detailField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
 });
 
 export type AttendanceSettings = z.infer<typeof attendanceSettingsSchema>;
@@ -81,6 +97,40 @@ export function presenceValues(
   if (!field) return [];
   if (field.type !== 'select' && field.type !== 'radio') return [];
   return field.options.map((option) => ({ value: option.value, label: option.label }));
+}
+
+/**
+ * Questions pouvant NOMMER un invité dans la liste d'accueil : les champs de
+ * saisie courte. Un `textarea` en est exclu — un paragraphe n'est pas un nom
+ * et ferait éclater la rangée.
+ */
+export function identityCandidates(schema: SurveySchema): SurveyField[] {
+  return allFields(schema).filter(
+    (field) => field.type === 'text' || field.type === 'email' || field.type === 'tel',
+  );
+}
+
+/**
+ * Questions pouvant accompagner le nom d'une ligne : les mêmes, plus les choix
+ * fermés (une société choisie dans une liste, une agence, un site).
+ */
+export function detailCandidates(schema: SurveySchema): SurveyField[] {
+  return allFields(schema).filter(
+    (field) =>
+      field.type === 'text' ||
+      field.type === 'email' ||
+      field.type === 'tel' ||
+      field.type === 'select' ||
+      field.type === 'radio',
+  );
+}
+
+export function fieldById(
+  schema: SurveySchema,
+  fieldId: string | undefined,
+): SurveyField | undefined {
+  if (!fieldId) return undefined;
+  return allFields(schema).find((field) => field.id === fieldId);
 }
 
 function allFields(schema: SurveySchema): SurveyField[] {

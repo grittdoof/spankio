@@ -61,7 +61,20 @@ export interface NumberStatistics extends BaseStatistics {
   readonly lowest: number | null;
   readonly highest: number | null;
   readonly sum: number;
+  /**
+   * Valeurs entières rencontrées, de la plus petite à la plus grande, avec
+   * leurs trous — « 1, 2, 3, 4 » et non « 1, 2, 4 ».
+   *
+   * Elle n'est composée que si l'étendue reste lisible (`DISTRIBUTION_SPAN`
+   * valeurs au plus) et que toutes les réponses sont entières : une question
+   * de surface en m² produirait autant de colonnes que de réponses, ce qui
+   * n'est plus une distribution mais une liste.
+   */
+  readonly distribution: readonly { readonly value: number; readonly count: number }[];
 }
+
+/** Au-delà, une distribution par valeur cesse d'être lisible. */
+export const DISTRIBUTION_SPAN = 12;
 
 export interface DateStatistics extends BaseStatistics {
   readonly type: 'date';
@@ -95,6 +108,27 @@ export type FieldStatistics =
 export interface SurveyStatistics {
   readonly responseCount: number;
   readonly fields: readonly FieldStatistics[];
+}
+
+/**
+ * Distribution d'un champ numérique, ou liste vide si elle n'aurait pas de
+ * sens : valeurs non entières, ou étendue trop large pour être lue.
+ */
+function numberDistribution(
+  numbers: readonly number[],
+  lowest: number | null,
+  highest: number | null,
+): readonly { readonly value: number; readonly count: number }[] {
+  if (lowest === null || highest === null) return [];
+  if (!numbers.every((value) => Number.isInteger(value))) return [];
+  if (highest - lowest + 1 > DISTRIBUTION_SPAN) return [];
+
+  const counts = new Map<number, number>();
+  for (const value of numbers) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return Array.from({ length: highest - lowest + 1 }, (_, index) => {
+    const value = lowest + index;
+    return { value, count: counts.get(value) ?? 0 };
+  });
 }
 
 function share(count: number, total: number): number {
@@ -204,14 +238,17 @@ function computeField(
 
     case 'number': {
       const numbers = provided.filter((value): value is number => typeof value === 'number');
+      const lowest = numbers.length === 0 ? null : Math.min(...numbers);
+      const highest = numbers.length === 0 ? null : Math.max(...numbers);
       return {
         ...base,
         type: 'number',
         average: average(numbers),
         median: median(numbers),
-        lowest: numbers.length === 0 ? null : Math.min(...numbers),
-        highest: numbers.length === 0 ? null : Math.max(...numbers),
+        lowest,
+        highest,
         sum: numbers.reduce((total, value) => total + value, 0),
+        distribution: numberDistribution(numbers, lowest, highest),
       };
     }
 

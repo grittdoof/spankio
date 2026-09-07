@@ -11,6 +11,7 @@
   /* --- Couleurs de charte (oklch dérivé des hex de référence) ------------ */
   --sp-marine: oklch(31.27% 0.1039 256.76); /* #042F64 — titres */
   --sp-marine-soft: oklch(41.91% 0.1384 256.84); /* #0B4A96 */
+  --sp-on-marine-muted: oklch(84.34% 0.0486 259.10); /* #B9CDEC — texte secondaire sur marine */
   --sp-accent: oklch(56.08% 0.1782 260.27); /* #2F6FDB — surfaces accent */
   --sp-accent-hover: oklch(49.76% 0.1677 261.16); /* #255CC0 */
   --sp-accent-text: oklch(49.76% 0.1677 261.16); /* liens : AA sur blanc ET gris */
@@ -956,46 +957,6 @@ video {
 .sp-table th {
   color: var(--sp-marine);
   font-weight: 700;
-}
-
-/* Tableau de lecture rapide : en-tête qui reste, lignes alternées, cellules
-   bornées en largeur.
-
-   Une cellule sans largeur maximale s'étire à la longueur de sa plus longue
-   valeur ; une seule réponse bavarde suffit alors à repousser toutes les
-   autres colonnes hors de l'écran. */
-.sp-table--compact {
-  font-size: var(--sp-text-sm);
-}
-
-.sp-table--compact th,
-.sp-table--compact td {
-  max-width: 22rem;
-  padding: var(--sp-space-2) var(--sp-space-3);
-  overflow-wrap: anywhere;
-}
-
-.sp-table--compact thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--sp-surface);
-  box-shadow: inset 0 -1px 0 var(--sp-border);
-  white-space: nowrap;
-}
-
-.sp-table--compact tbody tr:nth-child(even) {
-  background: var(--sp-surface-muted);
-}
-
-.sp-table--compact tbody tr:hover {
-  background: var(--sp-accent-light);
-}
-
-/* La date reste lisible d'un coup d'œil : jamais coupée sur deux lignes. */
-.sp-table--compact td:first-child,
-.sp-table--compact th:first-child {
-  white-space: nowrap;
 }
 
 .sp-table caption {
@@ -2960,32 +2921,6 @@ summary.sp-btn::-webkit-details-marker {
   font-weight: 600;
 }
 
-/* Réserve sur un effectif : affichée à côté du total, jamais fondue dedans. */
-.sp-attendance-warning {
-  padding: var(--sp-space-3) var(--sp-space-4);
-  border-left: 3px solid var(--sp-warning-text);
-  border-radius: 0 var(--sp-radius-sm) var(--sp-radius-sm) 0;
-  background: var(--sp-warning-light);
-  color: var(--sp-text);
-  font-size: var(--sp-text-sm);
-  line-height: 1.55;
-}
-
-.sp-attendance-warning strong {
-  color: var(--sp-warning-text);
-}
-
-/* Ligne à vérifier dans la liste : repérée, pas masquée. */
-.sp-table--compact tbody tr.sp-row--check {
-  background: var(--sp-warning-light);
-}
-
-.sp-people {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 /* Scène d'un écran sans progression ni pied de page (accueil, remerciement).
 
    `sp-stage` est un conteneur flex : un enfant en `display: block` s'y
@@ -3029,4 +2964,706 @@ summary.sp-btn::-webkit-details-marker {
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   Statistiques : trois vues, un chiffre qui domine
+
+   L'écran des statistiques est le seul de l'administration où la HIÉRARCHIE
+   est le sujet. Un effectif attendu, quelques explications autour, et une
+   liste d'accueil : tout le reste du système (cartes, barres, badges) est
+   réemployé tel quel plutôt que redécliné.
+   ========================================================================== */
+
+/* Onglets = liens, jamais un `role="tablist"` : chaque vue a son adresse.
+   L'onglet courant porte `aria-current`, donc la couleur n'est pas le seul
+   indice — c'est aussi ce que le lecteur d'écran annonce. */
+.sp-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-space-1);
+  padding: var(--sp-space-1);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface-muted);
+}
+
+.sp-tabs__link {
+  padding: var(--sp-space-3) var(--sp-space-2);
+  border-radius: var(--sp-radius-sm);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    background var(--sp-motion) var(--sp-ease),
+    color var(--sp-motion) var(--sp-ease);
+}
+
+.sp-tabs__link:hover {
+  background: var(--sp-accent-light);
+  color: var(--sp-accent-text);
+}
+
+.sp-tabs__link[aria-current] {
+  background: var(--sp-surface);
+  box-shadow: var(--sp-shadow-sm);
+  color: var(--sp-marine);
+}
+
+/* Étiquette de contexte sous le titre : date, lieu, échéance. */
+.sp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-space-1);
+  padding: var(--sp-space-1) var(--sp-space-3);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface-muted);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sp-tag--accent {
+  background: var(--sp-accent-light);
+  color: var(--sp-marine);
+}
+
+/* --------------------------------------------------------------------------
+   Le chiffre qui domine
+   -------------------------------------------------------------------------- */
+
+.sp-figure {
+  padding: var(--sp-space-5);
+  border-radius: var(--sp-radius-lg);
+  background: linear-gradient(150deg, var(--sp-marine) 0%, var(--sp-marine-soft) 100%);
+  box-shadow: var(--sp-shadow-lg);
+  color: var(--sp-on-marine-muted);
+}
+
+.sp-figure__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-5);
+}
+
+.sp-figure__label {
+  color: var(--sp-on-marine-muted);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sp-figure__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-space-3);
+  margin-top: var(--sp-space-2);
+  color: var(--sp-on-accent);
+  font-size: var(--sp-text-3xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--sp-leading-tight);
+}
+
+/* Le fond des surfaces posées SUR le dégradé est assombri, non éclairci : un
+   voile blanc rapprocherait le fond du texte clair, et le rapport de contraste
+   descendrait sous 4,5:1 au bout clair du dégradé. Mesuré. */
+.sp-figure__delta {
+  padding: var(--sp-space-1) var(--sp-space-2);
+  border-radius: var(--sp-radius-sm);
+  background: oklch(0% 0 0 / 22%);
+  font-size: var(--sp-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sp-figure__note {
+  margin-top: var(--sp-space-2);
+  font-size: var(--sp-text-sm);
+  line-height: var(--sp-leading);
+}
+
+.sp-figure__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--sp-space-3);
+  margin: var(--sp-space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-tile {
+  padding: var(--sp-space-3);
+  border-radius: var(--sp-radius-sm);
+  background: oklch(0% 0 0 / 18%);
+}
+
+.sp-tile__value {
+  display: block;
+  color: var(--sp-on-accent);
+  font-size: var(--sp-text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--sp-leading-tight);
+}
+
+.sp-tile__label {
+  display: block;
+  margin-top: var(--sp-space-1);
+  font-size: var(--sp-text-xs);
+  line-height: 1.35;
+}
+
+/* --------------------------------------------------------------------------
+   Jauge annulaire
+   -------------------------------------------------------------------------- */
+
+.sp-donut {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--sp-donut-size);
+  height: var(--sp-donut-size);
+}
+
+.sp-donut svg {
+  grid-area: 1 / 1;
+}
+
+.sp-donut__track {
+  stroke: var(--sp-border);
+}
+
+.sp-donut__arc {
+  stroke: var(--sp-accent);
+}
+
+.sp-donut--light .sp-donut__track {
+  stroke: oklch(0% 0 0 / 22%);
+}
+
+.sp-donut--light .sp-donut__arc {
+  stroke: var(--sp-on-accent);
+}
+
+.sp-donut__text {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.sp-donut__value {
+  color: var(--sp-marine);
+  font-size: var(--sp-text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.sp-donut__caption {
+  max-width: 5.5rem;
+  color: var(--sp-text-muted);
+  font-size: 0.6875rem;
+  line-height: 1.25;
+}
+
+.sp-donut--light .sp-donut__value {
+  color: var(--sp-on-accent);
+}
+
+.sp-donut--light .sp-donut__caption {
+  color: var(--sp-on-marine-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Répartition : barre empilée et sa légende écrite
+   -------------------------------------------------------------------------- */
+
+/* La barre ne porte AUCUNE information à elle seule : chaque segment est
+   repris en clair dans la légende, avec son compte. */
+.sp-split {
+  display: flex;
+  gap: 2px;
+  height: 0.75rem;
+  margin: 0;
+  border-radius: var(--sp-radius-pill);
+  overflow: hidden;
+}
+
+.sp-split__seg {
+  height: 100%;
+}
+
+.sp-split__seg--attend,
+.sp-legend__dot--attend {
+  background: var(--sp-success-text);
+}
+
+.sp-split__seg--decline,
+.sp-legend__dot--decline {
+  background: var(--sp-danger);
+}
+
+.sp-split__seg--pending,
+.sp-legend__dot--pending {
+  background: var(--sp-border-strong);
+}
+
+.sp-legend {
+  display: grid;
+  gap: var(--sp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-legend__row {
+  display: grid;
+  grid-template-columns: 0.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-space-3);
+}
+
+.sp-legend__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 3px;
+}
+
+.sp-legend__label {
+  color: var(--sp-text);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-legend__value {
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Rythme
+   -------------------------------------------------------------------------- */
+
+/* Bascule de période : deux liens, l'actif porte `aria-current`. */
+.sp-toggle {
+  display: inline-flex;
+  gap: var(--sp-space-1);
+  padding: var(--sp-space-1);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface-muted);
+}
+
+.sp-toggle__link {
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--sp-space-3);
+  border-radius: var(--sp-radius-sm);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (pointer: coarse) {
+  .sp-toggle__link {
+    min-height: var(--sp-tap);
+  }
+}
+
+.sp-toggle__link:hover {
+  color: var(--sp-accent-text);
+}
+
+.sp-toggle__link[aria-current] {
+  background: var(--sp-surface);
+  box-shadow: var(--sp-shadow-sm);
+  color: var(--sp-marine);
+}
+
+/* Le rapport de forme du tracé est PRÉSERVÉ : un `preserveAspectRatio="none"`
+   étirerait aussi les étiquettes, qui sont du vrai texte. La largeur est donc
+   bornée plutôt qu'écrasée. */
+.sp-spark {
+  display: block;
+  width: 100%;
+  max-width: 30rem;
+  height: auto;
+  margin-inline: auto;
+}
+
+.sp-spark__rule {
+  stroke: var(--sp-border);
+  stroke-width: 1;
+}
+
+.sp-spark__area {
+  fill: var(--sp-accent);
+  fill-opacity: 0.14;
+}
+
+.sp-spark__line {
+  fill: none;
+  stroke: var(--sp-accent);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sp-spark__dot {
+  fill: var(--sp-surface);
+  stroke: var(--sp-accent);
+  stroke-width: 2;
+}
+
+.sp-spark__value {
+  fill: var(--sp-marine);
+  font-family: var(--sp-font);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.sp-spark__tick {
+  fill: var(--sp-text-muted);
+  font-family: var(--sp-font);
+  font-size: 9px;
+}
+
+/* --------------------------------------------------------------------------
+   Distribution en colonnes
+   -------------------------------------------------------------------------- */
+
+.sp-columns {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-space-2);
+  height: 8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-columns__item {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 1rem minmax(0, 1fr) 1rem;
+  gap: var(--sp-space-1);
+  text-align: center;
+}
+
+.sp-columns__value {
+  color: var(--sp-marine);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.sp-columns__bar {
+  align-self: end;
+  width: 100%;
+  min-height: 3px;
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-border);
+}
+
+.sp-columns__bar--peak {
+  background: var(--sp-accent);
+}
+
+.sp-columns__label {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* --------------------------------------------------------------------------
+   À retenir
+   -------------------------------------------------------------------------- */
+
+.sp-insights {
+  display: grid;
+  gap: var(--sp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-insight {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-space-3);
+}
+
+.sp-insight__mark {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--sp-radius-sm);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+}
+
+.sp-insight--accent .sp-insight__mark {
+  background: var(--sp-accent-light);
+  color: var(--sp-accent-text);
+}
+
+.sp-insight--success .sp-insight__mark {
+  background: var(--sp-success-light);
+  color: var(--sp-success-text);
+}
+
+.sp-insight--warning .sp-insight__mark {
+  background: var(--sp-warning-light);
+  color: var(--sp-warning-text);
+}
+
+.sp-insight--danger .sp-insight__mark {
+  background: var(--sp-danger-light);
+  color: var(--sp-danger-text);
+}
+
+.sp-insight__title {
+  display: block;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  line-height: 1.35;
+}
+
+.sp-insight__note {
+  display: block;
+  margin-top: var(--sp-space-1);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   Liste d'accueil
+   -------------------------------------------------------------------------- */
+
+.sp-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-space-2);
+}
+
+.sp-search .sp-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+/* Rangée de puces : elle DÉFILE plutôt que de passer à la ligne. Quatre
+   filtres repliés sur trois lignes repousseraient la liste elle-même sous le
+   pli, sur un téléphone. */
+.sp-chips {
+  display: flex;
+  gap: var(--sp-space-2);
+  overflow-x: auto;
+  padding-bottom: var(--sp-space-1);
+}
+
+.sp-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-space-2);
+  min-height: var(--sp-tap);
+  padding: 0 var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface);
+  color: var(--sp-text);
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background var(--sp-motion) var(--sp-ease),
+    border-color var(--sp-motion) var(--sp-ease);
+}
+
+.sp-chip:hover {
+  background: var(--sp-accent-light);
+  color: var(--sp-marine);
+}
+
+.sp-chip[aria-current] {
+  border-color: transparent;
+  background: var(--sp-marine);
+  color: var(--sp-on-accent);
+}
+
+.sp-chip__count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.sp-guests {
+  display: grid;
+  gap: var(--sp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-guest {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-space-3);
+  padding: var(--sp-space-3);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
+}
+
+/* Rangée à vérifier : repérée, jamais masquée. */
+.sp-guest--check {
+  border-color: var(--sp-warning-text);
+  background: var(--sp-warning-light);
+}
+
+.sp-guest__avatar {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-accent-light);
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+}
+
+.sp-guest__main {
+  min-width: 0;
+}
+
+.sp-guest__name {
+  display: block;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.sp-guest__meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.sp-guest__side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-space-2);
+}
+
+.sp-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-space-1) var(--sp-space-3);
+  border-radius: var(--sp-radius-pill);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sp-pill--attend {
+  background: var(--sp-success-light);
+  color: var(--sp-success-text);
+}
+
+.sp-pill--decline {
+  background: var(--sp-danger-light);
+  color: var(--sp-danger-text);
+}
+
+.sp-pill--pending {
+  background: var(--sp-surface-muted);
+  color: var(--sp-text-muted);
+}
+
+.sp-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-space-3);
+}
+
+/* --------------------------------------------------------------------------
+   Compléments de carte
+   -------------------------------------------------------------------------- */
+
+.sp-card__topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-space-3);
+}
+
+.sp-card__aside {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sp-card__subtitle {
+  font-size: var(--sp-text-sm);
+}
+
+.sp-card__center {
+  display: flex;
+  justify-content: center;
+}
+
+/* Deux cartes côte à côte tant que la place le permet ; empilées sinon. */
+.sp-duo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--sp-space-4);
+}
+
+.sp-duo:empty {
+  display: none;
+}
+
+/* Chapeau chiffré d'une vue : ce que l'écran contient, en une phrase. */
+.sp-summary {
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border-radius: var(--sp-radius);
+  background: var(--sp-accent-light);
+  color: var(--sp-text);
+  font-size: var(--sp-text-sm);
+  line-height: var(--sp-leading);
+}
+
+.sp-summary strong {
+  color: var(--sp-marine);
 }

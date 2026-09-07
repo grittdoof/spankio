@@ -188,6 +188,66 @@ changer.
   n'apprend rien et repousse hors de vue ce qu'on est venu lire. C'est le rôle
   de `MetaScope` dans `src/lib/export/csv.ts` : `export` emporte tout,
   `screen` garde la date.
+- **Les statistiques se lisent en TROIS vues, pas en une page empilée.**
+  « Combien serons-nous ? » se lit la veille en un coup d'œil ; « qu'ont
+  répondu les gens ? » se lit une fois, au dépouillement ; « untel a-t-il
+  confirmé ? » se lit debout, à l'accueil, sur un téléphone. Les empiler
+  imposait de faire défiler plusieurs milliers de pixels pour atteindre la
+  troisième. L'état des vues vit dans l'URL
+  (`src/lib/admin/statistics-view.ts`) : les onglets sont des LIENS et la
+  recherche un `<form method="get">`, donc l'écran entier fonctionne sans
+  JavaScript. Pas de `role="tablist"` : il promettrait une navigation par
+  flèches que des liens ne fournissent pas.
+- **Un fait, jamais un conseil.** `eventInsights` n'énonce que des faits
+  recalculables (places restantes, réponses à vérifier, période la plus
+  active). La maquette proposait « Relancez mardi entre 17 h et 19 h » : rien
+  dans les données ne soutient une telle recommandation — les réponses
+  arrivent quand les invitations partent, pas quand les invités sont
+  disponibles. Un test refuse tout impératif dans ces énoncés.
+- **Aucune jauge sans dénominateur.** Le composant `Donut` exige `total`. La
+  capacité d'un événement est un réglage FACULTATIF (`attendance.capacity`) :
+  sans elle, l'écran affiche l'effectif attendu et rien d'autre — pas de taux
+  de remplissage calculé sur un total inventé, pas de « places libres ».
+- **Le nom d'un invité est DÉSIGNÉ, comme sa présence.** « Nom et prénom »
+  n'existe pas plus que « Société » dans une plateforme générique :
+  `attendance.identityField` et `attendance.detailField` disent quelles
+  questions titrent et précisent une rangée. Sans désignation, la rangée est
+  titrée par son horodatage — exact, et l'écran dit comment faire mieux.
+- **La liste d'accueil remplace le tableau des réponses, l'export ne perd
+  rien.** À l'entrée d'un événement on cherche UN nom et on lit UN statut ;
+  douze colonnes obligeaient à défiler horizontalement pour trouver ces deux
+  informations. Toutes les colonnes restent dans le tableur et le JSON, où
+  elles servent à autre chose qu'à un coup d'œil.
+- **Sur le dégradé marine, les surfaces sont ASSOMBRIES, jamais éclaircies.**
+  Un voile blanc rapproche le fond du texte clair : mesuré, le rapport
+  descendait à 4,41:1 au bout clair du dégradé. Les tuiles et la pastille de
+  variation posent donc un voile noir. Les quatre paires concernées sont dans
+  `CONTRAST_REQUIREMENTS`, et la plus serrée tient 5,34:1.
+- **Un graphique est un renfort, jamais un porteur d'information.** Courbe,
+  barre empilée et anneaux sont `aria-hidden`, et chaque valeur est écrite à
+  côté ou énumérée juste après. Conséquence moins évidente : le compte inscrit
+  AU-DESSUS d'une colonne est lui aussi `aria-hidden`, sinon le lecteur
+  d'écran énonce le même nombre deux fois, de part et d'autre de la valeur
+  qu'il qualifie. Et le tracé garde son rapport de forme — un
+  `preserveAspectRatio="none"` étirerait les étiquettes, qui sont du vrai
+  texte.
+- **La géométrie d'une courbe est une fonction pure** (`src/lib/design/
+  sparkline.ts`), et son échelle part TOUJOURS de zéro. Une courbe fausse
+  ressemble à une courbe : composée dans du JSX, elle ne se vérifierait qu'à
+  l'œil, et un axe tronqué exagérerait la moindre variation.
+- **Un jour n'est pas une tranche de 24 heures.** `responsePace` et `countdown`
+  découpent des jours de CALENDRIER dans le fuseau de l'événement : « J-1 »
+  veut dire demain, et une réponse envoyée à 23 h 40 heure de Paris ne doit pas
+  basculer dans la colonne du lendemain parce que le serveur est en UTC.
+- **Une distribution par valeur n'existe que si elle se lit** : réponses
+  entières, et étendue d'au plus `DISTRIBUTION_SPAN` valeurs. Une question de
+  surface en m² produirait autant de colonnes que de réponses — ce n'est plus
+  une distribution, c'est une liste.
+- **Aucun agrégat de champ libre, même déguisé en graphique.** La maquette
+  comportait une carte « Sociétés représentées » alors qu'elle classait la
+  société parmi les champs libres : elle n'a pas été reprise. Si une
+  organisation veut ce classement, elle pose la question en liste fermée, et
+  l'onglet « Questions » la restitue déjà.
 - **Deux espaces distincts, deux mises en page** : `/admin` fabrique des
   formulaires, `/super-admin` gouverne des organisations et des rattachements.
   Ce ne sont pas les mêmes objets ; les mêler dans une navigation unique
@@ -449,7 +509,7 @@ figure, avec sa raison et sa condition de lever.
 | R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. La montée proposée par Dependabot vers `eslint-config-next@16` a été **refusée** : c'est le paquet de configuration de Next 16, et l'installer sans Next 16 fait diverger l'outil du framework qu'il est censé décrire. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16, où les deux montent ensemble. |
 | R7 | **`postcss` surchargé** en 8.5.26 via `overrides` : Next 15 épingle 8.4.31, vulnérable (GHSA sourceMappingURL / XSS de stringify). Correctif amont = Next 16 (majeure). | Conserver Next 15 tout en gardant `npm audit` à zéro. `postcss` n'est utilisé qu'au build. | À la migration Next 16. |
-| R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région. | Périmètre MVP. | Sur demande client. |
+| R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
 | R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 21 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
 | R11 | **8 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
@@ -530,5 +590,15 @@ npm run build       # build de production
       rappelée depuis l'accueil tant que le profil est incomplet ; fil d'Ariane
       remplacé par un retour au parent ; écran des réponses réduit à
       l'essentiel.
+- [x] Statistiques d'événement (7 septembre 2026) — l'écran des réponses
+      devient « Statistiques » en trois vues : vue d'ensemble (effectif
+      attendu, capacité facultative, répartition des statuts, rythme sur 7 ou
+      30 jours, distribution des accompagnants, fiabilité du comptage, faits à
+      retenir), questions (agrégats par question, champs libres regroupés) et
+      invités (recherche, filtres, rangées nommées). État dans l'URL, aucun
+      JavaScript requis. Mise en forme reprise d'une maquette fournie par le
+      client — palette et Montserrat inchangés, ce qui n'était pas calculable
+      écarté et documenté. 1387 tests dont 15 d'accessibilité sur les trois
+      vues.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

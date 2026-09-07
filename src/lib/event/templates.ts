@@ -87,6 +87,11 @@ const eventRegistration = template({
       presenceValue: 'oui',
       partyField: 'accompagnants',
       partyMode: 'total',
+      // Liste d'accueil : le nom titre la rangée, le courriel la précise. Le
+      // modèle sait quelles questions il pose, l'organisation n'a rien à
+      // câbler.
+      identityField: 'nom',
+      detailField: 'email',
     },
   },
   schema: {
@@ -156,6 +161,12 @@ const eventSlots = template({
       message: 'Un récapitulatif vous a été présenté ci-dessous.',
       showCalendar: true,
     },
+    /**
+     * Pas de comptage des présents : aucune question ne dit « je viens » ici,
+     * le choix d'un créneau EST la présence. La liste d'accueil, elle, sait
+     * déjà nommer ses rangées.
+     */
+    attendance: { identityField: 'nom', detailField: 'email' },
   },
   schema: {
     version: 1,

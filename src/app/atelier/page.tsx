@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { EventOverview } from '@/components/admin/EventOverview';
+import { GuestList } from '@/components/admin/GuestList';
+import { StatisticsTabs } from '@/components/admin/StatisticsTabs';
 import { Alert } from '@/components/ui/Alert';
 import { Callout, Example } from '@/components/ui/Callout';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -8,6 +11,12 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Steps } from '@/components/ui/Steps';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { SPACE_SCALE_REM } from '@/lib/design/tokens';
+import { parseStatisticsView } from '@/lib/admin/statistics-view';
+import { guestList, type GuestList as GuestListModel } from '@/lib/survey/guests';
+import { eventInsights } from '@/lib/survey/insights';
+import { responsePace } from '@/lib/survey/pace';
+import { validateSurveySchema } from '@/lib/survey/schema';
+import { countAttendance, type AttendanceSettings } from '@/lib/survey/attendance';
 
 /**
  * Atelier de design : toutes les primitives sur un seul écran, sans base de
@@ -43,6 +52,102 @@ const DEMO_LOGO =
       '<text x="150" y="52" font-family="sans-serif" font-size="30" ' +
       'fill="#ffffff" text-anchor="middle">TÉMOIN</text></svg>',
   );
+
+/**
+ * Jeu de démonstration des statistiques.
+ *
+ * Il existe pour la même raison que l'atelier lui-même : l'écran réel exige une
+ * session ET des réponses en base, ce qui rendait impossible de vérifier une
+ * décision de mise en forme — l'anneau sur fond marine, le débordement des
+ * puces à 320 px — sans dépouiller un vrai formulaire.
+ */
+const DEMO_NOW = new Date('2026-09-07T10:00:00Z');
+const DEMO_SURVEY = '11111111-2222-3333-4444-555555555555';
+
+const DEMO_SCHEMA = (() => {
+  const result = validateSurveySchema({
+    version: 1,
+    steps: [
+      {
+        id: 'etape_1',
+        fields: [
+          {
+            id: 'presence',
+            type: 'radio',
+            label: 'Serez-vous présent ?',
+            options: [
+              { value: 'oui', label: 'Oui, je serai présent' },
+              { value: 'non', label: 'Non, je ne pourrai pas venir' },
+            ],
+          },
+          {
+            id: 'accompagnants',
+            type: 'number',
+            label: 'Nombre de personnes vous accompagnant',
+            min: 0,
+            max: 6,
+          },
+          { id: 'nom', type: 'text', label: 'Nom et prénom' },
+          { id: 'email', type: 'email', label: 'Adresse électronique' },
+        ],
+      },
+    ],
+  });
+  if (!result.ok) throw new Error('Schéma de démonstration invalide');
+  return result.schema;
+})();
+
+const DEMO_ATTENDANCE: AttendanceSettings = {
+  presenceField: 'presence',
+  presenceValue: 'oui',
+  partyField: 'accompagnants',
+  partyMode: 'extra',
+  identityField: 'nom',
+  detailField: 'email',
+  capacity: 40,
+};
+
+interface DemoGuest {
+  readonly nom: string;
+  readonly presence?: 'oui' | 'non';
+  readonly accompagnants?: number;
+  readonly at: string;
+}
+
+const DEMO_GUESTS: readonly DemoGuest[] = [
+  { nom: 'Camille Arnoult', presence: 'oui', accompagnants: 2, at: '2026-09-06T09:00:00Z' },
+  { nom: 'Nadia Belkacem', presence: 'oui', accompagnants: 0, at: '2026-09-06T14:00:00Z' },
+  { nom: 'Thomas Reverdy', at: '2026-09-05T09:00:00Z' },
+  { nom: 'Élodie Marchand', presence: 'oui', accompagnants: 1, at: '2026-09-04T09:00:00Z' },
+  { nom: 'Karim Zebiri', presence: 'non', at: '2026-09-03T09:00:00Z' },
+  { nom: 'Hélène Sauvage', presence: 'oui', accompagnants: 3, at: '2026-09-02T09:00:00Z' },
+  { nom: 'Pierre Lemoine', presence: 'oui', accompagnants: 1, at: '2026-09-01T09:00:00Z' },
+];
+
+const DEMO_RESPONSES = DEMO_GUESTS.map((guest, index) => ({
+  id: `demo-${index}`,
+  submitted_at: guest.at,
+  data: {
+    nom: guest.nom,
+    email: `${guest.nom.split(' ')[0]?.toLocaleLowerCase('fr-FR')}@exemple.test`,
+    ...(guest.presence ? { presence: guest.presence } : {}),
+    ...(guest.accompagnants === undefined ? {} : { accompagnants: guest.accompagnants }),
+  },
+}));
+
+const DEMO_PACE = responsePace(DEMO_RESPONSES, {
+  now: DEMO_NOW,
+  window: '7j',
+  timeZone: 'Europe/Paris',
+});
+const DEMO_TOTALS = countAttendance(DEMO_SCHEMA, DEMO_ATTENDANCE, DEMO_RESPONSES);
+const DEMO_VIEW = parseStatisticsView({ onglet: 'invites' });
+const DEMO_LIST: GuestListModel = guestList(
+  DEMO_SCHEMA,
+  DEMO_ATTENDANCE,
+  DEMO_RESPONSES,
+  { filter: DEMO_VIEW.filter },
+);
 
 const BUTTONS: readonly [string, string][] = [
   ['sp-btn', 'Action principale'],
@@ -271,6 +376,71 @@ export default function DesignWorkshopPage() {
               </span>
             </div>
           </div>
+        </section>
+
+        <section className="sp-section">
+          <h2 className="sp-section__title">Statistiques d’un événement</h2>
+          <p className="sp-section__lead">
+            Un chiffre domine, tout le reste l’explique. Les tracés — anneau, barre
+            empilée, courbe — ne portent aucune information à eux seuls : chaque
+            valeur est écrite.
+          </p>
+          <div
+            className="sp-stack"
+            style={{ '--sp-stack-gap': 'var(--sp-space-4)' } as React.CSSProperties}
+          >
+            <StatisticsTabs current="apercu" surveyId={DEMO_SURVEY} view={DEMO_VIEW} />
+            <EventOverview
+              capacity={DEMO_ATTENDANCE.capacity ?? null}
+              companions={Math.max(0, DEMO_TOTALS.people - DEMO_TOTALS.attending)}
+              delta={{ responses: 2, people: 3 }}
+              insights={eventInsights({
+                totals: DEMO_TOTALS,
+                responseCount: DEMO_RESPONSES.length,
+                capacity: DEMO_ATTENDANCE.capacity ?? null,
+                pace: DEMO_PACE,
+                countdown: {
+                  badge: 'J-12',
+                  label: 'Dans 12 jours',
+                  days: 12,
+                  past: false,
+                },
+              })}
+              pace={DEMO_PACE}
+              party={{
+                label: 'Nombre de personnes vous accompagnant',
+                average: 1.4,
+                unit: null,
+                distribution: [
+                  { value: 0, count: 1 },
+                  { value: 1, count: 2 },
+                  { value: 2, count: 1 },
+                  { value: 3, count: 1 },
+                ],
+              }}
+              responseCount={DEMO_RESPONSES.length}
+              settingsHref="#"
+              surveyId={DEMO_SURVEY}
+              totals={DEMO_TOTALS}
+            />
+          </div>
+        </section>
+
+        <section className="sp-section">
+          <h2 className="sp-section__title">Liste d’accueil</h2>
+          <p className="sp-section__lead">
+            Une rangée par réponse : un nom, un statut, un effectif. Les puces
+            défilent plutôt que de se replier sur trois lignes.
+          </p>
+          <GuestList
+            counting
+            list={DEMO_LIST}
+            named
+            rows={DEMO_LIST.rows}
+            settingsHref="#"
+            surveyId={DEMO_SURVEY}
+            view={DEMO_VIEW}
+          />
         </section>
 
         <section className="sp-section">

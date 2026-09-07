@@ -8,6 +8,8 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { composeEventNote, eventNote } from '@/lib/event/calendar-content';
 import { availableTimeZones, isoToWallClock, wallClockToIso } from '@/lib/event/time';
 import {
+  detailCandidates,
+  identityCandidates,
   partyCandidates,
   presenceCandidates,
   presenceValues,
@@ -118,6 +120,8 @@ export function EventSettings({
 
   const presenceOptions = presenceCandidates(schema);
   const partyOptions = partyCandidates(schema);
+  const identityOptions = identityCandidates(schema);
+  const detailOptions = detailCandidates(schema);
   const presenceValueOptions = presenceValues(schema, draft.attendance.presenceField);
 
   /**
@@ -487,8 +491,128 @@ export function EventSettings({
                     </ul>
                   </fieldset>
                 ) : null}
+
+                <Field
+                  hint="Facultatif. Renseignée, elle donne un taux de remplissage et un nombre de places libres ; laissée vide, l’écran affiche l’effectif sans pourcentage — plutôt qu’un pourcentage calculé sur un total inventé."
+                  id="evt-capacite"
+                  label="Nombre de places"
+                >
+                  {(attributes) => (
+                    <input
+                      {...attributes}
+                      className="sp-input"
+                      inputMode="numeric"
+                      max={1000000}
+                      min={1}
+                      onChange={(event) => {
+                        const raw = event.target.value.trim();
+                        const parsed = Number(raw);
+                        patch({
+                          attendance: {
+                            ...draft.attendance,
+                            ...(raw !== '' && Number.isInteger(parsed) && parsed > 0
+                              ? { capacity: parsed }
+                              : { capacity: undefined }),
+                          },
+                        });
+                      }}
+                      step={1}
+                      type="number"
+                      value={draft.attendance.capacity ?? ''}
+                    />
+                  )}
+                </Field>
               </>
             ) : null}
+          </>
+        )}
+      </section>
+
+      <section className="sp-card sp-stack">
+        <h2 className="sp-card__title">
+          Liste d’accueil{' '}
+          <Tooltip label="liste d’accueil">
+            La liste affichée dans les statistiques montre une rangée par réponse.
+            Pour qu’une rangée porte un NOM, il faut dire quelle question le
+            contient : « Nom et prénom » n’existe pas plus que « Société » dans une
+            plateforme générique.
+          </Tooltip>
+        </h2>
+        <p className="sp-muted">
+          Sans désignation, chaque rangée est titrée par son horodatage — exact, mais
+          inutilisable à l’entrée d’un événement.
+        </p>
+
+        {identityOptions.length === 0 ? (
+          <Callout mark="!" tone="muted">
+            Aucune question de saisie courte dans ce formulaire. Ajoutez une question
+            « texte », « adresse électronique » ou « téléphone », puis revenez ici.
+          </Callout>
+        ) : (
+          <>
+            <Field
+              hint="Une question à réponse courte : nom, raison sociale, adresse électronique."
+              id="evt-identite"
+              label="Question qui nomme l’invité"
+            >
+              {(attributes) => (
+                <select
+                  {...attributes}
+                  className="sp-select"
+                  onChange={(event) =>
+                    patch({
+                      attendance: {
+                        ...draft.attendance,
+                        ...(event.target.value
+                          ? { identityField: event.target.value }
+                          : { identityField: undefined }),
+                      },
+                    })
+                  }
+                  value={draft.attendance.identityField ?? ''}
+                >
+                  <option value="">Titrer les rangées par leur date</option>
+                  {identityOptions.map((field) => (
+                    <option key={field.id} value={field.id}>
+                      {field.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+
+            <Field
+              hint="Facultatif. Affiché sous le nom : société, agence, adresse électronique…"
+              id="evt-detail"
+              label="Seconde information affichée"
+            >
+              {(attributes) => (
+                <select
+                  {...attributes}
+                  className="sp-select"
+                  onChange={(event) =>
+                    patch({
+                      attendance: {
+                        ...draft.attendance,
+                        ...(event.target.value
+                          ? { detailField: event.target.value }
+                          : { detailField: undefined }),
+                      },
+                    })
+                  }
+                  value={draft.attendance.detailField ?? ''}
+                >
+                  <option value="">Aucune</option>
+                  {detailOptions
+                    .filter((field) => field.id !== draft.attendance.identityField)
+                    .map((field) => (
+                      <option key={field.id} value={field.id}>
+                        {field.label}
+                      </option>
+                    ))}
+                </select>
+              )}
+            </Field>
           </>
         )}
       </section>

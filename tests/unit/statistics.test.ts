@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { computeStatistics, otherAnswers } from '@/lib/survey/statistics';
+import {
+  computeStatistics,
+  DISTRIBUTION_SPAN,
+  otherAnswers,
+} from '@/lib/survey/statistics';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 
 function build(fields: unknown[]): SurveySchema {
@@ -231,6 +235,39 @@ describe('champs libres', () => {
     const serialised = JSON.stringify(stats);
     expect(serialised).not.toContain('Beaucoup de choses');
     expect(serialised).not.toContain('camille@exemple.test');
+  });
+});
+
+describe('distribution d’un nombre', () => {
+  const schema = build([{ id: 'quantite', type: 'number', label: 'Quantité' }]);
+
+  const distributionOf = (...data: Record<string, unknown>[]) => {
+    const field = computeStatistics(schema, rows(...data)).fields[0]!;
+    if (field.type !== 'number') throw new Error('type inattendu');
+    return field.distribution;
+  };
+
+  it('couvre l’étendue SANS trou : une valeur absente est une information', () => {
+    expect(distributionOf({ quantite: 1 }, { quantite: 3 }, { quantite: 3 })).toEqual([
+      { value: 1, count: 1 },
+      { value: 2, count: 0 },
+      { value: 3, count: 2 },
+    ]);
+  });
+
+  it('renonce au-delà d’une étendue lisible : ce serait une liste, pas une distribution', () => {
+    expect(distributionOf({ quantite: 1 }, { quantite: DISTRIBUTION_SPAN })).toHaveLength(
+      DISTRIBUTION_SPAN,
+    );
+    expect(distributionOf({ quantite: 1 }, { quantite: DISTRIBUTION_SPAN + 1 })).toEqual([]);
+  });
+
+  it('renonce dès qu’une réponse n’est pas entière : une surface en m² n’a pas de colonnes', () => {
+    expect(distributionOf({ quantite: 1 }, { quantite: 2.5 })).toEqual([]);
+  });
+
+  it('n’existe pas sans réponse', () => {
+    expect(distributionOf({})).toEqual([]);
   });
 });
 

@@ -19,6 +19,7 @@ export const BRAND_HEX = {
 export const CSS_TOKEN_HEX: Readonly<Record<string, string>> = {
   '--sp-marine': BRAND_HEX.marine,
   '--sp-marine-soft': '#0B4A96',
+  '--sp-on-marine-muted': '#B9CDEC',
   '--sp-accent': BRAND_HEX.azur,
   '--sp-accent-hover': '#255CC0',
   '--sp-accent-text': '#255CC0',
@@ -139,6 +140,21 @@ export const CONTRAST_REQUIREMENTS: readonly ContrastRequirement[] = [
   { label: 'succès / carte', foreground: T['--sp-success-text']!, background: T['--sp-surface']!, min: 4.5 },
   { label: 'alerte / fond tinté ambre', foreground: T['--sp-warning-text']!, background: T['--sp-warning-light']!, min: 4.5 },
   { label: 'alerte / carte', foreground: T['--sp-warning-text']!, background: T['--sp-surface']!, min: 4.5 },
+
+  // Surfaces marine (le chiffre qui domine l'écran des statistiques). Le
+  // dégradé va de `--sp-marine` à `--sp-marine-soft` : les deux bouts sont
+  // vérifiés, pas seulement le plus sombre.
+  { label: 'blanc / marine', foreground: T['--sp-on-accent']!, background: T['--sp-marine']!, min: 4.5 },
+  { label: 'blanc / marine adouci', foreground: T['--sp-on-accent']!, background: T['--sp-marine-soft']!, min: 4.5 },
+  { label: 'texte clair / marine', foreground: T['--sp-on-marine-muted']!, background: T['--sp-marine']!, min: 4.5 },
+  { label: 'texte clair / marine adouci', foreground: T['--sp-on-marine-muted']!, background: T['--sp-marine-soft']!, min: 4.5 },
+
+  // Segments d'une barre de répartition et leurs pastilles de légende : la
+  // couleur ne porte rien seule (chaque segment est écrit à côté), mais elle
+  // doit rester perceptible — 3:1, comme une frontière de composant.
+  { label: 'segment présents / carte', foreground: T['--sp-success-text']!, background: T['--sp-surface']!, min: 3 },
+  { label: 'segment déclinent / carte', foreground: T['--sp-danger']!, background: T['--sp-surface']!, min: 3 },
+  { label: 'segment sans réponse / carte', foreground: T['--sp-border-strong']!, background: T['--sp-surface']!, min: 3 },
 
   // Frontières de composants (WCAG 1.4.11 — 3:1)
   { label: 'bordure de champ / carte', foreground: T['--sp-border-strong']!, background: T['--sp-surface']!, min: 3 },

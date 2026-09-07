@@ -339,7 +339,10 @@ describe('accessibilité du tableau de bord', () => {
       { data: {} as Record<string, unknown> },
     ];
     const { container } = render(
-      <StatisticsPanel statistics={computeStatistics(schema, responses)} />,
+      <StatisticsPanel
+        guestsHref="/admin/sondages/abc/reponses?onglet=invites"
+        statistics={computeStatistics(schema, responses)}
+      />,
     );
     await expectNoA11yViolations(container);
   });
