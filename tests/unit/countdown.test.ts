@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countdown, daysUntil } from '@/lib/event/countdown';
+import { countdown, countdownParts, daysUntil } from '@/lib/event/countdown';
 
 /**
  * Compte à rebours.
@@ -74,5 +74,57 @@ describe('pastille', () => {
 
   it('n’existe pas sans date', () => {
     expect(countdown(null, { now })).toBeNull();
+  });
+});
+
+describe('décompte détaillé', () => {
+  const now = new Date('2026-09-07T10:00:00Z');
+
+  it('décompose l’écart en jours, heures, minutes et secondes', () => {
+    // 2 jours, 3 heures, 4 minutes, 5 secondes plus tard.
+    expect(countdownParts('2026-09-09T13:04:05Z', now)).toMatchObject({
+      days: 2,
+      hours: 3,
+      minutes: 4,
+      seconds: 5,
+      reached: false,
+    });
+  });
+
+  it('raisonne en INSTANTS, pas en jours de calendrier', () => {
+    // Un compteur qui affiche des secondes ne peut pas arrondir au jour :
+    // dans 23 h 30, il reste zéro jour, pas un.
+    expect(countdownParts('2026-09-08T09:30:00Z', now)).toMatchObject({
+      days: 0,
+      hours: 23,
+      minutes: 30,
+    });
+  });
+
+  it('omet les secondes de la phrase écrite', () => {
+    // Une zone annoncée qui change chaque seconde rendrait la page
+    // inutilisable au lecteur d’écran.
+    const parts = countdownParts('2026-09-09T13:04:05Z', now);
+    expect(parts?.label).toBe('Dans 2 jours, 3 heures');
+    expect(parts?.label).not.toMatch(/seconde/);
+  });
+
+  it('descend à la minute le dernier jour', () => {
+    expect(countdownParts('2026-09-07T11:45:00Z', now)?.label).toBe(
+      'Dans 1 heure, 45 minutes',
+    );
+  });
+
+  it('signale l’échéance atteinte plutôt que de compter à l’envers', () => {
+    expect(countdownParts('2026-09-07T09:59:00Z', now)).toMatchObject({
+      reached: true,
+      days: 0,
+      seconds: 0,
+    });
+  });
+
+  it('ne devine rien sans date, ni avec une date illisible', () => {
+    expect(countdownParts(null, now)).toBeNull();
+    expect(countdownParts('hier', now)).toBeNull();
   });
 });

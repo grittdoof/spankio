@@ -1,12 +1,11 @@
 'use client';
 
 import { Alert } from '@/components/ui/Alert';
-import { BannerFrame } from '@/components/ui/BannerFrame';
+import { Invitation, type InvitationProps } from './Invitation';
 import {
   EventActions,
   type CalendarActions,
   type DirectionsActions,
-  type EventActionsProps,
 } from './EventActions';
 import { fr } from '@/lib/i18n/fr';
 import type { ConsentNotice } from '@/lib/survey/consent';
@@ -25,87 +24,33 @@ export interface Branding {
   readonly bannerUrl: string | null;
 }
 
+/**
+ * Tout ce que l'écran d'accueil affiche, déjà FILTRÉ par les interrupteurs de
+ * la page publique. L'écran n'arbitre rien : il montre ce qu'on lui donne.
+ */
+export type WelcomeContent = Omit<InvitationProps, 'onStart' | 'children'>;
+
+/**
+ * Accueil : l'invitation elle-même.
+ *
+ * L'écran ne fait qu'un aiguillage vers `Invitation`, et c'est volontaire —
+ * l'invitation d'un événement et le formulaire qui la suit sont deux objets
+ * différents, avec deux mises en page différentes. Les avoir mêlés reviendrait
+ * à faire dépendre la présentation d'une soirée du moteur de questions.
+ */
 export function WelcomeScreen({
-  branding,
-  badge,
-  title,
-  description,
-  meta,
-  ctaLabel,
+  content,
   onStart,
-  event,
   children,
 }: {
-  branding: Branding;
-  badge?: string | undefined;
-  title: string;
-  description?: string | undefined;
-  meta?: readonly string[];
-  ctaLabel: string;
+  content: WelcomeContent;
   onStart: () => void;
-  /** Agenda et itinéraire, proposés AVANT l'inscription. */
-  event?: EventActionsProps | undefined;
   children?: React.ReactNode;
 }) {
   return (
-    <div className="sp-screen sp-screen--welcome">
-      {/* Même cadre que l'aperçu de l'éditeur et que la miniature de la liste
-          (`BannerFrame`) : l'organisation voit exactement ce que verra le
-          répondant. Le rapport de forme est réservé en CSS, donc la page ne
-          saute pas quand l'image arrive.
-
-          `next/image` est écarté : il ferait transiter la bannière de CHAQUE
-          organisation par l'optimiseur de Vercel, facturé à l'usage — sur une
-          plateforme revendable, le coût croît avec le nombre de clients. Les
-          bannières sont servies par le CDN de Storage et bornées à l'envoi. */}
-      {branding.bannerUrl ? (
-        <div className="sp-welcome__visual">
-          <BannerFrame url={branding.bannerUrl} />
-        </div>
-      ) : null}
-
-      <div className="sp-screen__body sp-welcome__text">
-        <div className="sp-brandline">
-          {branding.logoUrl ? (
-            // Même raison que pour la bannière : un logo par organisation.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              className="sp-brandline__logo"
-              src={branding.logoUrl}
-              alt={branding.organisationName}
-              width={120}
-              height={40}
-              decoding="async"
-            />
-          ) : (
-            <span className="sp-brandline__name">{branding.organisationName}</span>
-          )}
-        </div>
-
-        {badge ? <p className="sp-badge sp-badge--accent">{badge}</p> : null}
-        <h1 className="sp-screen__title">{title}</h1>
-        {description ? <p className="sp-screen__lead">{description}</p> : null}
-
-        {meta && meta.length > 0 ? (
-          <ul className="sp-meta">
-            {meta.map((entry) => (
-              <li key={entry}>{entry}</li>
-            ))}
-          </ul>
-        ) : null}
-
-        {children}
-
-        <button className="sp-btn sp-btn--lg" type="button" onClick={onStart}>
-          {ctaLabel}
-        </button>
-
-        {/* APRÈS l'inscription dans l'ordre de lecture, mais accessible sans
-            elle : bloquer la date est souvent le premier geste, s'inscrire le
-            second. */}
-        {event ? <EventActions {...event} /> : null}
-      </div>
-    </div>
+    <Invitation {...content} onStart={onStart}>
+      {children}
+    </Invitation>
   );
 }
 

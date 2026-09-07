@@ -248,6 +248,69 @@ changer.
   société parmi les champs libres : elle n'a pas été reprise. Si une
   organisation veut ce classement, elle pose la question en liste fermée, et
   l'onglet « Questions » la restitue déjà.
+- **L'invitation publique n'est pas un formulaire : elle se lit avant de se
+  remplir.** D'où une mise en page éditoriale — héro, colonne de lecture,
+  compte à rebours collant à droite, barre d'inscription collante en bas — et
+  non l'empilement d'un écran d'administration. Le moteur de questions reste
+  intact derrière : `Invitation` est un objet distinct de `SurveyRenderer`.
+- **Chaque bloc de la page publique s'ouvre ou se ferme, et la liste
+  enregistrée est celle des blocs MASQUÉS.** Avec une liste d'autorisation, un
+  bloc ajouté plus tard naîtrait invisible sur tous les formulaires existants
+  et personne ne saurait qu'il existe ; avec une liste de masquage, le défaut
+  reste « montrer ce qui a du contenu ». Deux blocs sont fermés par défaut —
+  le nombre d'inscriptions et le partage du lien — parce que publier
+  l'affluence ou diffuser une adresse nominative sont des divulgations, qui se
+  demandent. Corollaire : **le premier clic fige la liste entière**, sinon
+  ouvrir « le partage » réactiverait « le nombre d'inscriptions » au passage.
+- **Un interrupteur ne fabrique pas de contenu.** Un bloc autorisé mais vide ne
+  s'affiche pas : « Déroulé de la soirée » suivi du vide est pire que son
+  absence. Le filtrage vit dans la PAGE (`invitationContent`), jamais dans le
+  composant — un composant qui déciderait lui-même finirait par afficher un
+  titre orphelin.
+- **L'interrupteur est à côté du contenu qu'il gouverne.** Le déroulé, le mot
+  de l'organisateur, les questions fréquentes et l'accès portent le leur, sur
+  leur propre carte ; les autres sont regroupés là où il n'y a rien à saisir.
+  Ailleurs, on chercherait quel bouton commande quoi. Et **fermer un bloc ne
+  détruit pas son contenu** — un test le vérifie.
+- **Aucune carte n'est affichée sur la page publique.** L'itinéraire est fait
+  de LIENS : rien ne part vers un tiers avant le clic. Des tuiles
+  OpenStreetMap sur une page publique enverraient l'adresse IP de chaque
+  invité au serveur de tuiles, à un volume que sa politique d'usage ne prévoit
+  pas — c'est la même raison qui fait passer Nominatim par notre relais.
+- **Une page publique n'affiche jamais de places restantes.** Le plafond de
+  réponses (`response_limit`) est délibérément absent de la vue
+  `public_surveys`, et un test le fige : le publier dirait au monde entier à
+  partir de quand le formulaire ferme. Le nombre d'inscriptions REÇUES, lui,
+  est déjà public — il est donc proposé, fermé par défaut.
+- **Deux compteurs de temps, deux questions.** `countdown` répond « dans
+  combien de JOURS ? » en jours de calendrier — « J-1 » veut dire demain.
+  `countdownParts` répond « dans combien de TEMPS ? » en écart d'instants,
+  parce qu'un compteur qui affiche des secondes ne peut pas arrondir au jour.
+  Aucun des deux ne lit l'horloge : l'appelant fournit le « maintenant », sans
+  quoi le rendu serveur et le premier rendu client différeraient d'une seconde
+  et React signalerait une divergence d'hydratation.
+- **Un compteur ne parle pas.** Les chiffres du compte à rebours sont
+  `aria-hidden` et la phrase écrite à côté n'est PAS une zone live : elle se lit
+  quand on l'atteint. Un `aria-live` sur des secondes interromprait le lecteur
+  d'écran une fois par seconde. La phrase omet d'ailleurs les secondes.
+- **L'ordre du DOM est l'ordre de lecture, y compris en deux colonnes.** Le
+  compte à rebours est placé juste après le héro dans le DOM et déplacé en
+  colonne de droite par la grille — il ne contient AUCUN élément focalisable,
+  donc l'avancer ne dérange pas la tabulation. L'agenda, lui, contient des
+  liens : il reste dans la colonne de lecture. Un `order` CSS aurait fait
+  sauter le focus d'un bord de l'écran à l'autre (WCAG 2.4.3).
+- **Une heure d'événement s'affiche dans le fuseau DE L'ÉVÉNEMENT.** Défaut
+  réel corrigé : la page publique mettait ses dates en forme dans
+  `Europe/Paris` en dur alors que le champ « fuseau » existait et était
+  correctement enregistré — une soirée hors de France était annoncée avec
+  plusieurs heures d'écart.
+- **Une finalité libre ne s'insère pas dans une phrase.** Défaut réel corrigé :
+  la mention de la page publique composait « Elles servent à {finalité} », et
+  une organisation dont la finalité était rédigée comme une phrase complète
+  obtenait « Elles servent à Vos réponses ont bien été enregistrées par le
+  service de direction ». La plateforme ne connaît pas la forme grammaticale
+  d'un texte libre. La finalité complète reste énoncée par
+  `composeConsentNotice`, qui est fait pour cela.
 - **Deux espaces distincts, deux mises en page** : `/admin` fabrique des
   formulaires, `/super-admin` gouverne des organisations et des rattachements.
   Ce ne sont pas les mêmes objets ; les mêler dans une navigation unique
@@ -600,5 +663,16 @@ npm run build       # build de production
       client — palette et Montserrat inchangés, ce qui n'était pas calculable
       écarté et documenté. 1387 tests dont 15 d'accessibilité sur les trois
       vues.
+- [x] Page publique d'un événement (7 septembre 2026) — l'invitation reprend
+      la maquette « Invitation Publique Mobile » : héro, compte à rebours
+      vivant, informations pratiques, mot de l'organisateur, déroulé, accès,
+      agenda, questions fréquentes, partage du lien, mention sur les données,
+      et barre d'inscription collante. **Quatorze blocs, tous ouvrables ou
+      fermables** depuis un écran dédié (`/admin/sondages/[id]/invitation`),
+      avec leur contenu propre rangé dans `settings.publicPage` — aucune
+      migration. Deux défauts réels corrigés au passage : les dates étaient
+      mises en forme dans `Europe/Paris` en dur, et la finalité déclarée par
+      l'organisation était recopiée au milieu d'une phrase. 1454 tests dont 27
+      d'accessibilité sur l'invitation et son écran de réglages.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

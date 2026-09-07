@@ -1,0 +1,648 @@
+'use client';
+
+import { useState } from 'react';
+import { Alert } from '@/components/ui/Alert';
+import { Callout } from '@/components/ui/Callout';
+import { Field } from '@/components/ui/Field';
+import { Tooltip } from '@/components/ui/Tooltip';
+import {
+  isBlockAllowed,
+  PUBLIC_BLOCK_META,
+  toggleBlock,
+  type PublicBlock,
+  type PublicDetail,
+  type PublicMoment,
+  type PublicPageSettings,
+  type PublicQuestion,
+} from '@/lib/survey/public-page';
+
+/**
+ * Réglages de la page publique d'un événement.
+ *
+ * Écran séparé des « réglages de l'événement », et non une carte de plus :
+ * ce sont deux tâches distinctes. L'une établit des FAITS — quand, où, qui
+ * organise, comment on compte les présents — l'autre décide de ce que l'invité
+ * VOIT. Les mêler donnait un écran de plus de mille lignes où l'essentiel se
+ * perdait.
+ *
+ * Deux règles d'organisation, toutes deux visibles à l'écran :
+ *
+ *  1. **L'interrupteur est à côté du contenu qu'il gouverne.** Le déroulé, le
+ *     mot de l'organisateur et les questions fréquentes portent le leur.
+ *     Ailleurs, on chercherait quel bouton commande quoi.
+ *  2. **Un bloc autorisé mais vide ne s'affiche pas** — l'interrupteur dit
+ *     « je veux ce bloc », il ne fabrique pas son contenu. L'écran le dit,
+ *     plutôt que de laisser découvrir une section absente.
+ */
+
+export interface InvitationSettingsProps {
+  initial: PublicPageSettings;
+  /** Adresse publique, pour aller voir le résultat. */
+  publicUrl: string;
+  /** Le formulaire est-il publié ? Sinon la page publique n'existe pas encore. */
+  published: boolean;
+  onSave: (
+    draft: PublicPageSettings,
+  ) => Promise<{ ok: true } | { ok: false; message?: string }>;
+}
+
+/** Blocs dont le contenu se règle ailleurs sur cet écran. */
+const BLOCKS_WITH_OWN_CARD: readonly PublicBlock[] = [
+  'organiserWord',
+  'programme',
+  'faq',
+  'directions',
+];
+
+export function InvitationSettings({
+  initial,
+  publicUrl,
+  published,
+  onSave,
+}: InvitationSettingsProps) {
+  const [draft, setDraft] = useState<PublicPageSettings>(initial);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const patch = (changes: Partial<PublicPageSettings>) => {
+    setDraft((previous) => ({ ...previous, ...changes }));
+    setNotice(null);
+  };
+
+  const allowed = (block: PublicBlock) => isBlockAllowed(draft, block);
+  const setAllowed = (block: PublicBlock, value: boolean) =>
+    patch({ hidden: toggleBlock(draft, block, value) });
+
+  const details = draft.details ?? [];
+  const programme = draft.programme ?? [];
+  const faq = draft.faq ?? [];
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    const result = await onSave(draft);
+    setSaving(false);
+    if (result.ok) {
+      setNotice('Page publique enregistrée.');
+      return;
+    }
+    setError(result.message ?? 'L’enregistrement a été refusé.');
+  };
+
+  return (
+    <div className="sp-stack" style={{ '--sp-stack-gap': 'var(--sp-space-5)' } as React.CSSProperties}>
+      {/* Une seule zone d'annonce : deux `role="alert"` simultanés
+          interrompent deux fois le lecteur d'écran pour un même événement. */}
+      {error ? <Alert tone="error">{error}</Alert> : null}
+      {!error && notice ? <Alert tone="success">{notice}</Alert> : null}
+
+      {!published ? (
+        <Callout mark="!" tone="muted">
+          Ce formulaire n’est pas encore publié : la page publique n’existe donc pas.
+          Ces réglages sont enregistrés et s’appliqueront dès la publication.
+        </Callout>
+      ) : null}
+
+      <section className="sp-card sp-stack">
+        <h2 className="sp-card__title">
+          Ce que la page affiche{' '}
+          <Tooltip label="blocs de la page publique">
+            Chaque bloc peut être fermé sans rien perdre : le contenu reste
+            enregistré, il n’est simplement plus montré. Un bloc ouvert mais sans
+            contenu ne s’affiche pas non plus — l’interrupteur ne fabrique rien.
+          </Tooltip>
+        </h2>
+        <p className="sp-muted">
+          Décochez ce que vous ne voulez pas montrer. Tout ce qui reste coché
+          s’affiche, à condition d’avoir un contenu.
+        </p>
+
+        <fieldset className="sp-fieldset">
+          <legend className="sp-visually-hidden">Blocs de la page publique</legend>
+          <ul className="sp-picks">
+            {PUBLIC_BLOCK_META.filter(
+              (meta) => !BLOCKS_WITH_OWN_CARD.includes(meta.key),
+            ).map((meta) => (
+              <li key={meta.key}>
+                <label className="sp-choice">
+                  <input
+                    checked={allowed(meta.key)}
+                    onChange={(event) => setAllowed(meta.key, event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span className="sp-choice__label">
+                    {meta.label}
+                    <span className="sp-choice__desc">{meta.help}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
+
+        {allowed('status') ? (
+          <Field
+            hint="Par défaut : « Inscriptions ouvertes »."
+            id="inv-statut"
+            label="Texte de la pastille"
+          >
+            {(attributes) => (
+              <input
+                {...attributes}
+                className="sp-input"
+                maxLength={60}
+                onChange={(event) =>
+                  patch({
+                    ...(event.target.value.trim()
+                      ? { statusLabel: event.target.value }
+                      : { statusLabel: undefined }),
+                  })
+                }
+                type="text"
+                value={draft.statusLabel ?? ''}
+              />
+            )}
+          </Field>
+        ) : null}
+      </section>
+
+      {/* --- Précisions pratiques ---------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <h2 className="sp-card__title">Précisions pratiques</h2>
+        <p className="sp-muted">
+          La date et le lieu viennent des réglages de l’événement. Ajoutez ici ce
+          qu’ils ne disent pas : tenue, vestiaire, restauration, badge à présenter.
+          {allowed('practical')
+            ? ''
+            : ' Le bloc « informations pratiques » est actuellement fermé : rien de tout ceci ne s’affiche.'}
+        </p>
+
+        {details.length === 0 ? (
+          <p className="sp-hint">Aucune précision pour l’instant.</p>
+        ) : (
+          <ul className="sp-option-list">
+            {details.map((detail, index) => (
+              <li key={index}>
+                <div className="sp-row">
+                  <Field id={`inv-detail-${index}-label`} label="Précision">
+                    {(attributes) => (
+                      <input
+                        {...attributes}
+                        className="sp-input"
+                        maxLength={300}
+                        onChange={(event) =>
+                          patch({
+                            details: replaceAt<PublicDetail>(details, index, {
+                              ...detail,
+                              label: event.target.value,
+                            }),
+                          })
+                        }
+                        type="text"
+                        value={detail.label}
+                      />
+                    )}
+                  </Field>
+                  <Field id={`inv-detail-${index}-value`} label="Détail">
+                    {(attributes) => (
+                      <input
+                        {...attributes}
+                        className="sp-input"
+                        maxLength={500}
+                        onChange={(event) =>
+                          patch({
+                            details: replaceAt<PublicDetail>(details, index, {
+                              ...detail,
+                              ...(event.target.value
+                                ? { value: event.target.value }
+                                : { value: undefined }),
+                            }),
+                          })
+                        }
+                        type="text"
+                        value={detail.value ?? ''}
+                      />
+                    )}
+                  </Field>
+                </div>
+                <button
+                  className="sp-btn sp-btn--ghost sp-btn--sm sp-btn--danger-text"
+                  onClick={() => patch({ details: removeAt(details, index) })}
+                  type="button"
+                >
+                  <span aria-hidden="true">Retirer</span>
+                  <span className="sp-visually-hidden">
+                    Retirer la précision « {detail.label || 'sans titre' } »
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {details.length < 8 ? (
+          <p>
+            <button
+              className="sp-btn sp-btn--outline sp-btn--sm"
+              onClick={() => patch({ details: [...details, { label: '' }] })}
+              type="button"
+            >
+              Ajouter une précision
+            </button>
+          </p>
+        ) : (
+          <p className="sp-hint">Huit précisions au maximum : au-delà, plus personne ne les lit.</p>
+        )}
+      </section>
+
+      {/* --- Mot de l'organisateur --------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <BlockSwitch
+          allowed={allowed('organiserWord')}
+          block="organiserWord"
+          onToggle={setAllowed}
+        />
+        <p className="sp-muted">
+          Quelques phrases signées, qui disent pourquoi cette invitation existe. Une
+          ligne vide sépare deux paragraphes.
+        </p>
+
+        <div className="sp-row">
+          <Field id="inv-mot-auteur" label="Signature">
+            {(attributes) => (
+              <input
+                {...attributes}
+                className="sp-input"
+                maxLength={300}
+                onChange={(event) =>
+                  patch({
+                    organiserWord: {
+                      ...(draft.organiserWord ?? { text: '' }),
+                      ...(event.target.value
+                        ? { author: event.target.value }
+                        : { author: undefined }),
+                    },
+                  })
+                }
+                type="text"
+                value={draft.organiserWord?.author ?? ''}
+              />
+            )}
+          </Field>
+          <Field id="inv-mot-role" label="Fonction">
+            {(attributes) => (
+              <input
+                {...attributes}
+                className="sp-input"
+                maxLength={300}
+                onChange={(event) =>
+                  patch({
+                    organiserWord: {
+                      ...(draft.organiserWord ?? { text: '' }),
+                      ...(event.target.value
+                        ? { role: event.target.value }
+                        : { role: undefined }),
+                    },
+                  })
+                }
+                type="text"
+                value={draft.organiserWord?.role ?? ''}
+              />
+            )}
+          </Field>
+        </div>
+
+        <Field id="inv-mot-texte" label="Le mot">
+          {(attributes) => (
+            <textarea
+              {...attributes}
+              className="sp-textarea"
+              maxLength={2000}
+              onChange={(event) =>
+                patch({
+                  ...(event.target.value.trim()
+                    ? {
+                        organiserWord: {
+                          ...(draft.organiserWord ?? {}),
+                          text: event.target.value,
+                        },
+                      }
+                    : { organiserWord: undefined }),
+                })
+              }
+              rows={6}
+              value={draft.organiserWord?.text ?? ''}
+            />
+          )}
+        </Field>
+      </section>
+
+      {/* --- Déroulé ------------------------------------------------------ */}
+      <section className="sp-card sp-stack">
+        <BlockSwitch allowed={allowed('programme')} block="programme" onToggle={setAllowed} />
+        <p className="sp-muted">
+          Les moments de l’événement, dans l’ordre où vous les saisissez. L’heure est
+          un texte libre : « 19h30 », « vers 21 h », « à l’issue du dîner ».
+        </p>
+
+        {programme.length === 0 ? (
+          <p className="sp-hint">Aucun moment pour l’instant.</p>
+        ) : (
+          <ul className="sp-option-list">
+            {programme.map((moment, index) => (
+              <li key={index}>
+                <div className="sp-row">
+                  <Field id={`inv-moment-${index}-heure`} label="Heure">
+                    {(attributes) => (
+                      <input
+                        {...attributes}
+                        className="sp-input"
+                        maxLength={40}
+                        onChange={(event) =>
+                          patch({
+                            programme: replaceAt<PublicMoment>(programme, index, {
+                              ...moment,
+                              ...(event.target.value
+                                ? { time: event.target.value }
+                                : { time: undefined }),
+                            }),
+                          })
+                        }
+                        type="text"
+                        value={moment.time ?? ''}
+                      />
+                    )}
+                  </Field>
+                  <Field id={`inv-moment-${index}-titre`} label="Ce qui se passe">
+                    {(attributes) => (
+                      <input
+                        {...attributes}
+                        className="sp-input"
+                        maxLength={300}
+                        onChange={(event) =>
+                          patch({
+                            programme: replaceAt<PublicMoment>(programme, index, {
+                              ...moment,
+                              title: event.target.value,
+                            }),
+                          })
+                        }
+                        type="text"
+                        value={moment.title}
+                      />
+                    )}
+                  </Field>
+                </div>
+                <Field id={`inv-moment-${index}-note`} label="Précision">
+                  {(attributes) => (
+                    <input
+                      {...attributes}
+                      className="sp-input"
+                      maxLength={500}
+                      onChange={(event) =>
+                        patch({
+                          programme: replaceAt<PublicMoment>(programme, index, {
+                            ...moment,
+                            ...(event.target.value
+                              ? { note: event.target.value }
+                              : { note: undefined }),
+                          }),
+                        })
+                      }
+                      type="text"
+                      value={moment.note ?? ''}
+                    />
+                  )}
+                </Field>
+                <div className="sp-actions">
+                  <button
+                    className="sp-btn sp-btn--ghost sp-btn--sm"
+                    disabled={index === 0}
+                    onClick={() => patch({ programme: swap(programme, index, index - 1) })}
+                    type="button"
+                  >
+                    <span aria-hidden="true">↑</span>
+                    <span className="sp-visually-hidden">
+                      Déplacer « {moment.title || 'ce moment'} » vers le haut
+                    </span>
+                  </button>
+                  <button
+                    className="sp-btn sp-btn--ghost sp-btn--sm"
+                    disabled={index === programme.length - 1}
+                    onClick={() => patch({ programme: swap(programme, index, index + 1) })}
+                    type="button"
+                  >
+                    <span aria-hidden="true">↓</span>
+                    <span className="sp-visually-hidden">
+                      Déplacer « {moment.title || 'ce moment'} » vers le bas
+                    </span>
+                  </button>
+                  <button
+                    className="sp-btn sp-btn--ghost sp-btn--sm sp-btn--danger-text"
+                    onClick={() => patch({ programme: removeAt(programme, index) })}
+                    type="button"
+                  >
+                    <span aria-hidden="true">Retirer</span>
+                    <span className="sp-visually-hidden">
+                      Retirer « {moment.title || 'ce moment'} »
+                    </span>
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {programme.length < 20 ? (
+          <p>
+            <button
+              className="sp-btn sp-btn--outline sp-btn--sm"
+              onClick={() => patch({ programme: [...programme, { title: '' }] })}
+              type="button"
+            >
+              Ajouter un moment
+            </button>
+          </p>
+        ) : (
+          <p className="sp-hint">Vingt moments au maximum.</p>
+        )}
+      </section>
+
+      {/* --- S'y rendre --------------------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <BlockSwitch allowed={allowed('directions')} block="directions" onToggle={setAllowed} />
+        <Field
+          hint="Transports, stationnement, entrée à emprunter. Aucune carte n’est affichée sur la page publique : seuls des liens sont proposés, donc rien ne part vers un tiers avant le clic."
+          id="inv-acces"
+          label="Accès"
+        >
+          {(attributes) => (
+            <textarea
+              {...attributes}
+              className="sp-textarea"
+              maxLength={500}
+              onChange={(event) =>
+                patch({
+                  ...(event.target.value.trim()
+                    ? { travelNote: event.target.value }
+                    : { travelNote: undefined }),
+                })
+              }
+              rows={3}
+              value={draft.travelNote ?? ''}
+            />
+          )}
+        </Field>
+      </section>
+
+      {/* --- Questions fréquentes ---------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <BlockSwitch allowed={allowed('faq')} block="faq" onToggle={setAllowed} />
+        <p className="sp-muted">
+          Les questions que vos invités posent par courriel. Y répondre ici les évite
+          une fois pour toutes.
+        </p>
+
+        {faq.length === 0 ? (
+          <p className="sp-hint">Aucune question pour l’instant.</p>
+        ) : (
+          <ul className="sp-option-list">
+            {faq.map((entry, index) => (
+              <li key={index}>
+                <Field id={`inv-faq-${index}-q`} label="Question">
+                  {(attributes) => (
+                    <input
+                      {...attributes}
+                      className="sp-input"
+                      maxLength={300}
+                      onChange={(event) =>
+                        patch({
+                          faq: replaceAt<PublicQuestion>(faq, index, {
+                            ...entry,
+                            question: event.target.value,
+                          }),
+                        })
+                      }
+                      type="text"
+                      value={entry.question}
+                    />
+                  )}
+                </Field>
+                <Field id={`inv-faq-${index}-a`} label="Réponse">
+                  {(attributes) => (
+                    <textarea
+                      {...attributes}
+                      className="sp-textarea"
+                      maxLength={2000}
+                      onChange={(event) =>
+                        patch({
+                          faq: replaceAt<PublicQuestion>(faq, index, {
+                            ...entry,
+                            answer: event.target.value,
+                          }),
+                        })
+                      }
+                      rows={3}
+                      value={entry.answer}
+                    />
+                  )}
+                </Field>
+                <button
+                  className="sp-btn sp-btn--ghost sp-btn--sm sp-btn--danger-text"
+                  onClick={() => patch({ faq: removeAt(faq, index) })}
+                  type="button"
+                >
+                  <span aria-hidden="true">Retirer</span>
+                  <span className="sp-visually-hidden">
+                    Retirer la question « {entry.question || 'sans intitulé'} »
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {faq.length < 20 ? (
+          <p>
+            <button
+              className="sp-btn sp-btn--outline sp-btn--sm"
+              onClick={() => patch({ faq: [...faq, { question: '', answer: '' }] })}
+              type="button"
+            >
+              Ajouter une question
+            </button>
+          </p>
+        ) : (
+          <p className="sp-hint">Vingt questions au maximum.</p>
+        )}
+      </section>
+
+      <div className="sp-actions">
+        <button className="sp-btn" disabled={saving} onClick={() => void save()} type="button">
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+        {published ? (
+          <a className="sp-btn sp-btn--outline" href={publicUrl} rel="noreferrer" target="_blank">
+            Voir la page publique
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Interrupteur d'un bloc, posé en TITRE de sa carte.
+ *
+ * Le libellé et l'explication viennent de `PUBLIC_BLOCK_META`, donc du même
+ * endroit que la liste de la première carte : deux formulations auraient fini
+ * par se contredire.
+ */
+function BlockSwitch({
+  block,
+  allowed,
+  onToggle,
+}: {
+  block: PublicBlock;
+  allowed: boolean;
+  onToggle: (block: PublicBlock, value: boolean) => void;
+}) {
+  const meta = PUBLIC_BLOCK_META.find((candidate) => candidate.key === block);
+  if (!meta) return null;
+
+  return (
+    <label className="sp-choice">
+      <input
+        checked={allowed}
+        onChange={(event) => onToggle(block, event.target.checked)}
+        type="checkbox"
+      />
+      <span className="sp-choice__label">
+        {meta.label}
+        <span className="sp-choice__desc">{meta.help}</span>
+      </span>
+    </label>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Manipulations de listes
+// ---------------------------------------------------------------------------
+
+function replaceAt<T>(list: readonly T[], index: number, value: T): T[] {
+  return list.map((entry, position) => (position === index ? value : entry));
+}
+
+function removeAt<T>(list: readonly T[], index: number): T[] {
+  return list.filter((_, position) => position !== index);
+}
+
+function swap<T>(list: readonly T[], from: number, to: number): T[] {
+  if (to < 0 || to >= list.length) return [...list];
+  const next = [...list];
+  const moved = next[from]!;
+  next[from] = next[to]!;
+  next[to] = moved;
+  return next;
+}

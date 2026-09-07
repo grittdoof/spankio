@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { attendanceSettingsSchema } from './attendance';
 import { MAX_LENGTHS } from './limits';
+import { publicPageSchema } from './public-page';
 
 /**
  * Réglages d'affichage d'un sondage, rangés dans `surveys.settings` (jsonb).
@@ -55,6 +56,14 @@ export const surveySettingsSchema = z.object({
    * est générique, elle ne peut pas les deviner.
    */
   attendance: attendanceSettingsSchema.optional(),
+
+  /**
+   * Page publique d'un événement : quels blocs s'affichent, et leur contenu
+   * propre (déroulé, questions fréquentes, mot de l'organisateur…). Voir
+   * `src/lib/survey/public-page.ts` — la liste enregistrée est celle des blocs
+   * MASQUÉS, pour qu'un bloc ajouté plus tard ne naisse pas invisible.
+   */
+  publicPage: publicPageSchema.optional(),
 });
 
 export type SurveySettings = z.infer<typeof surveySettingsSchema>;

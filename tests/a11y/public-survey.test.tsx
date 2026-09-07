@@ -196,12 +196,15 @@ describe('accessibilité des écrans d’encadrement', () => {
   it('accueil : aucune violation axe', async () => {
     const { container } = render(
       <WelcomeScreen
-        branding={branding}
-        badge="Inscription"
-        title="Réunion d’information"
-        description="Une description."
-        meta={['Le 15 juin 2027', 'Salle des fêtes']}
-        ctaLabel={fr.survey.start}
+        content={{
+          branding,
+          badge: 'Inscription',
+          title: 'Réunion d’information',
+          description: 'Une description.',
+          when: 'Le 15 juin 2027',
+          place: { label: 'Salle des fêtes', address: null },
+          ctaLabel: fr.survey.start,
+        }}
         onStart={noop}
       />,
     );
@@ -269,21 +272,26 @@ describe('accessibilité des écrans d’encadrement', () => {
     // l'ordre naturel des gestes.
     const { container } = render(
       <WelcomeScreen
-        branding={branding}
-        badge="Inscription"
-        title="Soirée des 180 ans"
-        description="Une soirée d’exception."
-        meta={['Le 18 novembre 2026 à 19 h 30', 'Musée Jacquemart-André']}
-        ctaLabel="Je m’inscris"
-        onStart={noop}
-        event={{
-          calendar: { google: 'https://x.test/g', outlook: 'https://x.test/o', ics: '/api/ics/1' },
+        content={{
+          branding,
+          badge: 'Inscription',
+          title: 'Soirée des 180 ans',
+          description: 'Une soirée d’exception.',
+          when: 'Le 18 novembre 2026 à 19 h 30',
+          place: { label: 'Musée Jacquemart-André', address: null },
+          ctaLabel: 'Je m’inscris',
+          calendar: {
+            google: 'https://x.test/g',
+            outlook: 'https://x.test/o',
+            ics: '/api/ics/1',
+          },
           directions: {
             google: 'https://x.test/dg',
             openStreetMap: 'https://x.test/osm',
             apple: 'https://x.test/a',
           },
         }}
+        onStart={noop}
       />,
     );
 
@@ -303,9 +311,7 @@ describe('accessibilité des écrans d’encadrement', () => {
   it('accueil sans événement : aucun bloc d’agenda inventé', () => {
     render(
       <WelcomeScreen
-        branding={branding}
-        title="Enquête de satisfaction"
-        ctaLabel="Commencer"
+        content={{ branding, title: 'Enquête de satisfaction', ctaLabel: 'Commencer' }}
         onStart={noop}
       />,
     );
@@ -368,7 +374,7 @@ describe('enveloppe des écrans', () => {
     // sans aucune marge horizontale — le texte touchait les bords de l'écran
     // là où chaque question respirait.
     const { container } = renderRunner();
-    expect(container.querySelector('.sp-runner .sp-stage .sp-screen--welcome')).not.toBeNull();
+    expect(container.querySelector('.sp-runner .sp-stage .sp-invite')).not.toBeNull();
   });
 
   it('place le remerciement dans la même scène', async () => {

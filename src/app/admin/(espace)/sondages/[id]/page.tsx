@@ -101,12 +101,20 @@ export default async function SurveyEditorPage({
         }
         actions={
           survey.value.kind === 'event' ? (
-            <Link
-              className="sp-btn sp-btn--outline"
-              href={`/admin/sondages/${survey.value.id}/evenement`}
-            >
-              Réglages de l’événement
-            </Link>
+            <>
+              <Link
+                className="sp-btn sp-btn--outline"
+                href={`/admin/sondages/${survey.value.id}/evenement`}
+              >
+                Réglages de l’événement
+              </Link>
+              <Link
+                className="sp-btn sp-btn--outline"
+                href={`/admin/sondages/${survey.value.id}/invitation`}
+              >
+                Page publique
+              </Link>
+            </>
           ) : null
         }
       />

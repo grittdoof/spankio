@@ -141,6 +141,11 @@ export const CONTRAST_REQUIREMENTS: readonly ContrastRequirement[] = [
   { label: 'alerte / fond tinté ambre', foreground: T['--sp-warning-text']!, background: T['--sp-warning-light']!, min: 4.5 },
   { label: 'alerte / carte', foreground: T['--sp-warning-text']!, background: T['--sp-surface']!, min: 4.5 },
 
+  // Cellules du compte à rebours de l'invitation : chiffre marine sur surface
+  // atténuée, et la dernière cellule inversée (blanc sur marine, déjà
+  // vérifiée plus bas).
+  { label: 'compteur marine / surface atténuée', foreground: T['--sp-marine']!, background: T['--sp-surface-muted']!, min: 4.5 },
+
   // Surfaces marine (le chiffre qui domine l'écran des statistiques). Le
   // dégradé va de `--sp-marine` à `--sp-marine-soft` : les deux bouts sont
   // vérifiés, pas seulement le plus sombre.

@@ -88,13 +88,21 @@ export default async function EventSettingsPage({
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
       <PageHeader
-        title="Réglages de l’événement"
-        lead="Ces informations alimentent la page publique, le fichier d’agenda et l’itinéraire proposé aux répondants."
+        actions={
+          <Link
+            className="sp-btn sp-btn--outline"
+            href={`/admin/sondages/${survey.value.id}/invitation`}
+          >
+            Page publique
+          </Link>
+        }
         crumbs={[
           { label: 'Formulaires', href: '/admin/sondages' },
           { label: survey.value.title, href: `/admin/sondages/${survey.value.id}` },
           { label: 'Événement' },
         ]}
+        lead="Ces informations alimentent la page publique, le fichier d’agenda et l’itinéraire proposé aux répondants. Ce que la page AFFICHE se règle à côté, dans « Page publique »."
+        title="Réglages de l’événement"
       />
 
       <EventSettingsClient

@@ -81,3 +81,63 @@ export function countdown(
     past: false,
   };
 }
+
+export interface CountdownParts {
+  readonly days: number;
+  readonly hours: number;
+  readonly minutes: number;
+  readonly seconds: number;
+  /** L'échéance est-elle atteinte ou dépassée ? */
+  readonly reached: boolean;
+  /** Phrase complète, pour la restitution écrite du compteur. */
+  readonly label: string;
+}
+
+/**
+ * Décompte jours / heures / minutes / secondes jusqu'à un instant.
+ *
+ * Ici, contrairement à `countdown`, l'écart est bien un écart d'INSTANTS : un
+ * compteur qui affiche des secondes ne peut pas raisonner en jours de
+ * calendrier. Les deux coexistent parce qu'ils répondent à deux questions
+ * différentes — « dans combien de jours ? » et « dans combien de temps ? ».
+ *
+ * Aucun appel à l'horloge à l'intérieur : le serveur calcule une première
+ * valeur, le navigateur poursuit à partir de la même. Sans ce paramètre, le
+ * rendu serveur et le premier rendu client différeraient d'une seconde et
+ * React signalerait une divergence d'hydratation.
+ */
+export function countdownParts(
+  startsAt: string | null,
+  now: Date,
+): CountdownParts | null {
+  if (!startsAt) return null;
+  const target = new Date(startsAt).getTime();
+  if (Number.isNaN(target) || Number.isNaN(now.getTime())) return null;
+
+  const remaining = target - now.getTime();
+  if (remaining <= 0) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, reached: true, label: 'C’est maintenant' };
+  }
+
+  const seconds = Math.floor(remaining / 1000);
+  const days = Math.floor(seconds / 86_400);
+  const hours = Math.floor((seconds % 86_400) / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const rest = seconds % 60;
+
+  // Les secondes sont volontairement absentes de la phrase écrite : une zone
+  // annoncée qui change chaque seconde rendrait un lecteur d'écran inutilisable.
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} jour${days > 1 ? 's' : ''}`);
+  if (hours > 0) parts.push(`${hours} heure${hours > 1 ? 's' : ''}`);
+  if (days === 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+
+  return {
+    days,
+    hours,
+    minutes,
+    seconds: rest,
+    reached: false,
+    label: `Dans ${parts.join(', ')}`,
+  };
+}

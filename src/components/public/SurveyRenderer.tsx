@@ -16,6 +16,7 @@ import {
   type Branding,
   type CalendarActions,
   type DirectionsActions,
+  type WelcomeContent,
 } from './screens';
 
 /**
@@ -40,13 +41,11 @@ type Screen =
 export interface SurveyRendererProps {
   schema: SurveySchema;
   branding: Branding;
-  welcome: {
-    badge?: string | undefined;
-    title: string;
-    description?: string | undefined;
-    meta?: readonly string[];
-    ctaLabel: string;
-  };
+  /**
+   * Contenu de l'invitation, déjà FILTRÉ par les interrupteurs de la page
+   * publique : le moteur ne décide pas de ce qui s'affiche, il l'affiche.
+   */
+  welcome: Omit<WelcomeContent, 'branding'>;
   consent: { required: boolean; notice: ConsentNotice; checkboxLabel: string; privacyHref: string };
   thankYou: { title: string; message?: string | undefined };
   event?:
@@ -266,22 +265,13 @@ export function SurveyRenderer({
   if (phase === 'welcome') {
     return (
       <StandaloneStage>
-      <WelcomeScreen
-        branding={branding}
-        badge={welcome.badge}
-        title={welcome.title}
-        description={welcome.description}
-        meta={welcome.meta}
-        ctaLabel={welcome.ctaLabel}
-        onStart={() => {
-          setDirection('forward');
-          setPhase('form');
-        }}
-        // Bloquer la date est souvent le premier geste d'un destinataire
-        // d'invitation ; s'inscrire vient ensuite. L'agenda et l'itinéraire
-        // sont donc offerts dès l'accueil, pas seulement après l'envoi.
-        {...(event ? { event: { calendar: event.calendar, directions: event.directions } } : {})}
-      />
+        <WelcomeScreen
+          content={{ ...welcome, branding }}
+          onStart={() => {
+            setDirection('forward');
+            setPhase('form');
+          }}
+        />
       </StandaloneStage>
     );
   }

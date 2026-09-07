@@ -2788,8 +2788,27 @@ summary.sp-btn::-webkit-details-marker {
 }
 
 /* ==========================================================================
-   Écran d'accueil d'un événement
+   Invitation publique d'un événement
+
+   Une invitation n'est pas un formulaire : elle se lit avant de se remplir.
+   D'où une mise en page éditoriale — héro, colonne de lecture, colonne
+   d'inscription collante — et non l'empilement d'un écran d'administration.
    ========================================================================== */
+
+.sp-invite {
+  display: grid;
+  gap: var(--sp-space-4);
+  width: 100%;
+  max-width: var(--sp-page-w);
+  margin-inline: auto;
+}
+
+.sp-invite__hero {
+  display: grid;
+  gap: var(--sp-space-5);
+  justify-items: center;
+  text-align: center;
+}
 
 /* Le visuel est BORNÉ EN HAUTEUR, en limitant sa largeur.
 
@@ -2807,39 +2826,442 @@ summary.sp-btn::-webkit-details-marker {
   margin-inline: auto;
 }
 
-/* Quand un visuel accompagne l'invitation, c'est LUI qui porte l'impact : le
-   titre passe d'un cran en dessous. Mesuré sur une invitation réelle au titre
-   de 95 caractères — à 44 pixels il occupait trois lignes et 202 pixels de
-   haut, et repoussait le bouton d'inscription sous la ligne de flottaison.
-   Sans visuel, le titre reprend sa pleine taille : il est alors seul à tenir
-   l'écran. */
-.sp-screen--welcome:has(.sp-welcome__visual) .sp-screen__title {
+.sp-invite__title {
+  display: grid;
+  gap: var(--sp-space-3);
+  justify-items: center;
+  max-width: 40rem;
+}
+
+.sp-invite__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-space-2);
+  margin: 0;
+}
+
+/* Pastille d'état : un point coloré ET un mot. La couleur seule ne dirait
+   rien à qui ne la voit pas. */
+.sp-invite__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-space-2);
+  padding: var(--sp-space-1) var(--sp-space-3);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-success-light);
+  color: var(--sp-success-text);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+}
+
+.sp-invite__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--sp-radius-pill);
+  background: currentColor;
+}
+
+/* Le titre d'une invitation porte l'impact ; il descend d'un cran quand un
+   visuel l'accompagne. Mesuré sur une invitation réelle au titre de 95
+   caractères : à 44 pixels il occupait trois lignes et 202 pixels de haut, et
+   repoussait le bouton d'inscription sous la ligne de flottaison. */
+.sp-invite__heading {
+  margin: 0;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-3xl);
+  line-height: var(--sp-leading-tight);
+  text-wrap: pretty;
+}
+
+.sp-invite:has(.sp-welcome__visual) .sp-invite__heading {
   font-size: var(--sp-text-2xl);
 }
 
-/* Au-delà de 64rem, le visuel et le texte se répondent côte à côte : les
-   informations essentielles — date, lieu, bouton — reviennent alors au-dessus
-   de la ligne de flottaison, ce qui est tout l'objet d'une invitation. */
+.sp-invite__main {
+  display: grid;
+  gap: var(--sp-space-4);
+  align-content: start;
+  min-width: 0;
+}
+
+.sp-invite__main:empty {
+  display: none;
+}
+
+/* Légende de section : une icône et un intitulé, jamais l'icône seule. */
+.sp-invite__legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-2);
+  margin: 0 0 var(--sp-space-4);
+  color: var(--sp-marine);
+  font-size: var(--sp-text-lg);
+}
+
+.sp-invite__icon {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--sp-accent);
+}
+
+.sp-invite__prose {
+  margin: 0 0 var(--sp-space-3);
+  color: var(--sp-text);
+  line-height: var(--sp-leading);
+  text-wrap: pretty;
+}
+
+.sp-invite__prose:last-child {
+  margin-bottom: 0;
+}
+
+.sp-invite__note {
+  margin: 0;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  line-height: var(--sp-leading);
+  text-align: center;
+}
+
+/* --- Informations pratiques --------------------------------------------- */
+
+.sp-invite__facts ul {
+  display: grid;
+  gap: var(--sp-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-fact {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-space-3);
+}
+
+.sp-fact__mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface-muted);
+  color: var(--sp-text-muted);
+}
+
+.sp-fact__mark--accent {
+  background: var(--sp-accent-light);
+  color: var(--sp-accent-text);
+}
+
+.sp-fact__title {
+  display: block;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-body);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.sp-fact__note {
+  display: block;
+  margin-top: 2px;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  line-height: 1.45;
+}
+
+/* --- Mot de l'organisateur ---------------------------------------------- */
+
+.sp-invite__signature {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-3);
+  margin: 0 0 var(--sp-space-4);
+}
+
+.sp-invite__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-marine);
+  color: var(--sp-on-accent);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+}
+
+/* --- Déroulé ------------------------------------------------------------ */
+
+/* Une liste ORDONNÉE : le déroulé est une suite, et son ordre est
+   l'information. Le filet n'est qu'un renfort visuel. */
+.sp-timeline {
+  display: grid;
+  gap: var(--sp-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-timeline__item {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--sp-space-3);
+  padding-bottom: var(--sp-space-4);
+  border-bottom: 1px solid var(--sp-border);
+}
+
+.sp-timeline__item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.sp-timeline__time {
+  color: var(--sp-accent-text);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Un moment sans heure n'a pas de colonne vide : la colonne disparaît. */
+.sp-timeline__item:not(:has(.sp-timeline__time)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sp-timeline__body {
+  min-width: 0;
+}
+
+/* --- Compte à rebours --------------------------------------------------- */
+
+.sp-countdown__label {
+  margin: 0 0 var(--sp-space-4);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sp-countdown__cells {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-space-2);
+  margin: 0;
+}
+
+.sp-countdown__cell {
+  padding: var(--sp-space-3) var(--sp-space-1);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface-muted);
+  text-align: center;
+}
+
+.sp-countdown__cell--last {
+  background: var(--sp-marine);
+}
+
+.sp-countdown__value {
+  display: block;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.sp-countdown__unit {
+  display: block;
+  margin-top: var(--sp-space-1);
+  color: var(--sp-text-muted);
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.sp-countdown__cell--last .sp-countdown__value {
+  color: var(--sp-on-accent);
+}
+
+.sp-countdown__cell--last .sp-countdown__unit {
+  color: var(--sp-on-marine-muted);
+}
+
+/* --- Questions fréquentes ---------------------------------------------- */
+
+/* De vrais `details` : ouvrables au clavier et fonctionnels sans JavaScript.
+   Seul le marqueur natif est remplacé — sa forme varie d'un navigateur à
+   l'autre et ne suit aucune charte. */
+.sp-invite__faq details {
+  border-bottom: 1px solid var(--sp-border);
+}
+
+.sp-invite__faq details:last-of-type {
+  border-bottom: 0;
+}
+
+.sp-invite__faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-3);
+  min-height: var(--sp-tap);
+  padding: var(--sp-space-3) 0;
+  color: var(--sp-marine);
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.sp-invite__faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.sp-invite__faq summary::after {
+  content: '+';
+  flex: none;
+  color: var(--sp-accent-text);
+  font-size: var(--sp-text-lg);
+  font-weight: 700;
+}
+
+.sp-invite__faq details[open] summary::after {
+  content: '–';
+}
+
+.sp-invite__faq details > p {
+  margin: 0;
+  padding-bottom: var(--sp-space-4);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  line-height: var(--sp-leading);
+}
+
+/* --- Partage ------------------------------------------------------------ */
+
+.sp-invite__url {
+  margin: 0 0 var(--sp-space-3);
+  padding: var(--sp-space-3);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface-muted);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  /* Une URL sans point de coupure déborde de sa carte sur un téléphone. */
+  overflow-wrap: anywhere;
+}
+
+/* --- Appel à l'action collant ------------------------------------------ */
+
+/* `sticky` et non `fixed` : la scène du parcours porte une transformation
+   pendant les transitions, et un élément `fixed` s'y positionnerait par
+   rapport à elle plutôt qu'à la fenêtre. */
+.sp-invite__cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-3);
+  margin-top: var(--sp-space-2);
+  padding: var(--sp-space-3) var(--sp-space-4);
+  padding-bottom: max(var(--sp-space-3), env(safe-area-inset-bottom));
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: color-mix(in oklab, var(--sp-surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--sp-shadow-lg);
+}
+
+.sp-invite__cta-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.sp-invite__cta .sp-btn {
+  flex: none;
+}
+
+/* Sur un téléphone, la barre reprend TOUTE la largeur et perd son grand
+   bouton : mesurée à 160 pixels de haut avec un `sp-btn--lg` replié sur une
+   seconde ligne, soit un cinquième d'un écran de 800. Le bouton garde ses
+   44 pixels de cible, et la barre redescend à environ 110. */
+@media (max-width: 40rem) {
+  .sp-invite__cta {
+    gap: var(--sp-space-2);
+    padding: var(--sp-space-3);
+    padding-bottom: max(var(--sp-space-3), env(safe-area-inset-bottom));
+  }
+
+  .sp-invite__cta-text {
+    flex: 1 1 100%;
+  }
+
+  .sp-invite__cta .sp-btn {
+    flex: 1 1 100%;
+    min-height: var(--sp-tap);
+    padding-block: var(--sp-space-2);
+    font-size: var(--sp-text-body);
+  }
+}
+
+/* --- Deux colonnes au-delà de 64rem ------------------------------------ */
+
+/* La colonne d'inscription reste sous les yeux pendant qu'on lit le déroulé :
+   c'est tout l'objet d'une invitation. En dessous, elle passerait sous le
+   pli. */
 @media (min-width: 64rem) {
-  .sp-screen--welcome {
-    display: grid;
+  .sp-invite {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 22rem);
+    gap: var(--sp-space-5) var(--sp-space-6);
+    align-items: start;
+  }
+
+  .sp-invite__hero {
+    grid-column: 1 / -1;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    gap: var(--sp-space-8);
     align-items: center;
-    width: 100%;
-    max-width: var(--sp-page-w);
-    margin-inline: auto;
+    justify-items: start;
+    text-align: left;
+  }
+
+  /* Sans visuel, le héro n'a qu'une colonne : une moitié vide face au titre
+     donnerait l'impression d'une image qui n'a pas chargé. */
+  .sp-invite__hero:not(:has(.sp-welcome__visual)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sp-invite__title {
+    justify-items: start;
   }
 
   .sp-welcome__visual {
-    --_max-h: min(70vh, 30rem);
+    --_max-h: min(60vh, 26rem);
     max-width: 100%;
   }
 
-  .sp-welcome__text {
-    /* La colonne de texte garde une longueur de ligne lisible même quand la
-       grille lui accorde davantage. */
-    max-width: 34rem;
+  /* Placement explicite : la colonne de lecture à gauche, le compte à rebours
+     en haut à droite. Sans lui, l'ordre du DOM — héro, compte à rebours,
+     lecture — mettrait le compte à rebours dans la colonne de gauche. */
+  .sp-invite__main {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .sp-invite .sp-countdown {
+    position: sticky;
+    top: var(--sp-space-5);
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .sp-invite__cta {
+    grid-column: 1 / -1;
   }
 }
 
@@ -2934,8 +3356,19 @@ summary.sp-btn::-webkit-details-marker {
   margin-inline: auto;
 }
 
-.sp-stage--standalone > .sp-screen--welcome {
+/* L'invitation gère sa propre largeur : c'est une page à deux colonnes, pas
+   une colonne de lecture. */
+.sp-stage--standalone > .sp-invite {
   max-width: var(--sp-page-w);
+}
+
+/* Un écran autonome se cale EN HAUT.
+
+   La scène centre ses enfants verticalement, ce qui convient à une question.
+   Une invitation, elle, est plus haute que la fenêtre : centrée, son sommet
+   passerait au-dessus du bord supérieur, hors d'atteinte du défilement. */
+.sp-stage--standalone {
+  align-items: flex-start;
 }
 
 /* Aperçu de la note d'agenda : ce que le répondant retrouvera dans son

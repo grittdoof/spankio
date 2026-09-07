@@ -11,10 +11,12 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Steps } from '@/components/ui/Steps';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { SPACE_SCALE_REM } from '@/lib/design/tokens';
+import { InvitationDemo } from './InvitationDemo';
 import { parseStatisticsView } from '@/lib/admin/statistics-view';
 import { guestList, type GuestList as GuestListModel } from '@/lib/survey/guests';
 import { eventInsights } from '@/lib/survey/insights';
 import { responsePace } from '@/lib/survey/pace';
+import { countdownParts } from '@/lib/event/countdown';
 import { validateSurveySchema } from '@/lib/survey/schema';
 import { countAttendance, type AttendanceSettings } from '@/lib/survey/attendance';
 
@@ -148,6 +150,69 @@ const DEMO_LIST: GuestListModel = guestList(
   DEMO_RESPONSES,
   { filter: DEMO_VIEW.filter },
 );
+
+/**
+ * Invitation de démonstration : tous les blocs ouverts à la fois.
+ *
+ * C'est le seul endroit où l'on peut les voir ENSEMBLE — la page réelle
+ * n'affiche que ce que l'organisation a laissé ouvert, et il faudrait un
+ * formulaire publié pour la charger. L'atelier existe précisément pour ça.
+ */
+const DEMO_INVITATION = {
+  branding: {
+    organisationName: 'Organisation Témoin',
+    logoUrl: DEMO_LOGO,
+    bannerUrl: null,
+  },
+  status: 'Inscriptions ouvertes',
+  badge: 'Inscription',
+  title: 'Une soirée d’exception pour nos 180 ans',
+  description: 'Exposition privée, dîner d’honneur et soirée dansante.',
+  when: 'mercredi 18 novembre 2026 à 19:30',
+  whenNote: 'Fin prévue à 00:30',
+  place: {
+    label: 'Musée Jacquemart-André',
+    address: '158 bd Haussmann, 75008 Paris',
+  },
+  countdown: {
+    startsAt: '2026-11-18T18:30:00Z',
+    initial: countdownParts('2026-11-18T18:30:00Z', DEMO_NOW)!,
+  },
+  responseCount: 248,
+  deadline: '30 octobre 2026',
+  details: [
+    { label: 'Tenue de soirée souhaitée', value: 'Vestiaire et voiturier sur place' },
+    { label: 'Badge à présenter à l’accueil' },
+  ],
+  organiserWord: {
+    author: 'L’équipe de direction',
+    role: 'Organisateur',
+    text: 'Pour célébrer les 180 ans de notre groupe, nous avons le plaisir de vous convier à une soirée d’exception.\n\nLes places étant limitées, merci de confirmer votre présence avant le 30 octobre.',
+  },
+  programme: [
+    { time: '19h30', title: 'Accueil & exposition privée', note: 'Cocktail dans la cour d’honneur.' },
+    { time: '20h15', title: 'Prise de parole des dirigeants' },
+    { time: '21h00', title: 'Dîner d’honneur', note: 'Placement nominatif dans la galerie.' },
+    { title: 'Soirée dansante', note: 'Dernier service à 00h15.' },
+  ],
+  calendar: { google: '#', outlook: '#', ics: '#' },
+  directions: { google: '#', openStreetMap: '#', apple: '#' },
+  travelNote: 'Métro Miromesnil (9 · 13) à 4 min · parking Haussmann-Berri.',
+  faq: [
+    {
+      question: 'Puis-je venir accompagné ?',
+      answer: 'Oui, dans la limite des places disponibles. Indiquez-le au moment de l’inscription.',
+    },
+    {
+      question: 'Comment modifier ma réponse ?',
+      answer: 'Rouvrez ce lien : votre réponse s’affiche et reste modifiable.',
+    },
+  ],
+  shareUrl: 'https://spankio.test/s/organisation-temoin/invitation-180-ans',
+  privacyNote:
+    'Les données enregistrées sont celles des champs de ce formulaire ; aucune donnée technique de traçage n’est collectée.',
+  ctaLabel: 'Je m’inscris',
+};
 
 const BUTTONS: readonly [string, string][] = [
   ['sp-btn', 'Action principale'],
@@ -441,6 +506,16 @@ export default function DesignWorkshopPage() {
             surveyId={DEMO_SURVEY}
             view={DEMO_VIEW}
           />
+        </section>
+
+        <section className="sp-section">
+          <h2 className="sp-section__title">Invitation publique</h2>
+          <p className="sp-section__lead">
+            Tous les blocs ouverts à la fois. Sur une page réelle, l’organisation
+            n’en laisse que ceux qu’elle veut — et un bloc sans contenu ne s’affiche
+            pas, même ouvert.
+          </p>
+          <InvitationDemo content={DEMO_INVITATION} />
         </section>
 
         <section className="sp-section">
