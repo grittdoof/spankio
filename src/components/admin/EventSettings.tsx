@@ -120,6 +120,14 @@ export function EventSettings({
 
   const presenceOptions = presenceCandidates(schema);
   const partyOptions = partyCandidates(schema);
+  /**
+   * Question d'effectif choisie, pour dire ce que son caractère facultatif
+   * coûte. Une question d'effectif qu'un invité peut sauter produit des
+   * réponses « à vérifier » qu'il faudra rattraper au téléphone.
+   */
+  const chosenParty = partyOptions.find(
+    (field) => field.id === draft.attendance.partyField,
+  );
   const identityOptions = identityCandidates(schema);
   const detailOptions = detailCandidates(schema);
   const presenceValueOptions = presenceValues(schema, draft.attendance.presenceField);
@@ -441,6 +449,23 @@ export function EventSettings({
                     </select>
                   )}
                 </Field>
+
+                {chosenParty && !chosenParty.required ? (
+                  <Callout mark="!" tone="muted">
+                    <p>
+                      Cette question est <strong>facultative</strong> : un invité peut
+                      la sauter, et son effectif devient alors indéterminé. Sa réponse
+                      compte pour une personne et apparaît « à vérifier » dans la liste
+                      d’accueil — il faut alors le rappeler pour connaître le nombre.
+                    </p>
+                    <p>
+                      La rendre obligatoire dans l’éditeur ferme ce trou. Si elle
+                      n’apparaît qu’à ceux qui ont annoncé venir accompagnés, cela ne
+                      change rien pour ceux qui viennent seuls : une question jamais
+                      posée n’est pas une réserve.
+                    </p>
+                  </Callout>
+                ) : null}
 
                 {draft.attendance.partyField ? (
                   <fieldset className="sp-fieldset">

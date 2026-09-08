@@ -1,6 +1,7 @@
 import {
   attendanceOf,
   fieldById,
+  partyQuestion,
   type AttendanceSettings,
   type AttendanceStatus,
 } from './attendance';
@@ -190,7 +191,7 @@ export function guestList(
   responses: readonly GuestResponse[],
   options: GuestListOptions = {},
 ): GuestList {
-  const partyField = fieldById(schema, settings.partyField);
+  const party = partyQuestion(schema, settings);
   const identityField = fieldById(schema, settings.identityField);
   const detailField = fieldById(schema, settings.detailField);
 
@@ -206,7 +207,7 @@ export function guestList(
   const rows: GuestRow[] = [];
 
   for (const response of responses) {
-    const attendance = attendanceOf(settings, response, partyField);
+    const attendance = attendanceOf(settings, response, party);
     counts.all += 1;
     counts[attendance.status] += 1;
 

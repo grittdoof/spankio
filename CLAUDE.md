@@ -413,6 +413,19 @@ changer.
   marquée « à vérifier » dans la liste comme dans l'export. Additionner les
   cases ou retenir le maximum serait un arbitrage que personne n'a demandé, et
   un chiffre faux qu'aucune alerte ne signalerait.
+- **Une question JAMAIS POSÉE n'est pas une réserve.** Le comptage évalue les
+  conditions d'affichage (`isFieldVisible`) avant de conclure : si « Nombre de
+  personnes vous accompagnant » n'est montré qu'à ceux qui ont annoncé venir
+  accompagnés, celui qui vient seul a un effectif parfaitement déterminé — une
+  personne — et ne doit rien avoir à vérifier. Défaut réel : ce module était
+  la seule partie du produit à raisonner sans le moteur de conditions, et
+  marquait « à vérifier » tous les invités venant seuls. Corollaire : la
+  réserve ne subsiste que lorsque la question a ÉTÉ posée et laissée vide.
+- **Désigner une question d'effectif FACULTATIVE est dit, avec son coût.**
+  L'écran de l'événement prévient : un invité peut la sauter, sa réponse
+  ressortira « à vérifier », et il faudra le rappeler. C'est le cas qui a
+  produit le premier « à vérifier » incompris en production — une invitée
+  ayant annoncé venir accompagnée sans dire de combien.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle

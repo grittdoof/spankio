@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   attendanceOf,
+  partyQuestion,
   attendanceRows,
   countAttendance,
   isAttendanceConfigured,
@@ -66,6 +67,16 @@ const schema: SurveySchema = (() => {
 })();
 
 const field = (id: string) => schema.steps[0]!.fields.find((f) => f.id === id);
+
+/**
+ * Question d'effectif AVEC son étape : l'étape sert à savoir si la question a
+ * été posée — une étape masquée masque ses champs.
+ */
+const party = (id: string) => {
+  const found = field(id);
+  if (!found) throw new Error(`Champ inconnu : ${id}`);
+  return { step: schema.steps[0]!, field: found };
+};
 
 const BASE: AttendanceSettings = { presenceField: 'presence', presenceValue: 'oui' };
 
@@ -135,7 +146,7 @@ describe('effectif', () => {
 
   it('ajoute les accompagnants au répondant', () => {
     expect(
-      attendanceOf(settings, { data: { presence: 'oui', accompagnants: 'a2' } }, field('accompagnants')).people,
+      attendanceOf(settings, { data: { presence: 'oui', accompagnants: 'a2' } }, party('accompagnants')).people,
     ).toBe(3);
   });
 
@@ -143,44 +154,44 @@ describe('effectif', () => {
     // Les valeurs sont des identifiants figés à la création (« a1 ») ; seul le
     // libellé porte le nombre.
     expect(
-      attendanceOf(settings, { data: { presence: 'oui', accompagnants: 'a1' } }, field('accompagnants')).people,
+      attendanceOf(settings, { data: { presence: 'oui', accompagnants: 'a1' } }, party('accompagnants')).people,
     ).toBe(2);
   });
 
   it('compte le répondant seul quand il déclare zéro accompagnant', () => {
     expect(
-      attendanceOf(settings, { data: { presence: 'oui', accompagnants: 'a0' } }, field('accompagnants')).people,
+      attendanceOf(settings, { data: { presence: 'oui', accompagnants: 'a0' } }, party('accompagnants')).people,
     ).toBe(1);
   });
 
   it('sait lire un total qui inclut déjà le répondant', () => {
     const total: AttendanceSettings = { ...BASE, partyField: 'total', partyMode: 'total' };
-    expect(attendanceOf(total, { data: { presence: 'oui', total: 4 } }, field('total')).people).toBe(4);
+    expect(attendanceOf(total, { data: { presence: 'oui', total: 4 } }, party('total')).people).toBe(4);
   });
 
   it('ne descend jamais sous une personne en mode total', () => {
     // Une personne qui vient compte au moins pour elle-même, quoi qu'elle ait
     // saisi.
     const total: AttendanceSettings = { ...BASE, partyField: 'total', partyMode: 'total' };
-    expect(attendanceOf(total, { data: { presence: 'oui', total: 0 } }, field('total')).people).toBe(1);
+    expect(attendanceOf(total, { data: { presence: 'oui', total: 0 } }, party('total')).people).toBe(1);
   });
 
   it('signale l’ambiguïté quand plusieurs cases sont cochées', () => {
     // Additionner « 1 » et « 3 », ou retenir le maximum, serait un arbitrage
     // que l'organisation n'a pas demandé.
     const multi: AttendanceSettings = { ...BASE, partyField: 'multi' };
-    const row = attendanceOf(multi, { data: { presence: 'oui', multi: ['m1', 'm3'] } }, field('multi'));
+    const row = attendanceOf(multi, { data: { presence: 'oui', multi: ['m1', 'm3'] } }, party('multi'));
     expect(row).toEqual({ status: 'attending', people: 1, ambiguous: true });
   });
 
   it('signale l’ambiguïté quand l’effectif n’a pas été renseigné', () => {
-    const row = attendanceOf(settings, { data: { presence: 'oui' } }, field('accompagnants'));
+    const row = attendanceOf(settings, { data: { presence: 'oui' } }, party('accompagnants'));
     expect(row.ambiguous).toBe(true);
     expect(row.people).toBe(1);
   });
 
   it('n’ambiguïse pas un refus : son effectif est zéro, sans réserve', () => {
-    const row = attendanceOf(settings, { data: { presence: 'non' } }, field('accompagnants'));
+    const row = attendanceOf(settings, { data: { presence: 'non' } }, party('accompagnants'));
     expect(row).toEqual({ status: 'declined', people: 0, ambiguous: false });
   });
 
@@ -189,7 +200,7 @@ describe('effectif', () => {
     ['un nombre non fini', { presence: 'oui', total: Number.NaN }, 'total'],
   ])('signale l’ambiguïté sur %s', (_label, data, id) => {
     const settings2: AttendanceSettings = { ...BASE, partyField: id, partyMode: 'total' };
-    expect(attendanceOf(settings2, { data }, field(id)).ambiguous).toBe(true);
+    expect(attendanceOf(settings2, { data }, party(id)).ambiguous).toBe(true);
   });
 });
 
@@ -241,5 +252,118 @@ describe('totaux', () => {
     // compte alors une personne par présent, sans prétendre à mieux.
     const stale: AttendanceSettings = { ...BASE, partyField: 'parti' };
     expect(countAttendance(schema, stale, responses).people).toBe(3);
+  });
+});
+
+describe('question d’effectif masquée par une condition', () => {
+  /**
+   * Reproduction du formulaire réel qui a révélé le défaut : « Nombre de
+   * personnes vous accompagnant » n'est affiché qu'à ceux qui ont répondu oui
+   * à « Serez-vous accompagné ? ». Tous ceux qui venaient SEULS se
+   * retrouvaient marqués « à vérifier », alors que leur effectif est
+   * parfaitement déterminé — une personne.
+   */
+  const conditional: SurveySchema = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            {
+              id: 'presence',
+              type: 'radio',
+              label: 'Serez-vous présent ?',
+              options: [
+                { value: 'oui', label: 'Oui' },
+                { value: 'non', label: 'Non' },
+              ],
+            },
+            {
+              id: 'accompagne',
+              type: 'radio',
+              label: 'Serez-vous accompagné ?',
+              required: true,
+              options: [
+                { value: 'option_1', label: 'Oui' },
+                { value: 'option_2', label: 'Non' },
+              ],
+              condition: { field: 'presence', op: 'equals', value: 'oui' },
+            },
+            {
+              id: 'combien',
+              type: 'select',
+              label: 'Nombre de personnes vous accompagnant',
+              options: [
+                { value: 'option_1', label: '1' },
+                { value: 'option_2', label: '2' },
+              ],
+              condition: { field: 'accompagne', op: 'equals', value: 'option_1' },
+            },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(`Schéma invalide : ${JSON.stringify(result.issues)}`);
+    return result.schema;
+  })();
+
+  const settings: AttendanceSettings = {
+    presenceField: 'presence',
+    presenceValue: 'oui',
+    partyField: 'combien',
+  };
+  const question = partyQuestion(conditional, settings);
+
+  it('compte UNE personne sans réserve quand la question n’a pas été posée', () => {
+    const row = attendanceOf(
+      settings,
+      { data: { presence: 'oui', accompagne: 'option_2' } },
+      question,
+    );
+    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  });
+
+  it('signale la réserve quand la question A ÉTÉ posée et laissée vide', () => {
+    // La différence est là, et elle est tout le sujet : ici le répondant a dit
+    // qu'il venait accompagné, sans dire de combien.
+    const row = attendanceOf(
+      settings,
+      { data: { presence: 'oui', accompagne: 'option_1' } },
+      question,
+    );
+    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: true });
+  });
+
+  it('compte normalement quand elle a été posée ET remplie', () => {
+    const row = attendanceOf(
+      settings,
+      { data: { presence: 'oui', accompagne: 'option_1', combien: 'option_2' } },
+      question,
+    );
+    expect(row).toEqual({ status: 'attending', people: 3, ambiguous: false });
+  });
+
+  it('n’ajoute aucune réserve aux totaux pour ceux qui viennent seuls', () => {
+    const totals = countAttendance(conditional, settings, [
+      { data: { presence: 'oui', accompagne: 'option_2' } },
+      { data: { presence: 'oui', accompagne: 'option_2' } },
+      { data: { presence: 'oui', accompagne: 'option_1', combien: 'option_1' } },
+      { data: { presence: 'oui', accompagne: 'option_1' } },
+    ]);
+    expect(totals).toEqual({
+      attending: 4,
+      declined: 0,
+      unknown: 0,
+      // 1 + 1 + 2 + 1 (celui dont l'effectif est indéterminé)
+      people: 5,
+      ambiguous: 1,
+    });
+  });
+
+  it('trouve la question désignée, et rien quand elle n’est pas désignée', () => {
+    expect(partyQuestion(conditional, settings)?.field.id).toBe('combien');
+    expect(partyQuestion(conditional, { ...settings, partyField: undefined })).toBeUndefined();
+    expect(partyQuestion(conditional, { ...settings, partyField: 'inconnu' })).toBeUndefined();
   });
 });

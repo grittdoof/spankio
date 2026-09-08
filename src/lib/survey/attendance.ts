@@ -1,6 +1,12 @@
 import { z } from 'zod';
+import { isFieldVisible } from './conditions';
 import { MAX_LENGTHS } from './limits';
-import { OTHER_VALUE, type SurveyField, type SurveySchema } from './schema';
+import {
+  OTHER_VALUE,
+  type SurveyField,
+  type SurveySchema,
+  type SurveyStep,
+} from './schema';
 
 /**
  * Comptage des présents à un événement.
@@ -167,6 +173,30 @@ export interface AttendanceInput {
 }
 
 /**
+ * Question donnant l'effectif, AVEC l'étape qui la porte.
+ *
+ * L'étape n'est pas décorative : une étape masquée masque ses champs, et il
+ * faut donc les deux pour savoir si la question a été posée à quelqu'un.
+ */
+export interface PartyQuestion {
+  readonly step: SurveyStep;
+  readonly field: SurveyField;
+}
+
+/** Résout la question d'effectif désignée, ou `undefined`. */
+export function partyQuestion(
+  schema: SurveySchema,
+  settings: AttendanceSettings,
+): PartyQuestion | undefined {
+  if (!settings.partyField) return undefined;
+  for (const step of schema.steps) {
+    const field = step.fields.find((candidate) => candidate.id === settings.partyField);
+    if (field) return { step, field };
+  }
+  return undefined;
+}
+
+/**
  * Statut et effectif d'une réponse.
  *
  * `unknown` n'est pas un défaut : une réponse peut avoir sauté la question de
@@ -176,7 +206,7 @@ export interface AttendanceInput {
 export function attendanceOf(
   settings: AttendanceSettings,
   response: AttendanceInput,
-  partyField: SurveyField | undefined,
+  party: PartyQuestion | undefined,
 ): AttendanceRow {
   if (!settings.presenceField || !settings.presenceValue) {
     return { status: 'unknown', people: 0, ambiguous: false };
@@ -191,12 +221,27 @@ export function attendanceOf(
   }
 
   // Présent. Reste à savoir combien.
-  if (!partyField) return { status: 'attending', people: 1, ambiguous: false };
+  if (!party) return { status: 'attending', people: 1, ambiguous: false };
 
-  const counted = countFrom(partyField, response.data[partyField.id]);
+  /**
+   * Une question JAMAIS POSÉE n'est pas une réserve.
+   *
+   * Défaut réel corrigé : « Nombre de personnes vous accompagnant » n'est
+   * souvent affiché qu'à ceux qui ont répondu oui à « Serez-vous accompagné ? ».
+   * Tous ceux qui venaient seuls se retrouvaient donc marqués « à vérifier »,
+   * alors que leur effectif est parfaitement déterminé — une personne. Le
+   * moteur de conditions le sait ; ce module l'ignorait, et c'était la seule
+   * partie du produit à raisonner sans lui.
+   */
+  if (!isFieldVisible(party.step, party.field, response.data)) {
+    return { status: 'attending', people: 1, ambiguous: false };
+  }
+
+  const counted = countFrom(party.field, response.data[party.field.id]);
   if (counted === null) {
-    // La personne vient : elle compte au moins pour elle-même. Le complément
-    // est signalé plutôt qu'inventé.
+    // La question a été POSÉE et laissée vide : là, l'effectif est vraiment
+    // indéterminé. La personne compte au moins pour elle-même, et le
+    // complément est signalé plutôt qu'inventé.
     return { status: 'attending', people: 1, ambiguous: true };
   }
 
@@ -256,14 +301,12 @@ export function countAttendance(
   settings: AttendanceSettings,
   responses: readonly AttendanceInput[],
 ): AttendanceTotals {
-  const partyField = settings.partyField
-    ? allFields(schema).find((field) => field.id === settings.partyField)
-    : undefined;
+  const party = partyQuestion(schema, settings);
 
   const totals = { attending: 0, declined: 0, unknown: 0, people: 0, ambiguous: 0 };
 
   for (const response of responses) {
-    const row = attendanceOf(settings, response, partyField);
+    const row = attendanceOf(settings, response, party);
     if (row.status === 'attending') totals.attending += 1;
     if (row.status === 'declined') totals.declined += 1;
     if (row.status === 'unknown') totals.unknown += 1;
@@ -280,10 +323,8 @@ export function attendanceRows(
   settings: AttendanceSettings,
   responses: readonly AttendanceInput[],
 ): readonly AttendanceRow[] {
-  const partyField = settings.partyField
-    ? allFields(schema).find((field) => field.id === settings.partyField)
-    : undefined;
-  return responses.map((response) => attendanceOf(settings, response, partyField));
+  const party = partyQuestion(schema, settings);
+  return responses.map((response) => attendanceOf(settings, response, party));
 }
 
 export const ATTENDANCE_STATUS_LABELS: Readonly<Record<AttendanceStatus, string>> = {

@@ -311,6 +311,39 @@ describe('comptage des présents', () => {
     expect(screen.getByRole('radio', { name: /Les accompagnants/ })).toBeTruthy();
   });
 
+  it('dit ce que coûte une question d’effectif FACULTATIVE', async () => {
+    // Défaut réel rencontré en production : « Nombre de personnes vous
+    // accompagnant » était facultative, une invitée a annoncé venir
+    // accompagnée sans dire de combien, et sa réponse est ressortie « à
+    // vérifier » sans que personne ne comprenne pourquoi.
+    const user = userEvent.setup();
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
+        surveyId={SURVEY}
+        initial={{
+          ...draft,
+          attendance: { presenceField: 'presence', presenceValue: 'oui' },
+        }}
+        onSave={saved}
+      />,
+    );
+
+    expect(screen.queryByText(/Cette question est/)).toBeNull();
+
+    await user.selectOptions(
+      screen.getByLabelText(/Question donnant le nombre de personnes/),
+      'accompagnants',
+    );
+
+    expect(screen.getByText(/un invité peut/)).toBeTruthy();
+    expect(screen.getByText(/à vérifier/)).toBeTruthy();
+  });
+
   it('ne signale aucune violation, comptage configuré', async () => {
     const { container } = render(
       <EventSettings
