@@ -57,7 +57,7 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
 | Élément | État |
 | ------- | ---- |
 | Projet Supabase | `spankio` (`qmhjckioehsiduongadk`), PostgreSQL 17.6, région `eu-west-2` |
-| Migrations | Les 24 migrations sont appliquées ; l'historique distant correspond exactement aux fichiers de `supabase/migrations` (`supabase db push` ne rejoue rien) |
+| Migrations | Les 25 migrations sont appliquées ; l'historique distant correspond exactement aux fichiers de `supabase/migrations` (`supabase db push` ne rejoue rien) |
 | `pg_cron` | Actif. Purges planifiées : réponses expirées à 3 h 17, sondages supprimés à 3 h 37 |
 | Storage | Buckets `survey-banners` (3 Mio) et `organisation-logos` (1 Mio), 4 policies chacun, types d'image restreints |
 | Projet Vercel | `spankio`, relié à `grittdoof/spankio`, déploiement automatique sur `main` |

@@ -29,6 +29,9 @@ const SURFACE_ATTENDUE: Readonly<Record<string, { anon: boolean; authenticated: 
   approve_membership_request: { anon: false, authenticated: true },
   reject_membership_request: { anon: false, authenticated: true },
   apply_erasure: { anon: false, authenticated: true },
+  // Correction d'une réponse : elle remplace une écriture directe de `data`,
+  // que l'immuabilité interdit et qu'aucune policy ne doit autoriser.
+  correct_survey_response: { anon: false, authenticated: true },
   purge_expired_responses: { anon: false, authenticated: true },
   purge_deleted_surveys: { anon: false, authenticated: true },
   my_modules: { anon: false, authenticated: true },

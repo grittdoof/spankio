@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { POST as submit } from '@/app/api/public/submit/route';
 import { RATE_LIMITS, resetMemoryLimiter } from '@/lib/security/rate-limit';
-import { OWNER, createTestDb, type TestDb } from '../helpers/db';
+import { OWNER, asUser, createTestDb, type TestDb } from '../helpers/db';
 import {
   createRouteHarness,
   jsonRequest,
@@ -9,7 +9,13 @@ import {
   type ApiError,
   type RouteHarness,
 } from '../helpers/route';
-import { createOrganisation, createSurvey } from '../helpers/seed';
+import {
+  activateMember,
+  createAccount,
+  createOrganisation,
+  createSurvey,
+  grantModule,
+} from '../helpers/seed';
 
 /**
  * La surface la plus exposée de la plateforme : ouverte sans compte, sur une
@@ -407,5 +413,181 @@ describe('courriel de confirmation', () => {
     // que le code fait. L'adresse sert aussi à écrire au répondant, la preuve
     // le dit.
     expect(row?.consent_text).toContain('Courriel de confirmation');
+  });
+});
+
+describe('correction d’une réponse', () => {
+  /**
+   * L'immuabilité n'est PAS relâchée : la correction est une copie, et
+   * l'originale reste en base hors des comptages. Ces tests fixent les quatre
+   * propriétés qui rendent ce choix défendable — sinon autant réécrire `data`
+   * en place et perdre la correspondance entre la preuve et ce qu'elle prouve.
+   */
+  let db: TestDb;
+  let orgId: string;
+  let surveyId: string;
+  /**
+   * La correction s'exerce en tant qu'ADMINISTRATEUR, pas en propriétaire de
+   * base : la fonction est `SECURITY DEFINER` et revérifie les droits de
+   * l'appelant. Sans `auth.uid()`, elle refuse — et c'est le comportement
+   * voulu, vérifié par le test d'isolation.
+   */
+  let admin: string;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+    createRouteHarness(db);
+    orgId = await createOrganisation(db, 'org-correction', 'Organisation Correction');
+    await grantModule(db, orgId, 'core');
+    admin = await createAccount(db, 'admin@org-correction.test');
+    await activateMember(db, admin, orgId, 'admin');
+    surveyId = await createSurvey(db, {
+      organisationId: orgId,
+      slug: 'a-corriger',
+      schema: SCHEMA,
+      requireConsent: true,
+      dedupField: 'email',
+    });
+  }, 120_000);
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  beforeEach(() => {
+    resetMemoryLimiter();
+  });
+
+  async function submitOne(nom: string, email: string): Promise<string> {
+    await submit(
+      jsonRequest('POST', '/api/public/submit', {
+        organisationSlug: 'org-correction',
+        surveySlug: 'a-corriger',
+        consentGiven: true,
+        data: { nom, email, presence: 'oui', accompagnants: 1 },
+      }),
+    );
+    const row = await db.queryOne<{ id: string }>(
+      OWNER,
+      `select id from public.survey_responses
+        where survey_id = $1 and deleted_at is null and data ->> 'nom' = $2`,
+      [surveyId, nom],
+    );
+    if (!row) throw new Error(`Réponse de ${nom} introuvable`);
+    return row.id;
+  }
+
+  it('conserve l’originale, sa date et son consentement', async () => {
+    const original = await submitOne('Camille Arnoult', 'camille@exemple.test');
+    const before = await db.queryOne<{ submitted_at: string; consent_text: string }>(
+      OWNER,
+      'select submitted_at, consent_text from public.survey_responses where id = $1',
+      [original],
+    );
+
+    const corrected = await db.queryOne<{ correct_survey_response: string }>(
+      asUser(admin),
+      'select public.correct_survey_response($1, $2::jsonb)',
+      [original, JSON.stringify({ nom: 'Camille ARNOULT', email: 'camille@exemple.test' })],
+    );
+    const newId = corrected?.correct_survey_response;
+    expect(newId).toBeTruthy();
+
+    // L'originale n'est pas réécrite : elle sort des comptages, c'est tout.
+    const old = await db.queryOne<{ deleted_at: string | null; data: { nom: string } }>(
+      OWNER,
+      'select deleted_at, data from public.survey_responses where id = $1',
+      [original],
+    );
+    expect(old?.deleted_at).not.toBeNull();
+    expect(old?.data.nom).toBe('Camille Arnoult');
+
+    // La copie porte la correction, la MÊME date et la MÊME preuve.
+    const fresh = await db.queryOne<{
+      data: { nom: string };
+      submitted_at: string;
+      consent_text: string;
+      corrects_id: string;
+    }>(
+      OWNER,
+      `select data, submitted_at, consent_text, corrects_id
+         from public.survey_responses where id = $1`,
+      [newId],
+    );
+    expect(fresh?.data.nom).toBe('Camille ARNOULT');
+    expect(fresh?.submitted_at).toEqual(before?.submitted_at);
+    expect(fresh?.consent_text).toBe(before?.consent_text);
+    expect(fresh?.corrects_id).toBe(original);
+  });
+
+  it('ne change pas le nombre de réponses vivantes', async () => {
+    const original = await submitOne('Nadia Belkacem', 'nadia@exemple.test');
+    const count = async () =>
+      (
+        await db.queryOne<{ n: string }>(
+          OWNER,
+          `select count(*) as n from public.survey_responses
+            where survey_id = $1 and deleted_at is null`,
+          [surveyId],
+        )
+      )?.n;
+
+    const before = await count();
+    await db.query(asUser(admin), 'select public.correct_survey_response($1, $2::jsonb)', [
+      original,
+      JSON.stringify({ nom: 'Nadia BELKACEM', email: 'nadia@exemple.test' }),
+    ]);
+    expect(await count()).toBe(before);
+  });
+
+  it('garde la clé anti-doublon exploitable : l’index est partiel', async () => {
+    // Si l'index n'excluait pas les lignes supprimées, la copie porterait une
+    // clé déjà prise et l'insertion échouerait.
+    const original = await submitOne('Thomas Reverdy', 'thomas@exemple.test');
+    const corrected = await db.queryOne<{ correct_survey_response: string }>(
+      asUser(admin),
+      'select public.correct_survey_response($1, $2::jsonb)',
+      [original, JSON.stringify({ nom: 'Thomas REVERDY', email: 'thomas@exemple.test' })],
+    );
+    expect(corrected?.correct_survey_response).toBeTruthy();
+  });
+
+  it('refuse de corriger une réponse déjà corrigée', async () => {
+    // Elle est en suppression logique : elle n'existe plus pour l'appelant.
+    const original = await submitOne('Karim Zebiri', 'karim@exemple.test');
+    await db.query(asUser(admin), 'select public.correct_survey_response($1, $2::jsonb)', [
+      original,
+      JSON.stringify({ nom: 'Karim ZEBIRI', email: 'karim@exemple.test' }),
+    ]);
+
+    let failed = false;
+    try {
+      await db.query(asUser(admin), 'select public.correct_survey_response($1, $2::jsonb)', [
+        original,
+        JSON.stringify({ nom: 'Encore', email: 'karim@exemple.test' }),
+      ]);
+    } catch {
+      failed = true;
+    }
+    expect(failed).toBe(true);
+  });
+
+  it('journalise la correction sans recopier la réponse', async () => {
+    const original = await submitOne('Sofia Nunes', 'sofia@exemple.test');
+    await db.query(asUser(admin), 'select public.correct_survey_response($1, $2::jsonb)', [
+      original,
+      JSON.stringify({ nom: 'Sofia NUNES', email: 'sofia@exemple.test' }),
+    ]);
+
+    const entry = await db.queryOne<{ meta: Record<string, unknown> }>(
+      OWNER,
+      `select meta from public.audit_log
+        where action = 'survey_response_corrected'
+          and meta ->> 'corrects_id' = $1`,
+      [original],
+    );
+    expect(entry).toBeTruthy();
+    // Le journal n'est pas une seconde copie des données personnelles.
+    expect(JSON.stringify(entry?.meta)).not.toContain('Sofia');
   });
 });

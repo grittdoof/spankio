@@ -167,6 +167,18 @@ export function GuestList({
                 </span>
               </span>
               <span className="sp-guest__side">
+                {/* Corriger AVANT supprimer : une réponse fausse se répare
+                    plus souvent qu'elle ne s'efface. */}
+                <Link
+                  className="sp-btn sp-btn--ghost sp-btn--sm"
+                  href={`/admin/sondages/${surveyId}/reponses/${row.id}`}
+                >
+                  <span aria-hidden="true">Modifier</span>
+                  <span className="sp-visually-hidden">
+                    Modifier la réponse{' '}
+                    {row.name ? `de ${row.name}` : `du ${moment(row.submittedAt)}`}
+                  </span>
+                </Link>
                 {counting ? (
                   <span className={STATUS_PILL[row.status]}>
                     {ATTENDANCE_STATUS_LABELS[row.status]}

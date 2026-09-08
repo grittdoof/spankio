@@ -447,6 +447,33 @@ changer.
   Sans `partyValue`, la comparaison ne se déclencherait jamais : on compte une
   personne par réponse, sans réserve. L'écran de réglages en présélectionne une
   dès qu'on entre dans ce mode, pour que le cas ne se présente pas.
+- **Une réponse se CORRIGE sans être réécrite.** Le besoin est légitime — un
+  nom mal saisi, un effectif oublié — et le RGPD en fait un droit (art. 16).
+  Mais `consent_text` prouve ce qui a été affiché et `submitted_at` date l'acte
+  du répondant : réécrire `data` en place détruirait la correspondance entre la
+  preuve et ce qu'elle prouve. Une correction est donc l'originale passée en
+  suppression logique PLUS une copie portant les données corrigées, la même
+  date, le même consentement et un lien `corrects_id`. Rien n'est perdu, rien
+  n'est réécrit, les comptages ne bougent pas, et l'audit garde la trace de
+  l'auteur — sans recopier la moindre donnée personnelle.
+- **L'ordre des deux écritures d'une correction n'est pas interchangeable.**
+  Suppression logique d'abord, copie ensuite : l'index anti-doublon est partiel
+  sur `deleted_at is null`, et deux lignes vivantes portant la même clé le
+  violent. L'ordre inverse paraissait plus prudent et échouait — défaut attrapé
+  par le test d'intégration, pas par la relecture. Il est sans risque parce que
+  tout se joue dans UNE transaction.
+- **La correction passe par une porte `SECURITY DEFINER`, pas par une policy.**
+  `correct_survey_response` est la neuvième fonction exposée (voir R11) et
+  revérifie elle-même les droits de l'appelant. Autoriser l'écriture de `data`
+  par une policy aurait ouvert le chemin à tout appel direct, y compris à un
+  futur défaut. Le CONTENU, lui, est validé en TypeScript par
+  `validateResponse` — la même liste blanche qu'une soumission publique, pour
+  qu'un éditeur ne puisse pas ranger dans `data` des clés qu'un répondant ne
+  peut pas y mettre.
+- **L'écran de correction réutilise `FieldInput`**, le composant du parcours
+  public : onze types de champs déjà accessibles et déjà testés, et les
+  questions conditionnelles suivent la saisie comme côté répondant. En écrire
+  une version « admin » aurait donné deux comportements pour une même question.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -551,8 +578,8 @@ changer.
   exécuter, et Supabase accorde `EXECUTE` à `anon`/`authenticated` sur toute
   nouvelle fonction via ses *default privileges* — un `revoke ... from public`
   ne suffit pas. Les fonctions internes vivent donc dans le schéma **`app`**,
-  hors de la liste exposée par l'API. `public` ne contient que les 8 fonctions
-  réellement appelées par le réseau, et un test échoue si une neuvième
+  hors de la liste exposée par l'API. `public` ne contient que les 9 fonctions
+  réellement appelées par le réseau, et un test échoue si une dixième
   apparaît (`tests/rls/exposed-surface.test.ts`).
 - **Tout nouvel objet naît sans droits.** Les *default privileges* de Supabase
   ont été révoqués (`alter default privileges ... revoke`) : une table, une vue
@@ -671,7 +698,7 @@ figure, avec sa raison et sa condition de lever.
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
 | R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 21 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
-| R11 | **8 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
+| R11 | **9 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | **`zod` reste en 3.25.76** alors que la 4 existe. La 4 change la forme des erreurs (`issues`), le comportement de `z.string().datetime()` et celui des unions discriminées — or ce sont exactement les trois points sur lesquels repose la validation des schémas de sondage, des réponses publiques et des entrées d'API. La montée est une migration à conduire, pas une mise à jour à accepter. | Aucune vulnérabilité connue sur la 3.25.76, et la 3 reste maintenue. Prendre la 4 sans relire les 49 tests de validation des réponses reviendrait à changer les règles sans les vérifier. | À planifier comme un chantier propre, avec relecture des tests de validation. |

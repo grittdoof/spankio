@@ -214,6 +214,27 @@ describe('isolation multi-tenant', () => {
       expect(check?.deleted_at).toBeNull();
     });
 
+    it("l'admin de A ne peut pas corriger une réponse de B", async () => {
+      // `correct_survey_response` est `SECURITY DEFINER` : elle contourne le
+      // RLS par construction, donc elle DOIT revérifier les droits elle-même.
+      // Sans ce contrôle, la porte ouverte pour la rectification deviendrait
+      // une écriture croisée entre organisations.
+      const error = await expectError(
+        db.query(asUser(a.admin), 'select public.correct_survey_response($1, $2::jsonb)', [
+          b.response,
+          JSON.stringify({ pirate: 'oui' }),
+        ]),
+      );
+      expect(sqlErrorCode(error)).toBe('42501');
+
+      const check = await db.queryOne<{ deleted_at: string | null }>(
+        OWNER,
+        'select deleted_at from public.survey_responses where id = $1',
+        [b.response],
+      );
+      expect(check?.deleted_at).toBeNull();
+    });
+
     it("l'admin de A ne peut pas effacer définitivement une réponse de B", async () => {
       const rows = await db.query(
         asUser(a.admin),

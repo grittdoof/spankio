@@ -12,6 +12,8 @@ import {
   type SurveySchema,
 } from '@/lib/survey/schema';
 import { missingForPublication } from '@/lib/survey/publication';
+import { validateResponse, type ResponseError } from '@/lib/survey/validate-response';
+import { logger } from '@/lib/logger';
 import { surveySettingsSchema, type SurveySettings } from '@/lib/survey/settings';
 import { computeStatistics, type SurveyStatistics } from '@/lib/survey/statistics';
 import { isValidSlug, slugify } from '@/lib/utils/slug';
@@ -539,4 +541,58 @@ export async function softDeleteResponse(
   const row = deleted.data[0];
   if (!row) return { ok: false, error: { code: 'PT404', message: 'Réponse introuvable' } };
   return { ok: true, value: row };
+}
+
+/**
+ * Corrige une réponse déjà enregistrée.
+ *
+ * La validation du CONTENU se fait ici, avec le schéma du sondage et la même
+ * fonction que la soumission publique : une correction passe par la même liste
+ * blanche qu'un envoi, sinon un éditeur pourrait ranger des clés inconnues
+ * dans `data` là où un répondant ne peut pas.
+ *
+ * L'écriture, elle, passe par `correct_survey_response` : la réponse d'origine
+ * est mise en suppression logique et une copie corrigée la remplace, avec le
+ * même consentement, la même date de soumission et un lien vers l'originale.
+ * Rien n'est réécrit — voir la migration pour le pourquoi.
+ */
+export async function correctResponse(
+  context: RequestContext,
+  input: { readonly responseId: string; readonly surveyId: string; readonly data: unknown },
+): Promise<SurveyOutcome<{ id: string }> & { fields?: readonly ResponseError[] }> {
+  const survey = await getSurvey(context, input.surveyId);
+  if (!survey.ok) return survey;
+
+  const schema = parseSurveySchema(survey.value);
+  if (!schema.ok) {
+    return { ok: false, error: { code: 'PT500', message: 'Schéma de sondage invalide' } };
+  }
+
+  const validation = validateResponse(schema.value, input.data);
+  if (!validation.ok) {
+    return {
+      ok: false,
+      error: { code: 'PT400', message: 'Réponse invalide' },
+      fields: validation.errors,
+    };
+  }
+
+  const rpc = await context.port.rpc<string>('correct_survey_response', {
+    p_response_id: input.responseId,
+    p_data: validation.value.data,
+  });
+
+  if (rpc.error) return { ok: false, error: rpc.error };
+  if (!rpc.data) {
+    return { ok: false, error: { code: 'PT404', message: 'Réponse introuvable' } };
+  }
+
+  logger.info('survey.response_corrected', 'Réponse corrigée.', {
+    surveyId: input.surveyId,
+    // Aucune donnée de la réponse : seulement des compteurs.
+    fields: Object.keys(validation.value.data).length,
+    dropped: validation.value.dropped.length,
+  });
+
+  return { ok: true, value: { id: rpc.data } };
 }
