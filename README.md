@@ -61,7 +61,8 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
 | `pg_cron` | Actif. Purges planifiées : réponses expirées à 3 h 17, sondages supprimés à 3 h 37 |
 | Storage | Buckets `survey-banners` (3 Mio) et `organisation-logos` (1 Mio), 4 policies chacun, types d'image restreints |
 | Projet Vercel | `spankio`, relié à `grittdoof/spankio`, déploiement automatique sur `main` |
-| Protection Vercel | SSO activée sur tous les déploiements (hors domaine personnalisé) : le site n'est accessible qu'aux membres de l'équipe |
+| Domaine public | **`spankio.vpstrat.com`** (rattaché le 8 septembre 2026). `spankio.vercel.app` continue de répondre : les liens déjà diffusés ne cassent pas |
+| Protection Vercel | SSO activée en mode « tous les déploiements sauf les domaines personnalisés ». Vérifié en requête anonyme : `spankio.vpstrat.com` ET `spankio.vercel.app` répondent `200` — la protection ne couvre donc en pratique que les déploiements de préversion |
 | Actions GitHub | `checkout@v7`, `setup-node@v7` — les v4 tournaient sur Node 20, déprécié par les exécuteurs |
 | Node | `24.20.0` en CI (`.nvmrc`) et `24.x` sur Vercel. Si le réglage Vercel change, mettre `.nvmrc` à jour : la CI ne le lit pas depuis Vercel |
 
@@ -76,11 +77,26 @@ les migrations réelles sont rejouées, `auth.uid()` et les rôles Supabase sont
    | `NEXT_PUBLIC_SUPABASE_URL` | `https://qmhjckioehsiduongadk.supabase.co` |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé `anon` du projet (Supabase → Settings → API Keys) |
    | `SUPABASE_SERVICE_ROLE_KEY` | Clé `service_role` du même écran — **secret**, à ne coller que dans Vercel |
-   | `NEXT_PUBLIC_SITE_URL` | URL publique retenue (domaine personnalisé ou URL Vercel) |
+   | `NEXT_PUBLIC_SITE_URL` | `https://spankio.vpstrat.com` — sans barre oblique finale |
 
    Puis, dans Supabase → Authentication → URL Configuration, régler `Site URL`
    et ajouter `<URL publique>/auth/callback` aux *Redirect URLs*, sinon les
    liens de confirmation et de réinitialisation ne reviendront pas sur le site.
+
+   **Changer de domaine se fait par cette seule variable.** Aucune URL absolue
+   n'est écrite en base ni codée en dur : l'adresse publique d'un formulaire,
+   le lien du fichier `.ics`, celui de la note d'agenda et le bloc de partage
+   sont tous composés à partir d'elle. Deux précautions :
+
+   - **redéployer après l'avoir changée** — une variable `NEXT_PUBLIC_*` est
+     figée dans le paquet client au build ;
+   - **garder l'ancien `<URL>/auth/callback` dans la liste Supabase** le temps
+     que les courriels déjà envoyés expirent, sinon leurs liens de
+     confirmation reviendront sur une adresse refusée.
+
+   Ce qui ne se met PAS à jour rétroactivement : les rendez-vous déjà ajoutés
+   à un agenda par un répondant contiennent l'ancienne adresse dans leur note.
+   Elle reste valide tant que `spankio.vercel.app` répond.
 
 2. **Premier super administrateur.** Créer un compte par `/inscription`, puis
    l'élever une seule fois depuis l'éditeur SQL Supabase :
