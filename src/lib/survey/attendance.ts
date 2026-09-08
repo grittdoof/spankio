@@ -278,7 +278,24 @@ export function attendanceOf(
     return { status: 'attending', people: 1, ambiguous: false };
   }
 
-  const mode = settings.partyMode ?? 'extra';
+  /**
+   * Une lecture que la question ne peut PAS porter est ignorée.
+   *
+   * Défaut réel : après avoir refait ses questions, une organisation gardait
+   * `partyMode: 'extra'` sur « Serez-vous accompagné ? », dont les libellés
+   * sont « Oui » et « Non ». Lus comme un nombre, ils ne donnent rien, et
+   * CHAQUE présent ressortait « à vérifier » — un écran entier de réserves
+   * pour une désignation devenue incohérente, jamais signalée.
+   *
+   * On retombe alors sur une personne par réponse, sans réserve : muet plutôt
+   * que faux, comme pour une valeur oui/non non désignée. L'écran de réglages,
+   * lui, ne propose que les lectures applicables.
+   */
+  const stored = settings.partyMode ?? 'extra';
+  if (!partyModesFor(party.field).includes(stored)) {
+    return { status: 'attending', people: 1, ambiguous: false };
+  }
+  const mode = stored;
 
   /**
    * Lecture en oui/non : une seule réponse ajoute UNE personne.

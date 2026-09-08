@@ -504,3 +504,49 @@ describe('lectures applicables à une question', () => {
     ]);
   });
 });
+
+describe('lecture incohérente avec la question', () => {
+  /**
+   * Le cas rencontré en production : après avoir refait ses questions,
+   * l'organisation gardait `partyMode: 'extra'` sur « Serez-vous accompagné ? »,
+   * dont les libellés sont « Oui » et « Non ». Lus comme un nombre, ils ne
+   * donnent rien — et chaque présent ressortait « à vérifier ».
+   */
+  const settings: AttendanceSettings = {
+    ...BASE,
+    partyField: 'presence',
+    partyMode: 'extra',
+  };
+
+  it('ignore la lecture impossible plutôt que de signaler une réserve partout', () => {
+    const row = attendanceOf(
+      settings,
+      { data: { presence: 'oui' } },
+      partyQuestion(schema, settings),
+    );
+    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  });
+
+  it('ne signale AUCUNE réserve sur l’ensemble', () => {
+    const totals = countAttendance(schema, settings, [
+      { data: { presence: 'oui' } },
+      { data: { presence: 'oui' } },
+      { data: { presence: 'non' } },
+    ]);
+    expect(totals.ambiguous).toBe(0);
+    expect(totals.people).toBe(2);
+  });
+
+  it('applique bien la lecture quand elle est cohérente', () => {
+    // Contre-épreuve : la même question, lue en oui/non, compte pour deux.
+    const coherent: AttendanceSettings = {
+      ...settings,
+      partyMode: 'one',
+      partyValue: 'oui',
+    };
+    expect(
+      attendanceOf(coherent, { data: { presence: 'oui' } }, partyQuestion(schema, coherent))
+        .people,
+    ).toBe(2);
+  });
+});

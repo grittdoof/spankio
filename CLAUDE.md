@@ -462,6 +462,15 @@ changer.
   condition. `one` existe pour l'événement qui n'accepte qu'un accompagnant :
   « Serez-vous accompagné ? » suffit alors, et demander un nombre serait une
   question de plus pour une réponse déjà connue.
+- **Une lecture d'effectif que la question ne peut pas porter est IGNORÉE, pas
+  appliquée.** Défaut réel : après avoir refait ses questions, une organisation
+  gardait `partyMode: 'extra'` sur « Serez-vous accompagné ? », dont les
+  libellés sont « Oui » et « Non ». Lus comme un nombre ils ne donnent rien, et
+  CHAQUE présent ressortait « à vérifier » — un écran entier de réserves pour
+  une désignation devenue incohérente, que rien ne signalait. On retombe donc
+  sur une personne par réponse, sans réserve. Corollaire pour les tests : une
+  désignation incohérente n'est PAS un cas d'ambiguïté de réponse ; l'ambiguïté
+  suppose une question capable de porter un effectif, affichée, et restée vide.
 - **En mode oui/non, une valeur non désignée rend le comptage MUET, pas faux.**
   Sans `partyValue`, la comparaison ne se déclencherait jamais : on compte une
   personne par réponse, sans réserve. L'écran de réglages en présélectionne une

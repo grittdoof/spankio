@@ -218,12 +218,26 @@ describe('sans désignation', () => {
   });
 
   it('signale un effectif indéterminé plutôt que de l’arbitrer', () => {
+    // Ambiguïté RÉELLE : la question du nombre peut porter un effectif, elle
+    // était affichée, et elle est restée vide.
+    const list = guestList(schema, SETTINGS, [
+      response('1', { presence: 'oui', nom: 'A' }),
+    ]);
+    expect(list.rows[0]!.ambiguous).toBe(true);
+    expect(list.rows[0]!.people).toBe(1);
+  });
+
+  it('ne signale RIEN quand la désignation est simplement incohérente', () => {
+    // « Régimes » est une case à cocher aux libellés non numériques : elle ne
+    // peut porter aucun effectif. La désigner est une erreur de réglage, pas
+    // une ambiguïté de réponse — et marquer « à vérifier » chaque rangée
+    // ferait passer une désignation cassée pour un problème de données.
     const list = guestList(
       schema,
       { ...SETTINGS, partyField: 'regimes' },
       [response('1', { presence: 'oui', nom: 'A', regimes: ['option_1', 'option_2'] })],
     );
-    expect(list.rows[0]!.ambiguous).toBe(true);
+    expect(list.rows[0]!.ambiguous).toBe(false);
     expect(list.rows[0]!.people).toBe(1);
   });
 });
