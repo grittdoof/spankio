@@ -11,6 +11,7 @@ import type {
   PublicQuestion,
 } from '@/lib/survey/public-page';
 import { Countdown } from './Countdown';
+import { EventMap } from './EventMap';
 import {
   EventActions,
   type CalendarActions,
@@ -74,6 +75,11 @@ export interface InvitationProps {
   calendar?: CalendarActions | null;
   directions?: DirectionsActions | null;
   travelNote?: string | null;
+  /**
+   * Coordonnées du lieu, quand le bloc « carte » est ouvert. `null` sinon —
+   * c'est la page qui décide, pas ce composant.
+   */
+  mapPoint?: { readonly latitude: number; readonly longitude: number } | null;
   faq?: readonly PublicQuestion[];
   /** Adresse de la page, à copier. `null` si le bloc est masqué. */
   shareUrl?: string | null;
@@ -228,6 +234,7 @@ export function Invitation({
   calendar,
   directions,
   travelNote,
+  mapPoint,
   faq,
   shareUrl,
   privacyNote,
@@ -401,12 +408,19 @@ export function Invitation({
           </section>
         ) : null}
 
-        {directions || travelNote ? (
+        {directions || travelNote || mapPoint ? (
           <section className="sp-card">
             <h2 className="sp-invite__legend">
               <Icon name="pin" />
               S’y rendre
             </h2>
+            {mapPoint ? (
+              <EventMap
+                label={place?.label ?? place?.address ?? null}
+                latitude={mapPoint.latitude}
+                longitude={mapPoint.longitude}
+              />
+            ) : null}
             {travelNote ? <p className="sp-invite__prose">{travelNote}</p> : null}
             {directions ? (
               <EventActions directions={directions} headingLevel={3} />

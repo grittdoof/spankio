@@ -3154,6 +3154,47 @@ summary.sp-btn::-webkit-details-marker {
   line-height: var(--sp-leading);
 }
 
+/* --- Carte du lieu ------------------------------------------------------ */
+
+/* Un REPÈRE, pas un outil : ni glissement ni zoom, d'où `role="img"` sur le
+   conteneur. Hauteur bornée pour ne pas manger l'écran d'un téléphone, et
+   `overflow: hidden` parce que Leaflet dessine ses tuiles en absolu. */
+.sp-invite__map {
+  height: 12rem;
+  margin-bottom: var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-sm);
+  background: var(--sp-surface-muted);
+  overflow: hidden;
+}
+
+@media (min-width: 40rem) {
+  .sp-invite__map {
+    height: 15rem;
+  }
+}
+
+/* Tant que Leaflet n'a pas rendu ses tuiles, le cadre reste une surface neutre
+   plutôt qu'un rectangle vide sans raison apparente. */
+.sp-invite__map--loading {
+  background-image: linear-gradient(
+    135deg,
+    var(--sp-surface-muted) 25%,
+    var(--sp-surface) 25%,
+    var(--sp-surface) 50%,
+    var(--sp-surface-muted) 50%,
+    var(--sp-surface-muted) 75%,
+    var(--sp-surface) 75%
+  );
+  background-size: 16px 16px;
+}
+
+/* L'attribution d'OpenStreetMap est obligatoire : elle reste lisible, jamais
+   masquée pour faire propre. */
+.sp-invite__map .leaflet-control-attribution {
+  font-size: 10px;
+}
+
 /* --- Partage ------------------------------------------------------------ */
 
 .sp-invite__url {

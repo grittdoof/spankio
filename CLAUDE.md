@@ -302,11 +302,18 @@ changer.
   accessibilité : l'écran mesure, le dit, et laisse choisir. La bande
   réellement refusée est étroite — les gris moyens autour de `#7F7F7F`, où
   aucune encre n'atteint 4,5:1.
-- **Aucune carte n'est affichée sur la page publique.** L'itinéraire est fait
-  de LIENS : rien ne part vers un tiers avant le clic. Des tuiles
-  OpenStreetMap sur une page publique enverraient l'adresse IP de chaque
-  invité au serveur de tuiles, à un volume que sa politique d'usage ne prévoit
-  pas — c'est la même raison qui fait passer Nominatim par notre relais.
+- **La carte de la page publique est un bloc DÉBRAYABLE, et le seul qui
+  contacte un tiers sans clic.** Position initiale — aucune carte, l'itinéraire
+  n'étant fait que de liens — levée à la demande du client : une invitation lue
+  par quelques centaines de personnes entre dans les usages modérés que prévoit
+  la politique de tuiles d'OpenStreetMap. La contrepartie est donc ASSUMÉE et
+  écrite dans l'écran de réglages : les tuiles partent du navigateur de chaque
+  invité vers OSM. Fermer le bloc rend la page muette côté tiers sans faire
+  perdre les liens d'itinéraire, qui restent un bloc distinct. La carte est un
+  REPÈRE — ni glissement, ni zoom, ni clavier, donc `role="img"` — et ce sont
+  les liens qui font le travail interactif : promettre une interaction qu'on ne
+  fournit pas est pire que s'en abstenir. Conséquence pour l'étape 9 :
+  `img-src` doit autoriser `tile.openstreetmap.org`.
 - **Une page publique n'affiche jamais de places restantes.** Le plafond de
   réponses (`response_limit`) est délibérément absent de la vue
   `public_surveys`, et un test le fige : le publier dirait au monde entier à

@@ -216,6 +216,17 @@ function invitationContent(
     calendar: allowed('calendar') ? (options.calendar ?? null) : null,
     directions: allowed('directions') ? (options.directions ?? null) : null,
     travelNote: allowed('directions') ? (page?.travelNote ?? null) : null,
+
+    // La carte a son propre interrupteur : c'est le seul bloc qui contacte un
+    // tiers sans clic, une organisation doit pouvoir le fermer sans perdre les
+    // liens d'itinéraire.
+    mapPoint:
+      allowed('map') &&
+      options.isEvent &&
+      survey.event.latitude !== null &&
+      survey.event.longitude !== null
+        ? { latitude: survey.event.latitude, longitude: survey.event.longitude }
+        : null,
     faq: allowed('faq') ? faq : [],
     shareUrl: allowed('share') ? publicUrl(survey) : null,
     privacyNote: allowed('privacyNote') ? privacyNote() : null,

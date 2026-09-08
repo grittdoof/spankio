@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Invitation } from '@/components/public/Invitation';
 import { ctaPalette } from '@/lib/design/cta';
@@ -19,6 +19,40 @@ import { expectNoA11yViolations } from '../helpers/axe';
  *     interromprait le lecteur d'écran une fois par seconde. Les chiffres sont
  *     masqués, la phrase écrite n'est pas une zone live.
  */
+
+/**
+ * Leaflet est remplacé par un double : jsdom n'a ni moteur de rendu ni
+ * dimensions, et une carte réelle y produirait des échecs qui ne disent rien du
+ * code. Le double reproduit l'invariante qui compte — une carte ne se démonte
+ * qu'UNE fois — pour que le défaut qui produisait une page blanche ne puisse
+ * pas repasser.
+ */
+const leafletState = { maps: 0, removes: 0 };
+
+vi.mock('leaflet', () => {
+  const layer = { addTo: () => layer };
+  const makeMap = () => {
+    let removed = false;
+    const map = {
+      setView: () => map,
+      remove: () => {
+        if (removed) throw new Error('Map container is being reused by another instance');
+        removed = true;
+        leafletState.removes += 1;
+      },
+    };
+    return map;
+  };
+  return {
+    map: () => {
+      leafletState.maps += 1;
+      return makeMap();
+    },
+    tileLayer: () => layer,
+    marker: () => layer,
+    divIcon: () => ({}),
+  };
+});
 
 const branding = {
   organisationName: 'Organisation Témoin',
@@ -58,6 +92,7 @@ const full = {
     apple: 'https://x.test/a',
   },
   travelNote: 'Métro Miromesnil (9 · 13) à 4 min.',
+  mapPoint: { latitude: 48.875253, longitude: 2.310789 },
   faq: [{ question: 'Puis-je venir accompagné ?', answer: 'Oui, jusqu’à quatre personnes.' }],
   shareUrl: 'https://spankio.test/s/org/invitation',
   privacyNote: 'Les données enregistrées sont celles des champs de ce formulaire.',
@@ -237,6 +272,45 @@ describe('couleur du bouton d’inscription', () => {
     const { container } = render(
       <Invitation {...full} ctaPalette={ctaPalette('#F5C518')} onStart={noop} />,
     );
+    await expectNoA11yViolations(container);
+  });
+});
+
+describe('carte du lieu', () => {
+  it('est un REPÈRE, pas un outil : décrite comme une image', () => {
+    const { container } = render(<Invitation {...full} onStart={noop} />);
+    const map = container.querySelector('.sp-invite__map');
+    expect(map?.getAttribute('role')).toBe('img');
+    expect(map?.getAttribute('aria-label')).toContain('Musée Jacquemart-André');
+  });
+
+  it('n’apparaît pas quand le bloc est fermé, sans laisser le reste de côté', () => {
+    const { container } = render(
+      <Invitation {...full} mapPoint={null} onStart={noop} />,
+    );
+    expect(container.querySelector('.sp-invite__map')).toBeNull();
+    // Les liens d'itinéraire, eux, restent : ce sont deux blocs distincts.
+    expect(screen.getByRole('link', { name: 'Google Maps' })).toBeTruthy();
+  });
+
+  it('ne démonte la carte qu’UNE fois', async () => {
+    // Un second `remove()` lève « Map container is being reused by another
+    // instance » — le défaut qui produisait une page blanche. Il faut attendre
+    // que l'import dynamique de Leaflet ait abouti : démonter avant qu'il ne
+    // résolve n'a rien à démonter, ce qui ne prouverait rien.
+    const before = leafletState.removes;
+    const { container, unmount } = render(<Invitation {...full} onStart={noop} />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.sp-invite__map--loading')).toBeNull();
+    });
+
+    expect(() => unmount()).not.toThrow();
+    expect(leafletState.removes).toBe(before + 1);
+  });
+
+  it('ne signale aucune violation avec la carte', async () => {
+    const { container } = render(<Invitation {...full} onStart={noop} />);
     await expectNoA11yViolations(container);
   });
 });

@@ -48,6 +48,7 @@ export const PUBLIC_BLOCKS = [
   'programme',
   'calendar',
   'directions',
+  'map',
   'faq',
   'share',
   'privacyNote',
@@ -205,6 +206,12 @@ export const PUBLIC_BLOCK_META: readonly PublicBlockMeta[] = [
     key: 'directions',
     label: 'L’itinéraire',
     help: 'Des liens vers Google Maps, Plans et OpenStreetMap. Aucune carte n’est chargée : rien ne part vers un tiers avant le clic.',
+    eventOnly: true,
+  },
+  {
+    key: 'map',
+    label: 'La carte du lieu',
+    help: 'Un repère visuel dans le bloc « S’y rendre ». C’est le SEUL bloc qui contacte un tiers sans clic : les tuiles partent du navigateur de l’invité vers OpenStreetMap, dont la politique d’usage vise les usages modérés. À fermer si vous préférez ne rien laisser filer, ou si l’invitation est lue par des dizaines de milliers de personnes.',
     eventOnly: true,
   },
   {
