@@ -7,6 +7,7 @@ import {
   type InvitationTexts,
 } from '@/components/admin/InvitationSettings';
 import type { PublicPageSettings } from '@/lib/survey/public-page';
+import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 import { expectNoA11yViolations } from '../helpers/axe';
 
 /**
@@ -19,6 +20,24 @@ import { expectNoA11yViolations } from '../helpers/axe';
  */
 
 const noop = () => Promise.resolve({ ok: true as const });
+
+/** Schéma minimal, avec une question d'adresse à désigner. */
+const schema: SurveySchema = (() => {
+  const result = validateSurveySchema({
+    version: 1,
+    steps: [
+      {
+        id: 'etape_1',
+        fields: [
+          { id: 'nom', type: 'text', label: 'Nom et prénom' },
+          { id: 'email', type: 'email', label: 'Adresse électronique' },
+        ],
+      },
+    ],
+  });
+  if (!result.ok) throw new Error(`Schéma invalide : ${JSON.stringify(result.issues)}`);
+  return result.schema;
+})();
 
 /**
  * Enveloppe à état : le panneau garde son brouillon en interne, mais
@@ -39,6 +58,7 @@ function Harness({
       <InvitationSettings
         initial={initial}
         initialTexts={texts}
+        schema={schema}
         onSave={(draft, nextTexts) => {
           setSaved(draft);
           setSavedTexts(nextTexts);
@@ -59,6 +79,7 @@ describe('accessibilité', () => {
       <InvitationSettings
         initial={{}}
         initialTexts={{}}
+        schema={schema}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -79,6 +100,7 @@ describe('accessibilité', () => {
           travelNote: 'Métro Miromesnil.',
         }}
         initialTexts={{ thankYou: { title: 'Votre inscription est enregistrée' } }}
+        schema={schema}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -92,6 +114,7 @@ describe('accessibilité', () => {
       <InvitationSettings
         initial={{}}
         initialTexts={{}}
+        schema={schema}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -109,6 +132,7 @@ describe('accessibilité', () => {
       <InvitationSettings
         initial={{}}
         initialTexts={{}}
+        schema={schema}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published={false}
@@ -268,6 +292,7 @@ describe('couleur du bouton', () => {
       <InvitationSettings
         initial={{ ctaColor: '#0B4A96' }}
         initialTexts={{}}
+        schema={schema}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -315,5 +340,57 @@ describe('écran de fin', () => {
       screen.getByTestId('textes').textContent ?? '',
     ) as { thankYou?: Record<string, unknown> };
     expect(saved.thankYou?.['title']).toBeUndefined();
+  });
+});
+
+describe('courriel de confirmation', () => {
+  it('reste fermé par défaut, et rien ne se règle avant', () => {
+    render(<Harness initial={{}} />);
+    const toggle = screen.getByRole('checkbox', { name: /Envoyer un courriel/ });
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByLabelText(/Question portant l’adresse/)).toBeNull();
+  });
+
+  it('désigne d’office la seule question candidate à l’activation', async () => {
+    // Un réglage à moitié fait n'enverrait rien, sans rien dire.
+    const user = userEvent.setup();
+    render(<Harness initial={{}} />);
+
+    await user.click(screen.getByRole('checkbox', { name: /Envoyer un courriel/ }));
+    expect(screen.getByLabelText(/Question portant l’adresse/)).toHaveValue('email');
+
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    const saved = JSON.parse(
+      screen.getByTestId('textes').textContent ?? '',
+    ) as { confirmation?: { enabled?: boolean; emailField?: string } };
+    expect(saved.confirmation).toMatchObject({ enabled: true, emailField: 'email' });
+  });
+
+  it('signale que le champ « Accès » est vide, puisqu’il alimente le courriel', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{}} />);
+    await user.click(screen.getByRole('checkbox', { name: /Envoyer un courriel/ }));
+    expect(screen.getByText(/Le champ « Accès » est vide/)).toBeTruthy();
+  });
+
+  it('se taît sur l’accès quand il est renseigné', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{ travelNote: 'Métro Miromesnil.' }} />);
+    await user.click(screen.getByRole('checkbox', { name: /Envoyer un courriel/ }));
+    expect(screen.queryByText(/Le champ « Accès » est vide/)).toBeNull();
+  });
+
+  it('ne signale aucune violation, courriel activé', async () => {
+    const { container } = render(
+      <InvitationSettings
+        initial={{ travelNote: 'Métro Miromesnil.' }}
+        initialTexts={{ confirmation: { enabled: true, emailField: 'email' } }}
+        onSave={noop}
+        publicUrl="https://spankio.test/s/org/invitation"
+        published
+        schema={schema}
+      />,
+    );
+    await expectNoA11yViolations(container);
   });
 });

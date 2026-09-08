@@ -32,6 +32,8 @@ export interface EmailBranding {
   contactPhone?: string | null;
   /** URL publique du service, pour le pied de page légal. */
   siteUrl?: string | null;
+  /** Adresse postale, affichée en petit dans le pied de page. */
+  postalAddress?: string | null;
 }
 
 /**
@@ -50,8 +52,21 @@ export interface EmailBlock {
   bullets?: readonly string[];
   /** Bouton d'action. */
   action?: { label: string; url: string };
+  /** Plusieurs liens sur une même ligne (itinéraires, agendas…). */
+  links?: readonly { label: string; url: string }[];
   /** Bloc de citation (motif de refus, message du demandeur…). */
   quote?: string;
+  /**
+   * Image pleine largeur : le visuel d'un événement.
+   *
+   * `alt` est VIDE à dessein. Une bannière d'invitation est décorative — son
+   * contenu est répété en texte juste en dessous — et beaucoup de clients mail
+   * bloquent les images par défaut : un `alt` bavard laisserait alors un pavé
+   * de texte à la place du visuel.
+   */
+  image?: { url: string; width: number; height: number };
+  /** Faits alignés (date, lieu, accès) : intitulé en gris, valeur en dessous. */
+  facts?: readonly { label: string; value: string }[];
 }
 
 export interface EmailContent {
@@ -94,6 +109,49 @@ function renderBlockHtml(block: EmailBlock, accent: string): string {
     );
   }
 
+  if (block.image) {
+    const url = safeUrl(block.image.url);
+    if (url) {
+      parts.push(
+        `<img src="${escapeHtml(url)}" alt="" width="${block.image.width}" ` +
+          `height="${block.image.height}" style="display:block;width:100%;max-width:100%;` +
+          `height:auto;border:0;border-radius:12px;margin:0 0 18px;" />`,
+      );
+    }
+  }
+
+  if (block.facts?.length) {
+    const rows = block.facts
+      .map(
+        (fact) =>
+          `<tr><td style="padding:0 0 12px;">` +
+          `<div style="font-size:12px;line-height:1.4;color:${CHARTE.muted};` +
+          `text-transform:uppercase;letter-spacing:0.06em;">${escapeHtml(fact.label)}</div>` +
+          `<div style="font-size:15px;line-height:1.45;color:${CHARTE.text};` +
+          `font-weight:600;">${escapeHtml(fact.value)}</div></td></tr>`,
+      )
+      .join('');
+    parts.push(
+      `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" ` +
+        `style="margin:0 0 8px;">${rows}</table>`,
+    );
+  }
+
+  if (block.links?.length) {
+    const items = block.links
+      .map((link) => {
+        const url = safeUrl(link.url);
+        return url
+          ? `<a href="${escapeHtml(url)}" style="display:inline-block;margin:0 12px 8px 0;` +
+              `font-size:14px;font-weight:600;color:${accent};text-decoration:underline;">` +
+              `${escapeHtml(link.label)}</a>`
+          : null;
+      })
+      .filter((value): value is string => value !== null)
+      .join('');
+    if (items) parts.push(`<p style="margin:0 0 16px;">${items}</p>`);
+  }
+
   if (block.action) {
     const url = safeUrl(block.action.url);
     if (url) {
@@ -114,7 +172,21 @@ function renderBlockText(block: EmailBlock): string {
   const parts: string[] = [];
   if (block.paragraph) parts.push(block.paragraph);
   if (block.bullets?.length) parts.push(block.bullets.map((b) => `- ${b}`).join('\n'));
+  // L'image n'a pas d'équivalent textuel : elle est décorative, et son contenu
+  // est déjà dit par les faits qui la suivent.
+  if (block.facts?.length) {
+    parts.push(block.facts.map((fact) => `${fact.label} : ${fact.value}`).join('\n'));
+  }
   if (block.quote) parts.push(`« ${block.quote} »`);
+  if (block.links?.length) {
+    const lines = block.links
+      .map((link) => {
+        const url = safeUrl(link.url);
+        return url ? `${link.label} : ${url}` : null;
+      })
+      .filter((value): value is string => value !== null);
+    if (lines.length > 0) parts.push(lines.join('\n'));
+  }
   if (block.action) {
     const url = safeUrl(block.action.url);
     if (url) parts.push(`${block.action.label} : ${url}`);
@@ -135,6 +207,7 @@ export function renderEmail(content: EmailContent): { html: string; text: string
   const contactLines: string[] = [];
   if (content.branding.contactEmail) contactLines.push(content.branding.contactEmail);
   if (content.branding.contactPhone) contactLines.push(content.branding.contactPhone);
+  if (content.branding.postalAddress) contactLines.push(content.branding.postalAddress);
 
   const legal = (content.legalLinks ?? [])
     .map((link) => {

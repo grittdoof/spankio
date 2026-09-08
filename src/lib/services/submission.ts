@@ -1,5 +1,11 @@
 import { eq, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
+import { isPlausibleEmail, sendEmail } from '@/lib/email/resend';
+import { registrationConfirmationEmail } from '@/lib/email/templates/confirmation';
+import { bannerPublicUrl } from '@/lib/event/banner';
+import { eventLocation, eventNote } from '@/lib/event/calendar-content';
+import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
+import { eventWhen, eventWhenNote } from '@/lib/event/display';
 import { logger } from '@/lib/logger';
 import { composeConsentNotice } from '@/lib/survey/consent';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
@@ -222,11 +228,21 @@ export interface SubmissionResult {
   readonly responseId: string;
   readonly surveyId: string;
   readonly kind: 'survey' | 'event';
+  /** Le courriel de confirmation est-il parti ? Informatif, jamais bloquant. */
+  readonly confirmationSent: boolean;
+}
+
+export interface SubmissionDeps {
+  /** Injectable pour les tests : aucun réseau implicite. */
+  readonly sendEmail?: typeof sendEmail;
+  readonly siteUrl?: string;
+  readonly supabaseUrl?: string;
 }
 
 export async function submitPublicResponse(
   context: RequestContext,
   input: SubmissionInput,
+  deps: SubmissionDeps = {},
 ): Promise<SubmissionOutcome<SubmissionResult>> {
   const survey = await loadPublicSurvey(context, input.organisationSlug, input.surveySlug);
   if (!survey.ok) return survey;
@@ -243,6 +259,9 @@ export async function submitPublicResponse(
   // Le texte de consentement n'est JAMAIS celui du client : il est recomposé
   // ici à partir des mentions du sondage, faute de quoi la preuve stockée ne
   // prouverait rien.
+  const confirmation = survey.value.settings.confirmation;
+  const confirmationEnabled = Boolean(confirmation?.enabled && confirmation.emailField);
+
   const notice = composeConsentNotice({
     organisationName: survey.value.organisationName,
     purpose: survey.value.purpose,
@@ -250,6 +269,9 @@ export async function submitPublicResponse(
     retentionDays: survey.value.retentionDays,
     recipients: survey.value.recipients,
     customText: survey.value.settings.consentText ?? null,
+    // La preuve stockée doit dire qu'un courriel part : c'est un usage de
+    // l'adresse collectée, et il ne peut pas rester tacite.
+    confirmationEmail: confirmationEnabled,
   });
 
   const dedupValue = dedupValueFrom(validation.value.data, survey.value.dedupField);
@@ -274,8 +296,129 @@ export async function submitPublicResponse(
     dropped: validation.value.dropped.length,
   });
 
+  // L'envoi vient APRÈS l'enregistrement, et ne peut pas le remettre en
+  // cause : `sendEmail` ne lève jamais, et son échec n'est que journalisé.
+  const confirmationSent = confirmationEnabled
+    ? await sendConfirmation(survey.value, validation.value.data, deps)
+    : false;
+
   return {
     ok: true,
-    value: { responseId: rpc.data, surveyId: survey.value.id, kind: survey.value.kind },
+    value: {
+      responseId: rpc.data,
+      surveyId: survey.value.id,
+      kind: survey.value.kind,
+      confirmationSent,
+    },
   };
+}
+
+/**
+ * Courriel de confirmation au répondant.
+ *
+ * Ne lève jamais et ne renvoie qu'un booléen : une inscription aboutie reste
+ * aboutie, même si Resend est en panne ou si l'adresse saisie est invalide.
+ * C'est la règle absolue de `sendEmail`, appliquée ici au cas le plus visible.
+ */
+async function sendConfirmation(
+  survey: PublicSurvey,
+  data: Readonly<Record<string, unknown>>,
+  deps: SubmissionDeps,
+): Promise<boolean> {
+  const confirmation = survey.settings.confirmation;
+  if (!confirmation?.emailField) return false;
+
+  const recipient = data[confirmation.emailField];
+  if (!isPlausibleEmail(recipient)) {
+    // Cas courant et non fautif : la question désignée était facultative et
+    // n'a pas été remplie. Rien à envoyer, rien à signaler au répondant.
+    logger.info('survey.confirmation_skipped', 'Aucune adresse exploitable.', {
+      surveyId: survey.id,
+    });
+    return false;
+  }
+
+  const site = (deps.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
+  const supabaseUrl = deps.supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+  const publicUrl = `${site}/s/${survey.organisationSlug}/${survey.slug}`;
+  const start = survey.event.startsAt ? new Date(survey.event.startsAt) : null;
+
+  const when = {
+    startsAt: survey.event.startsAt,
+    endsAt: survey.event.endsAt,
+    allDay: survey.event.allDay,
+    timeZone: survey.event.timezone,
+  };
+
+  const message = registrationConfirmationEmail({
+    branding: {
+      organisationName: survey.organisationName,
+      logoUrl: survey.organisationLogoUrl,
+      accentColor: survey.settings.publicPage?.ctaColor ?? null,
+      contactEmail: survey.organisationContactEmail,
+      contactPhone: survey.organisationContactPhone,
+      postalAddress: survey.organisationAddress,
+      siteUrl: site,
+    },
+    surveyTitle: survey.title,
+    bannerUrl:
+      survey.bannerPath && supabaseUrl
+        ? bannerPublicUrl(supabaseUrl, survey.bannerPath)
+        : null,
+    customText: confirmation.text ?? null,
+    when: eventWhen(when),
+    whenNote: eventWhenNote(when),
+    place: eventLocation({
+      locationLabel: survey.event.locationLabel,
+      address: survey.event.address,
+    }),
+    // L'accès vient du champ « Accès » des réglages de la page publique : une
+    // seule saisie, affichée à l'écran ET reprise ici.
+    access: survey.settings.publicPage?.travelNote ?? null,
+    directions:
+      directionsLinks({
+        latitude: survey.event.latitude,
+        longitude: survey.event.longitude,
+        address: survey.event.address,
+        label: survey.event.locationLabel,
+      }) ?? null,
+    calendar: start
+      ? calendarLinks(
+          {
+            title: survey.title,
+            start,
+            end: survey.event.endsAt ? new Date(survey.event.endsAt) : null,
+            allDay: survey.event.allDay,
+            // La MÊME composition que l'invitation et le fichier `.ics` : trois
+            // notes différentes selon le chemin seraient trois rendez-vous.
+            description: eventNote({
+              custom: survey.event.details,
+              description: survey.description,
+              organiser: survey.event.organiser ?? survey.organisationName,
+              url: publicUrl,
+            }),
+            location: eventLocation({
+              locationLabel: survey.event.locationLabel,
+              address: survey.event.address,
+            }),
+          },
+          `${site}/api/ics/${survey.id}`,
+        )
+      : null,
+    publicUrl,
+    ...(site ? { legalLinks: [{ label: 'Confidentialité', url: `${site}/confidentialite` }] } : {}),
+  });
+
+  const send = deps.sendEmail ?? sendEmail;
+  const result = await send({
+    to: String(recipient).trim(),
+    subject: message.subject,
+    html: message.html,
+    text: message.text,
+    ...(survey.organisationContactEmail
+      ? { replyTo: survey.organisationContactEmail }
+      : {}),
+  });
+
+  return result.sent;
 }

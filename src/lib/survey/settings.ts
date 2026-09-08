@@ -64,6 +64,23 @@ export const surveySettingsSchema = z.object({
    * MASQUÉS, pour qu'un bloc ajouté plus tard ne naisse pas invisible.
    */
   publicPage: publicPageSchema.optional(),
+
+  /**
+   * Courriel de confirmation envoyé au répondant après son inscription.
+   *
+   * L'adresse du destinataire est DÉSIGNÉE, comme la présence et le nom : la
+   * plateforme ne peut pas savoir laquelle des questions porte un courriel — un
+   * formulaire peut en demander deux, celui de l'invité et celui de son
+   * assistant. Sans désignation, rien n'est envoyé.
+   */
+  confirmation: z
+    .object({
+      enabled: z.boolean().optional(),
+      emailField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
+      /** Texte en tête du courriel. À défaut, une phrase neutre est composée. */
+      text: text(MAX_LENGTHS.stepIntro).optional(),
+    })
+    .optional(),
 });
 
 export type SurveySettings = z.infer<typeof surveySettingsSchema>;

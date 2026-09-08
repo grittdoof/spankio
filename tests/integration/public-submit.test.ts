@@ -335,3 +335,77 @@ describe('POST /api/public/submit', () => {
     expect(policies).toEqual([]);
   });
 });
+
+describe('courriel de confirmation', () => {
+  /**
+   * L'envoi n'est pas testé ici — sans clé Resend, `sendEmail` dégrade en
+   * silence, ce qui est précisément la propriété qui compte. Ce qui EST testé,
+   * et qui ne se vérifie qu'ici : l'inscription aboutit quand même, et la
+   * preuve stockée annonce l'envoi.
+   */
+  let db: TestDb;
+  let surveyId: string;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+    createRouteHarness(db);
+    const organisationId = await createOrganisation(db, 'org-conf', 'Organisation Conf');
+    surveyId = await createSurvey(db, {
+      organisationId,
+      slug: 'avec-confirmation',
+      kind: 'event',
+      moduleKey: 'event',
+      requireConsent: true,
+      schema: SCHEMA,
+      settings: {
+        confirmation: { enabled: true, emailField: 'email' },
+      },
+    });
+  }, 120_000);
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  beforeEach(() => {
+    resetMemoryLimiter();
+  });
+
+  it('enregistre l’inscription même si aucun courriel ne peut partir', async () => {
+    const response = await submit(
+      jsonRequest('POST', '/api/public/submit', {
+        organisationSlug: 'org-conf',
+        surveySlug: 'avec-confirmation',
+        consentGiven: true,
+        data: { nom: 'Camille Arnoult', email: 'camille@exemple.test' },
+      }),
+    );
+
+    // Règle absolue : un envoi d'email ne fait jamais échouer une action
+    // métier. Sans clé Resend, l'inscription reste aboutie.
+    expect(response.status).toBe(201);
+  });
+
+  it('annonce l’envoi dans la preuve stockée', async () => {
+    await submit(
+      jsonRequest('POST', '/api/public/submit', {
+        organisationSlug: 'org-conf',
+        surveySlug: 'avec-confirmation',
+        consentGiven: true,
+        data: { nom: 'Nadia Belkacem', email: 'nadia@exemple.test' },
+      }),
+    );
+
+    const row = await db.queryOne<{ consent_text: string }>(
+      OWNER,
+      `select consent_text from public.survey_responses
+        where survey_id = $1 and data ->> 'nom' = 'Nadia Belkacem'`,
+      [surveyId],
+    );
+
+    // RÈGLE D'OR : ce que la mention affirme doit correspondre exactement à ce
+    // que le code fait. L'adresse sert aussi à écrire au répondant, la preuve
+    // le dit.
+    expect(row?.consent_text).toContain('Courriel de confirmation');
+  });
+});

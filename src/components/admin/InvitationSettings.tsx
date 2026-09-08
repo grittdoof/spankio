@@ -6,6 +6,8 @@ import { Callout } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { checkCtaColor, CTA_MIN_RATIO, CTA_PAGE_RATIO } from '@/lib/design/cta';
+import { emailCandidates } from '@/lib/survey/confirmation';
+import type { SurveySchema } from '@/lib/survey/schema';
 import type { SurveySettings } from '@/lib/survey/settings';
 import {
   isBlockAllowed,
@@ -38,19 +40,20 @@ import {
  */
 
 /**
- * Textes des écrans d'encadrement.
+ * Réglages voisins, édités sur le même écran sans vivre dans `publicPage`.
  *
- * Ils vivent dans `settings.thankYou`, pas dans `settings.publicPage` : ce sont
- * des réglages du PARCOURS, antérieurs à cet écran. On les édite ici parce que
- * c'est là qu'on décide de ce que l'invité lit — et parce qu'ils n'étaient
- * éditables nulle part, ce qui obligeait à passer par la base pour changer une
- * phrase.
+ * `thankYou` et `confirmation` sont des réglages du PARCOURS, antérieurs à cet
+ * écran. On les édite ici parce que c'est là qu'on décide de ce que l'invité
+ * lit — et parce qu'ils n'étaient éditables nulle part, ce qui obligeait à
+ * passer par la base pour changer une phrase.
  */
-export type InvitationTexts = Pick<SurveySettings, 'thankYou'>;
+export type InvitationTexts = Pick<SurveySettings, 'thankYou' | 'confirmation'>;
 
 export interface InvitationSettingsProps {
   initial: PublicPageSettings;
   initialTexts: InvitationTexts;
+  /** Schéma du formulaire : il fournit les questions à désigner. */
+  schema: SurveySchema;
   /** Adresse publique, pour aller voir le résultat. */
   publicUrl: string;
   /** Le formulaire est-il publié ? Sinon la page publique n'existe pas encore. */
@@ -72,6 +75,7 @@ const BLOCKS_WITH_OWN_CARD: readonly PublicBlock[] = [
 export function InvitationSettings({
   initial,
   initialTexts,
+  schema,
   publicUrl,
   published,
   onSave,
@@ -117,6 +121,17 @@ export function InvitationSettings({
   const allowed = (block: PublicBlock) => isBlockAllowed(draft, block);
   const setAllowed = (block: PublicBlock, value: boolean) =>
     patch({ hidden: toggleBlock(draft, block, value) });
+
+  const emailOptions = emailCandidates(schema);
+  const confirmation = texts.confirmation ?? {};
+
+  const patchConfirmation = (changes: Partial<NonNullable<InvitationTexts['confirmation']>>) => {
+    setTexts((previous) => ({
+      ...previous,
+      confirmation: { ...(previous.confirmation ?? {}), ...changes },
+    }));
+    setNotice(null);
+  };
 
   const details = draft.details ?? [];
   const programme = draft.programme ?? [];
@@ -233,6 +248,113 @@ export function InvitationSettings({
             )}
           </Field>
         ) : null}
+      </section>
+
+      {/* --- Courriel de confirmation -------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <h2 className="sp-card__title">
+          Courriel de confirmation{' '}
+          <Tooltip label="courriel de confirmation">
+            Il reprend votre logo, le visuel, la date, le lieu, l’accès et vos
+            coordonnées. Envoyer un courriel est un usage de l’adresse collectée :
+            dès que vous l’activez, la mention d’information affichée avant l’envoi
+            le dit, et la preuve enregistrée le garde.
+          </Tooltip>
+        </h2>
+        <p className="sp-muted">
+          Envoyé à l’invité juste après son inscription. Un échec d’envoi ne remet
+          jamais l’inscription en cause : elle reste enregistrée.
+        </p>
+
+        {emailOptions.length === 0 ? (
+          <Callout mark="!" tone="muted">
+            Aucune question de type « adresse électronique » dans ce formulaire. Il n’y
+            a donc personne à qui écrire — ajoutez-en une, puis revenez ici.
+          </Callout>
+        ) : (
+          <>
+            <label className="sp-choice">
+              <input
+                checked={Boolean(confirmation.enabled)}
+                onChange={(event) =>
+                  patchConfirmation({
+                    enabled: event.target.checked,
+                    // Une seule question candidate : la désigner d'office évite
+                    // un réglage à moitié fait qui n'enverrait rien.
+                    ...(event.target.checked && !confirmation.emailField
+                      ? { emailField: emailOptions[0]?.id }
+                      : {}),
+                  })
+                }
+                type="checkbox"
+              />
+              <span className="sp-choice__label">
+                Envoyer un courriel de confirmation
+                <span className="sp-choice__desc">
+                  Fermé, rien ne part — et la mention d’information n’en parle pas.
+                </span>
+              </span>
+            </label>
+
+            {confirmation.enabled ? (
+              <>
+                <Field
+                  hint="Seules les questions de type « adresse électronique » sont proposées : un champ libre n’est pas validé comme une adresse, et l’envoi échouerait sans que personne ne le sache."
+                  id="inv-conf-champ"
+                  label="Question portant l’adresse du destinataire"
+                >
+                  {(attributes) => (
+                    <select
+                      {...attributes}
+                      className="sp-select"
+                      onChange={(event) =>
+                        patchConfirmation({ emailField: event.target.value })
+                      }
+                      value={confirmation.emailField ?? ''}
+                    >
+                      {emailOptions.map((field) => (
+                        <option key={field.id} value={field.id}>
+                          {field.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+
+                <Field
+                  hint="À défaut, une phrase neutre est composée : « Votre inscription à « … » est enregistrée. »"
+                  id="inv-conf-texte"
+                  label="Texte du courriel"
+                >
+                  {(attributes) => (
+                    <textarea
+                      {...attributes}
+                      className="sp-textarea"
+                      maxLength={2000}
+                      onChange={(event) =>
+                        patchConfirmation({
+                          ...(event.target.value.trim()
+                            ? { text: event.target.value }
+                            : { text: undefined }),
+                        })
+                      }
+                      rows={4}
+                      value={confirmation.text ?? ''}
+                    />
+                  )}
+                </Field>
+
+                {(draft.travelNote ?? '').trim() === '' ? (
+                  <p className="sp-hint">
+                    Le champ « Accès » est vide : le courriel n’aura pas de ligne
+                    d’accès. Renseignez-le dans « S’y rendre » ci-dessus — la même
+                    saisie sert à l’écran et au courriel.
+                  </p>
+                ) : null}
+              </>
+            ) : null}
+          </>
+        )}
       </section>
 
       {/* --- Écran de fin -------------------------------------------------- */}

@@ -13,6 +13,12 @@ import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
 import { eventLocation, eventNote } from '@/lib/event/calendar-content';
 import { ctaPalette } from '@/lib/design/cta';
 import { countdownParts } from '@/lib/event/countdown';
+import {
+  eventWhen,
+  eventWhenNote,
+  formatInZone,
+  type EventWhen as EventWhenInput,
+} from '@/lib/event/display';
 import { fr } from '@/lib/i18n/fr';
 import { loadPublicSurvey, type PublicSurvey } from '@/lib/services/submission';
 import { composeConsentNotice, consentCheckboxLabel } from '@/lib/survey/consent';
@@ -57,66 +63,30 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
- * Mise en forme d'un instant dans le fuseau DE L'ÉVÉNEMENT.
- *
- * Pas dans `Europe/Paris` en dur, comme c'était le cas : « 19 h 30 » veut dire
- * 19 h 30 sur place, et c'est l'heure que l'invité compare à son propre
- * agenda. Une soirée à Fort-de-France était annoncée avec cinq heures d'écart
- * alors que le champ « fuseau » existait et était correctement enregistré.
- *
- * Un formateur par appel plutôt qu'une constante : le fuseau varie d'un
- * formulaire à l'autre. Le `try` couvre un fuseau que le moteur ne connaîtrait
- * pas — la page affiche alors moins, jamais une erreur.
+ * Date et lieu, mis en forme par le MÊME module que le courriel de
+ * confirmation (`src/lib/event/display.ts`) : deux compositions auraient
+ * divergé, et le courriel aurait fini par annoncer une autre heure que la page.
  */
-function formatInZone(
-  value: string | null,
-  timeZone: string,
-  options: Intl.DateTimeFormatOptions,
-): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  try {
-    return new Intl.DateTimeFormat('fr-FR', { ...options, timeZone }).format(date);
-  } catch {
-    return null;
-  }
+function whenOf(survey: PublicSurvey): string | null {
+  return eventWhen(whenInput(survey));
 }
 
-function eventWhen(survey: PublicSurvey): string | null {
-  return formatInZone(
-    survey.event.startsAt,
-    survey.event.timezone,
-    survey.event.allDay
-      ? { dateStyle: 'full' }
-      : { dateStyle: 'full', timeStyle: 'short' },
-  );
+function whenNoteOf(survey: PublicSurvey): string | null {
+  return eventWhenNote(whenInput(survey));
 }
 
-/**
- * Précision d'horaire sous la date : l'heure de fin.
- *
- * Rien n'est inventé — sans heure de fin enregistrée, il n'y a pas de note.
- * Une fin le même jour se dit à l'heure seule ; un événement qui se termine le
- * lendemain reprend la date entière, sinon « fin à 2 h » serait ambigu.
- */
-function eventWhenNote(survey: PublicSurvey): string | null {
-  const { startsAt, endsAt, timezone, allDay } = survey.event;
-  if (!endsAt || allDay) return null;
-  const sameDay =
-    formatInZone(startsAt, timezone, { dateStyle: 'short' }) ===
-    formatInZone(endsAt, timezone, { dateStyle: 'short' });
-  const end = formatInZone(
-    endsAt,
-    timezone,
-    sameDay ? { timeStyle: 'short' } : { dateStyle: 'long', timeStyle: 'short' },
-  );
-  return end ? `Fin prévue à ${end}` : null;
+function whenInput(survey: PublicSurvey): EventWhenInput {
+  return {
+    startsAt: survey.event.startsAt,
+    endsAt: survey.event.endsAt,
+    allDay: survey.event.allDay,
+    timeZone: survey.event.timezone,
+  };
 }
 
 function eventMeta(survey: PublicSurvey): string[] {
   const meta: string[] = [];
-  const when = eventWhen(survey);
+  const when = whenOf(survey);
   if (when) meta.push(when);
   if (survey.event.locationLabel) meta.push(survey.event.locationLabel);
   if (survey.event.address) meta.push(survey.event.address);
@@ -204,8 +174,8 @@ function invitationContent(
 
     ...(allowed('practical') && options.isEvent
       ? {
-          when: eventWhen(survey),
-          whenNote: eventWhenNote(survey),
+          when: whenOf(survey),
+          whenNote: whenNoteOf(survey),
           place,
           details,
         }
@@ -270,6 +240,11 @@ export default async function PublicSurveyPage({ params }: PageProps) {
     retentionDays: survey.retentionDays,
     recipients: survey.recipients,
     customText: survey.settings.consentText ?? null,
+    // Dit AVANT l'envoi, et par la même fonction que la preuve stockée : un
+    // courriel non annoncé serait un usage tacite de l'adresse collectée.
+    confirmationEmail: Boolean(
+      survey.settings.confirmation?.enabled && survey.settings.confirmation.emailField,
+    ),
   });
 
   const isEvent = survey.kind === 'event' && survey.event.startsAt !== null;

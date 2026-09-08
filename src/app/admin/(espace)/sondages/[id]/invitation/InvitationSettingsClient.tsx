@@ -5,6 +5,7 @@ import {
   InvitationSettings,
   type InvitationSettingsProps,
 } from '@/components/admin/InvitationSettings';
+import type { SurveySchema } from '@/lib/survey/schema';
 import type { SurveySettings } from '@/lib/survey/settings';
 
 /**
@@ -18,11 +19,14 @@ import type { SurveySettings } from '@/lib/survey/settings';
 export function InvitationSettingsClient({
   surveyId,
   settings,
+  schema,
   publicUrl,
   published,
 }: {
   surveyId: string;
   settings: SurveySettings;
+  /** Schéma du formulaire : il fournit les questions à désigner. */
+  schema: SurveySchema;
   publicUrl: string;
   published: boolean;
 }) {
@@ -42,6 +46,9 @@ export function InvitationSettingsClient({
               ...(texts.thankYou && Object.keys(texts.thankYou).length > 0
                 ? { thankYou: texts.thankYou }
                 : { thankYou: undefined }),
+              ...(texts.confirmation && Object.keys(texts.confirmation).length > 0
+                ? { confirmation: texts.confirmation }
+                : { confirmation: undefined }),
             },
           }),
         });
@@ -69,7 +76,11 @@ export function InvitationSettingsClient({
   return (
     <InvitationSettings
       initial={settings.publicPage ?? {}}
-      initialTexts={{ thankYou: settings.thankYou }}
+      initialTexts={{
+        thankYou: settings.thankYou,
+        confirmation: settings.confirmation,
+      }}
+      schema={schema}
       onSave={onSave}
       publicUrl={publicUrl}
       published={published}

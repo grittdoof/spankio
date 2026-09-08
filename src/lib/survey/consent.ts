@@ -107,6 +107,15 @@ export interface ConsentInput {
   readonly recipients: string | null;
   /** Texte rédigé par l'organisation, qui remplace la composition automatique. */
   readonly customText?: string | null;
+  /**
+   * Un courriel de confirmation part-il vers le répondant ?
+   *
+   * RÈGLE D'OR du projet : ce que la mention affirme doit correspondre
+   * exactement à ce que le code fait. Envoyer un courriel sans l'avoir annoncé
+   * serait un usage non déclaré de l'adresse collectée — la mention le dit
+   * donc, et la preuve stockée le garde.
+   */
+  readonly confirmationEmail?: boolean;
 }
 
 export interface ConsentSection {
@@ -158,6 +167,14 @@ export function composeConsentNotice(input: ConsentInput): ConsentNotice {
 
   const recipients = input.recipients?.trim();
   if (recipients) sections.push({ label: 'Destinataires', value: recipients });
+
+  if (input.confirmationEmail) {
+    sections.push({
+      label: 'Courriel de confirmation',
+      value:
+        'Un récapitulatif de votre inscription est envoyé à l’adresse que vous indiquez.',
+    });
+  }
 
   const custom = input.customText?.trim();
   const paragraphs = custom

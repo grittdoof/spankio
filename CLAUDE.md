@@ -593,6 +593,36 @@ changer.
   assumée** : la prose longue des pages légales reste dans la page, l'i18n
   étant hors périmètre (R8). Un test de vocabulaire balaye les deux.
 
+- **Le courriel de confirmation est ANNONCÉ avant d'être envoyé.** Écrire au
+  répondant est un usage de l'adresse qu'on lui a demandée : dès que l'envoi
+  est activé, `composeConsentNotice` ajoute la mention, la mention s'affiche
+  avant l'envoi et la preuve stockée la garde. C'est la règle d'or appliquée à
+  la lettre, et un test d'intégration lit `consent_text` en base pour le
+  vérifier.
+- **L'adresse du destinataire est DÉSIGNÉE, jamais devinée.** Un formulaire
+  peut demander deux adresses — celle de l'invité et celle de son assistant —
+  et se tromper ne se verrait jamais côté organisation. Seules les questions de
+  type « adresse électronique » sont proposées : un champ libre n'est pas
+  validé comme une adresse, et l'envoi échouerait une fois sur deux sans que
+  personne ne le sache.
+- **Un envoi qui échoue ne défait pas une inscription.** `sendEmail` ne lève
+  jamais, l'envoi vient APRÈS l'écriture, et son résultat n'est qu'un booléen
+  informatif dans `SubmissionResult`. Une adresse absente n'est même pas une
+  anomalie : la question désignée peut être facultative.
+- **Le visuel d'un courriel est DÉCORATIF** (`alt` vide). Beaucoup de clients
+  mail bloquent les images : un `alt` bavard laisserait un pavé de texte à la
+  place de la bannière, alors que son contenu est déjà dit par les faits qui la
+  suivent.
+- **Une date d'événement n'est mise en forme qu'à UN endroit**
+  (`src/lib/event/display.ts`), partagé par la page publique et le courriel.
+  Deux compositions auraient divergé, et le courriel aurait fini par annoncer
+  une autre heure que l'invitation — sur la seule information qu'un invité
+  recopie dans son agenda.
+- **Le champ « Accès » sert deux fois.** Saisi une fois dans les réglages de la
+  page publique, il s'affiche dans « S'y rendre » ET dans le courriel. L'écran
+  signale qu'il est vide quand l'envoi est activé, plutôt que de laisser
+  découvrir un courriel sans accès.
+
 ## 5. RGPD — règle d'or
 
 **Ce que la politique de confidentialité affirme doit correspondre exactement à
@@ -610,7 +640,9 @@ ce que le code collecte.**
   les cas : « aucune donnée technique de traçage n'est collectée ; les données
   personnelles enregistrées sont celles des champs du formulaire ».
 - Consentement : si `require_consent`, on stocke `consent_given` **et**
-  `consent_text` (snapshot du texte affiché — preuve auditable).
+  `consent_text` (snapshot du texte affiché — preuve auditable). Ce texte
+  mentionne le courriel de confirmation dès que l'organisation l'active : un
+  envoi non annoncé serait un usage tacite de l'adresse collectée.
 - Anti-doublon : appliqué par une contrainte d'unicité réelle
   (`survey_responses_dedup_uniq`), jamais une colonne décorative. La clé stockée
   est une empreinte SHA-256 salée par sondage (`public.dedup_hash`) : l'unicité

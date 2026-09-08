@@ -8,7 +8,7 @@ import { loadAdminSession } from '@/lib/admin/session';
 import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
-import { getSurvey } from '@/lib/services/surveys';
+import { getSurvey, parseSurveySchema } from '@/lib/services/surveys';
 import { validateSurveySettings } from '@/lib/survey/settings';
 import { InvitationSettingsClient } from './InvitationSettingsClient';
 
@@ -70,7 +70,10 @@ export default async function InvitationSettingsPage({
   }
 
   const settings = validateSurveySettings(survey.value.settings);
-  if (!settings.ok) return <Alert tone="error">{fr.errors.unexpected}</Alert>;
+  const schema = parseSurveySchema(survey.value);
+  if (!settings.ok || !schema.ok) {
+    return <Alert tone="error">{fr.errors.unexpected}</Alert>;
+  }
 
   const site = publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
 
@@ -89,6 +92,7 @@ export default async function InvitationSettingsPage({
       <InvitationSettingsClient
         published={survey.value.status === 'published'}
         publicUrl={`${site}/s/${session.organisationSlug}/${survey.value.slug}`}
+        schema={schema.value}
         settings={settings.settings}
         surveyId={survey.value.id}
       />
