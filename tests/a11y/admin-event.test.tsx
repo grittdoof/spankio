@@ -589,9 +589,55 @@ describe('lecture en oui/non', () => {
     expect(screen.queryByRole('group', { name: 'Comment lire cette réponse ?' })).toBeNull();
     expect(screen.getByText(/Un oui ou non —/)).toBeTruthy();
 
-    // La réponse qui ajoute une personne est présélectionnée, jamais laissée
-    // vide : sans elle le comptage resterait muet.
+    /**
+     * La réponse qui ajoute une personne n'est PAS présélectionnée, et le test
+     * l'affirmait — il passait parce que le `<select>` portait une valeur
+     * absente de la base : un navigateur affiche alors la première option, ici
+     * « oui ». La plateforme est générique ; rien ne dit que la première option
+     * signifie oui, et une liste « Non / Oui » aurait compté un accompagnant à
+     * chaque refus. Le choix est donc demandé, et l'écran dit ce qui attend.
+     */
     const valueSelect = screen.getByLabelText(/Réponse qui ajoute une personne/);
-    expect(valueSelect).toHaveValue('oui');
+    expect(valueSelect).toHaveValue('');
+    expect(screen.getByText('L’accompagnant n’est pas encore compté')).toBeTruthy();
+
+    // Et le comptage démarre dès que la réponse est désignée.
+    await user.selectOptions(valueSelect, 'oui');
+    expect(screen.queryByText('L’accompagnant n’est pas encore compté')).toBeNull();
+  });
+
+  /**
+   * DÉFAUT RÉEL. Après avoir refait ses questions, une organisation gardait
+   * `partyMode: 'extra'` sur un « Serez-vous accompagné ? » en Oui/Non. L'écran
+   * annonçait « Un oui ou non » — la seule lecture possible — mais masquait
+   * « Réponse qui ajoute une personne », dont la condition lisait le réglage
+   * PÉRIMÉ. L'accompagnant n'était donc jamais compté, et rien ne le disait.
+   */
+  it('applique la seule lecture possible malgré un réglage périmé', () => {
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
+        surveyId={SURVEY}
+        initial={{
+          ...draft,
+          attendance: {
+            presenceField: 'presence',
+            presenceValue: 'oui',
+            partyField: 'presence',
+            partyMode: 'extra',
+          },
+        }}
+        onSave={saved}
+      />,
+    );
+
+    expect(screen.getByText(/Un oui ou non —/)).toBeTruthy();
+    // La question masquée par le réglage périmé est bien là.
+    expect(screen.getByLabelText(/Réponse qui ajoute une personne/)).toBeTruthy();
+    expect(screen.getByText('L’accompagnant n’est pas encore compté')).toBeTruthy();
   });
 });

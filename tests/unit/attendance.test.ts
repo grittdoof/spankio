@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   attendanceOf,
+  effectivePartyMode,
   partyModesFor,
   partyQuestion,
   attendanceRows,
@@ -48,6 +49,18 @@ const schema: SurveySchema = (() => {
               { value: 'a2', label: '2 personnes' },
             ],
           },
+          {
+            // Un choix unique SANS libellé numérique : il ne peut se lire qu'en
+            // oui/non. C'est la question de l'événement qui n'accepte qu'un
+            // accompagnant.
+            id: 'accompagne',
+            type: 'radio',
+            label: 'Serez-vous accompagné ?',
+            options: [
+              { value: 'option_1', label: 'Oui' },
+              { value: 'option_2', label: 'Non' },
+            ],
+          },
           { id: 'total', type: 'number', label: 'Combien serez-vous ?', min: 1, max: 20 },
           {
             id: 'multi',
@@ -92,7 +105,11 @@ describe('configuration', () => {
   it('ne propose comme question de présence que des choix uniques', () => {
     // Une réponse libre ne peut pas être comparée de façon fiable — même règle
     // que pour les conditions d'affichage.
-    expect(presenceCandidates(schema).map((f) => f.id)).toEqual(['presence', 'accompagnants']);
+    expect(presenceCandidates(schema).map((f) => f.id)).toEqual([
+      'presence',
+      'accompagnants',
+      'accompagne',
+    ]);
   });
 
   it('n’écarte de l’effectif que les questions qu’aucune lecture ne couvre', () => {
@@ -499,6 +516,7 @@ describe('lectures applicables à une question', () => {
     expect(partyCandidates(schema).map((f) => f.id)).toEqual([
       'presence',
       'accompagnants',
+      'accompagne',
       'total',
       'multi',
     ]);
@@ -507,46 +525,86 @@ describe('lectures applicables à une question', () => {
 
 describe('lecture incohérente avec la question', () => {
   /**
-   * Le cas rencontré en production : après avoir refait ses questions,
-   * l'organisation gardait `partyMode: 'extra'` sur « Serez-vous accompagné ? »,
-   * dont les libellés sont « Oui » et « Non ». Lus comme un nombre, ils ne
-   * donnent rien — et chaque présent ressortait « à vérifier ».
+   * Le cas rencontré en production, en DEUX temps.
+   *
+   * Après avoir refait ses questions, l'organisation gardait
+   * `partyMode: 'extra'` sur « Serez-vous accompagné ? », dont les libellés
+   * sont « Oui » et « Non ». Lus comme un nombre, ils ne donnent rien — et
+   * chaque présent ressortait « à vérifier ». Premier correctif : ignorer la
+   * lecture impossible. Le comptage devenait muet, mais l'écran de réglages,
+   * lui, annonçait « Un oui ou non » : deux réponses différentes à la même
+   * question, et un accompagnant qui n'était jamais compté.
+   *
+   * Une question qui n'admet qu'UNE lecture reçoit donc celle-là. Ce n'est pas
+   * une invention : son type la détermine, et l'écran l'annonce déjà.
    */
   const settings: AttendanceSettings = {
     ...BASE,
-    partyField: 'presence',
+    partyField: 'accompagne',
     partyMode: 'extra',
+    partyValue: 'option_1',
   };
 
-  it('ignore la lecture impossible plutôt que de signaler une réserve partout', () => {
-    const row = attendanceOf(
-      settings,
-      { data: { presence: 'oui' } },
-      partyQuestion(schema, settings),
-    );
-    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  it('retient la seule lecture possible plutôt que le réglage périmé', () => {
+    expect(effectivePartyMode(field('accompagne'), 'extra')).toBe('one');
+    expect(
+      attendanceOf(
+        settings,
+        { data: { presence: 'oui', accompagne: 'option_1' } },
+        partyQuestion(schema, settings),
+      ),
+    ).toEqual({ status: 'attending', people: 2, ambiguous: false });
   });
 
-  it('ne signale AUCUNE réserve sur l’ensemble', () => {
+  it('compte une personne pour qui vient seul, sans réserve', () => {
+    expect(
+      attendanceOf(
+        settings,
+        { data: { presence: 'oui', accompagne: 'option_2' } },
+        partyQuestion(schema, settings),
+      ),
+    ).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  });
+
+  it('additionne les accompagnants sur l’ensemble', () => {
     const totals = countAttendance(schema, settings, [
-      { data: { presence: 'oui' } },
-      { data: { presence: 'oui' } },
+      { data: { presence: 'oui', accompagne: 'option_1' } },
+      { data: { presence: 'oui', accompagne: 'option_2' } },
       { data: { presence: 'non' } },
     ]);
+    expect(totals.people).toBe(3);
     expect(totals.ambiguous).toBe(0);
-    expect(totals.people).toBe(2);
   });
 
-  it('applique bien la lecture quand elle est cohérente', () => {
-    // Contre-épreuve : la même question, lue en oui/non, compte pour deux.
-    const coherent: AttendanceSettings = {
-      ...settings,
-      partyMode: 'one',
-      partyValue: 'oui',
-    };
+  it('reste muet, jamais faux, sans réponse désignée', () => {
+    // Aucune valeur ne vaut « oui » : la comparaison ne se déclencherait
+    // jamais. Une personne par réponse, sans réserve.
+    const silent: AttendanceSettings = { ...settings, partyValue: undefined };
     expect(
-      attendanceOf(coherent, { data: { presence: 'oui' } }, partyQuestion(schema, coherent))
-        .people,
-    ).toBe(2);
+      attendanceOf(
+        silent,
+        { data: { presence: 'oui', accompagne: 'option_1' } },
+        partyQuestion(schema, silent),
+      ),
+    ).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  });
+
+  it('n’arbitre pas quand plusieurs lectures restent possibles', () => {
+    // « Nombre de personnes vous accompagnant » porte des libellés numériques :
+    // elle se lit en nombre d'accompagnants OU en total. Un réglage absurde n'y
+    // désigne donc aucune lecture — choisir entre les deux serait un arbitrage
+    // que personne n'a demandé.
+    expect(effectivePartyMode(field('accompagnants'), 'extra')).toBe('extra');
+    expect(effectivePartyMode(field('multi'), 'one')).toBe(null);
+    expect(effectivePartyMode(field('nom'), 'extra')).toBe(null);
+    expect(effectivePartyMode(undefined, 'extra')).toBe(null);
+  });
+
+  it('sans réglage enregistré, retient le nombre d’accompagnants', () => {
+    // Défaut historique : le seul qui ne change pas le sens d'un comptage déjà
+    // en place.
+    expect(effectivePartyMode(field('accompagnants'), undefined)).toBe('extra');
+    // Sauf si la question ne peut pas le porter.
+    expect(effectivePartyMode(field('accompagne'), undefined)).toBe('one');
   });
 });

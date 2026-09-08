@@ -106,6 +106,40 @@ export function partyCandidates(schema: SurveySchema): SurveyField[] {
   return allFields(schema).filter((field) => partyModesFor(field).length > 0);
 }
 
+/**
+ * Lecture RÉELLEMENT appliquée à une question, ou `null` si aucune ne l'est.
+ *
+ * La lecture enregistrée peut être devenue impossible : refaire ses questions
+ * suffit à laisser `partyMode: 'extra'` sur un « Serez-vous accompagné ? »
+ * dont les libellés sont « Oui » et « Non ». Dans ce cas :
+ *
+ *  * si la question n'admet qu'UNE lecture, c'est celle-là. Ce n'est pas une
+ *    invention — le TYPE de la question la détermine, l'organisation a désigné
+ *    la question, et l'écran de réglages annonce déjà cette lecture ;
+ *  * si elle en admet plusieurs, aucune n'est choisie : arbitrer entre « un
+ *    nombre d'accompagnants » et « un total » serait une décision que personne
+ *    n'a prise.
+ *
+ * C'est la SEULE lecture de `partyMode` : l'écran de réglages et le comptage
+ * répondent donc à la même question, ce qui n'était pas le cas — l'écran
+ * annonçait « Un oui ou non » pendant que le comptage ignorait le réglage et
+ * comptait une personne par réponse.
+ */
+export function effectivePartyMode(
+  field: SurveyField | undefined,
+  stored: PartyMode | undefined,
+): PartyMode | null {
+  const modes = partyModesFor(field);
+  if (modes.length === 0) return null;
+
+  // Rien d'enregistré vaut « un nombre d'accompagnants » : c'est le défaut
+  // historique, et le seul qui ne change pas le sens d'un comptage existant.
+  const wished = stored ?? 'extra';
+  if (modes.includes(wished)) return wished;
+
+  return modes.length === 1 ? (modes[0] as PartyMode) : null;
+}
+
 /** Modes de lecture applicables à une question donnée, dans l'ordre proposé. */
 export function partyModesFor(field: SurveyField | undefined): PartyMode[] {
   if (!field) return [];
@@ -279,23 +313,21 @@ export function attendanceOf(
   }
 
   /**
-   * Une lecture que la question ne peut PAS porter est ignorée.
+   * La lecture appliquée est celle que la question peut porter.
    *
    * Défaut réel : après avoir refait ses questions, une organisation gardait
    * `partyMode: 'extra'` sur « Serez-vous accompagné ? », dont les libellés
    * sont « Oui » et « Non ». Lus comme un nombre, ils ne donnent rien, et
-   * CHAQUE présent ressortait « à vérifier » — un écran entier de réserves
-   * pour une désignation devenue incohérente, jamais signalée.
-   *
-   * On retombe alors sur une personne par réponse, sans réserve : muet plutôt
-   * que faux, comme pour une valeur oui/non non désignée. L'écran de réglages,
-   * lui, ne propose que les lectures applicables.
+   * CHAQUE présent ressortait « à vérifier ». Premier correctif : ignorer une
+   * lecture impossible. Insuffisant — le comptage devenait muet alors que
+   * l'écran de réglages annonçait « Un oui ou non », seule lecture que cette
+   * question admet. `effectivePartyMode` répond donc à la question une seule
+   * fois, pour l'écran comme pour le comptage.
    */
-  const stored = settings.partyMode ?? 'extra';
-  if (!partyModesFor(party.field).includes(stored)) {
+  const mode = effectivePartyMode(party.field, settings.partyMode);
+  if (mode === null) {
     return { status: 'attending', people: 1, ambiguous: false };
   }
-  const mode = stored;
 
   /**
    * Lecture en oui/non : une seule réponse ajoute UNE personne.

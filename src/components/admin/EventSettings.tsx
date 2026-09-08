@@ -11,6 +11,7 @@ import {
   detailCandidates,
   identityCandidates,
   partyCandidates,
+  effectivePartyMode,
   partyModesFor,
   presenceCandidates,
   presenceValues,
@@ -139,18 +140,35 @@ export function EventSettings({
   const partyValueOptions = presenceValues(schema, draft.attendance.partyField);
 
   /**
-   * Change de lecture en réinitialisant ce qui n'a plus de sens : quitter le
-   * mode oui/non abandonne la valeur désignée, y entrer en présélectionne une —
-   * sans quoi le comptage resterait muet jusqu'à ce qu'on pense à la choisir.
+   * Lecture RÉELLEMENT appliquée — la même fonction que le comptage.
+   *
+   * Défaut réel : l'écran lisait `draft.attendance.partyMode` brut. Une
+   * organisation ayant refait ses questions gardait `partyMode: 'extra'` sur un
+   * « Serez-vous accompagné ? » en Oui/Non ; l'écran annonçait alors « Un oui ou
+   * non » — la seule lecture que cette question admette — tout en masquant la
+   * question « Réponse qui ajoute une personne », dont la condition portait sur
+   * le réglage périmé. L'accompagnant n'était donc jamais compté, et l'écran
+   * affirmait le contraire.
+   */
+  const partyMode = effectivePartyMode(chosenParty, draft.attendance.partyMode);
+
+  /**
+   * Change de lecture en abandonnant ce qui n'a plus de sens : quitter le mode
+   * oui/non abandonne la valeur désignée.
+   *
+   * Aucune valeur n'est PRÉSÉLECTIONNÉE en y entrant. L'écran le faisait —
+   * première option de la liste — et c'était un chiffre faux en germe : la
+   * plateforme est générique, rien ne dit que la première option signifie
+   * « oui ». Une liste « Non / Oui » aurait compté un accompagnant à chaque
+   * refus, sans qu'aucune alerte ne le signale. Le choix est donc demandé, et
+   * l'écran dit que le comptage attend.
    */
   const setPartyMode = (mode: PartyMode) =>
     patch({
       attendance: {
         ...draft.attendance,
         partyMode: mode,
-        ...(mode === 'one'
-          ? { partyValue: draft.attendance.partyValue ?? partyValueOptions[0]?.value }
-          : { partyValue: undefined }),
+        ...(mode === 'one' ? {} : { partyValue: undefined }),
       },
     });
 
@@ -515,7 +533,7 @@ export function EventSettings({
                         <li key={mode}>
                           <label className="sp-pick">
                             <input
-                              checked={(draft.attendance.partyMode ?? partyModes[0]) === mode}
+                              checked={partyMode === mode}
                               name="partyMode"
                               onChange={() => setPartyMode(mode)}
                               type="radio"
@@ -537,17 +555,18 @@ export function EventSettings({
                 ) : null}
 
                 {/* Une seule lecture possible : on l'annonce, au lieu d'offrir
-                    un choix qui n'en est pas un. */}
-                {chosenParty && partyModes.length === 1 && partyModes[0] ? (
+                    un choix qui n'en est pas un. L'annonce est vraie parce
+                    qu'elle vient de la même fonction que le comptage. */}
+                {chosenParty && partyModes.length === 1 && partyMode ? (
                   <p className="sp-hint">
-                    {PARTY_MODE_LABELS[partyModes[0]].name} —{' '}
-                    {PARTY_MODE_LABELS[partyModes[0]].desc}
+                    {PARTY_MODE_LABELS[partyMode].name} —{' '}
+                    {PARTY_MODE_LABELS[partyMode].desc}
                   </p>
                 ) : null}
 
-                {chosenParty && (draft.attendance.partyMode ?? partyModes[0]) === 'one' ? (
+                {chosenParty && partyMode === 'one' ? (
                   <Field
-                    hint="Toute autre réponse compte pour une seule personne."
+                    hint="Toute autre réponse compte pour une seule personne. Sans réponse désignée, le comptage reste à une personne par présent — muet plutôt que faux."
                     id="evt-effectif-valeur"
                     label="Réponse qui ajoute une personne"
                   >
@@ -559,12 +578,18 @@ export function EventSettings({
                           patch({
                             attendance: {
                               ...draft.attendance,
-                              partyValue: event.target.value,
+                              // Vide = pas de valeur désignée, donc pas de
+                              // chaîne vide enregistrée en base.
+                              partyValue: event.target.value || undefined,
                             },
                           })
                         }
                         value={draft.attendance.partyValue ?? ''}
                       >
+                        {/* Sans option vide, un `value` non enregistré ferait
+                            afficher la PREMIÈRE option : l'écran désignerait une
+                            réponse que la base ne contient pas. */}
+                        <option value="">Aucune — chaque présent compte pour un</option>
                         {partyValueOptions.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
@@ -573,6 +598,18 @@ export function EventSettings({
                       </select>
                     )}
                   </Field>
+                ) : null}
+
+                {/* Le comptage attend : le dire, plutôt que laisser découvrir
+                    sur la page des statistiques que personne n'est compté à
+                    deux. */}
+                {chosenParty && partyMode === 'one' && !draft.attendance.partyValue ? (
+                  <Callout mark="!" title="L’accompagnant n’est pas encore compté">
+                    Tant qu’aucune réponse n’est désignée ci-dessus, chaque
+                    présent compte pour une personne — y compris ceux qui ont
+                    annoncé venir accompagnés. Choisissez la réponse qui vaut
+                    « oui » pour que l’effectif attendu les inclue.
+                  </Callout>
                 ) : null}
 
                 <Field

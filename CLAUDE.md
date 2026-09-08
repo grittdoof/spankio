@@ -473,8 +473,24 @@ changer.
   suppose une question capable de porter un effectif, affichée, et restée vide.
 - **En mode oui/non, une valeur non désignée rend le comptage MUET, pas faux.**
   Sans `partyValue`, la comparaison ne se déclencherait jamais : on compte une
-  personne par réponse, sans réserve. L'écran de réglages en présélectionne une
-  dès qu'on entre dans ce mode, pour que le cas ne se présente pas.
+  personne par réponse, sans réserve. L'écran ne la PRÉSÉLECTIONNE pas — il le
+  faisait, en retenant la première option, et c'était un chiffre faux en germe :
+  la plateforme est générique, rien ne dit que la première option signifie
+  « oui », et une liste « Non / Oui » aurait compté un accompagnant à chaque
+  refus sans qu'aucune alerte ne le signale. Le choix est donc demandé, et un
+  encadré dit que l'accompagnant n'est pas encore compté tant qu'il manque.
+- **La lecture d'effectif appliquée est calculée UNE fois, pour l'écran comme
+  pour le comptage** (`effectivePartyMode`). Ignorer une lecture impossible ne
+  suffisait pas : sur un « Serez-vous accompagné ? » en Oui/Non portant encore
+  `partyMode: 'extra'`, l'écran de réglages annonçait « Un oui ou non » — la
+  seule lecture que cette question admette — pendant que le comptage renonçait,
+  et que la question « Réponse qui ajoute une personne » restait masquée parce
+  que sa condition lisait le réglage périmé. Résultat : deux réponses
+  différentes à la même question, et aucun accompagnant compté. Une question
+  qui n'admet qu'UNE lecture reçoit donc celle-là — son type la détermine, ce
+  n'est pas une invention ; une question qui en admet plusieurs n'en reçoit
+  aucune, arbitrer serait une décision que personne n'a prise. Un réglage
+  absent vaut toujours `extra`, le défaut historique.
 - **Une réponse se CORRIGE sans être réécrite.** Le besoin est légitime — un
   nom mal saisi, un effectif oublié — et le RGPD en fait un droit (art. 16).
   Mais `consent_text` prouve ce qui a été affiché et `submitted_at` date l'acte
@@ -696,7 +712,9 @@ changer.
   parcours de création n'acceptaient qu'un courriel ou un téléphone, tandis que
   la fonction de `builder.ts` — testée mais appelée nulle part — acceptait aussi
   les champs libres.
-- **Un `<select>` dont la valeur ne correspond à aucune option MENT.** Le
+- **Un `<select>` dont la valeur ne correspond à aucune option MENT.** Trois
+  défauts réels de cette seule cause, dont deux affichaient l'inverse de la
+  base et un faisait passer un test pour vert. Le
   navigateur affiche alors la première : l'écran d'édition annonçait « Autoriser
   plusieurs réponses » alors que la base imposait une clé introuvable, et
   l'organisation n'avait aucun moyen de le voir. La désignation orpheline est
@@ -704,7 +722,12 @@ changer.
   un encadré dit la conséquence. Corollaire : quand la question désignée existe
   mais est facultative ou conditionnée, l'écran dit que l'unicité ne couvrira
   qu'une partie des réponses — c'est un coût, pas un défaut, et il se connaît
-  avant de publier.
+  avant de publier. Même cause dans les réglages d'événement : « Réponse qui
+  ajoute une personne » n'avait pas d'option vide, si bien qu'un `partyValue`
+  absent faisait afficher la première réponse de la liste — et un test
+  d'accessibilité AFFIRMAIT cette présélection, qui n'existait qu'à l'écran.
+  Tout `<select>` dont la valeur peut être absente porte donc une option vide
+  explicite, qui dit la conséquence.
 - **Le champ « Accès » sert deux fois.** Saisi une fois dans les réglages de la
   page publique, il s'affiche dans « S'y rendre » ET dans le courriel. L'écran
   signale qu'il est vide quand l'envoi est activé, plutôt que de laisser
