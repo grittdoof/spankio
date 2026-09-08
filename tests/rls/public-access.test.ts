@@ -260,11 +260,27 @@ describe('accès public', () => {
       });
     });
 
-    it('exige la valeur de dédoublonnage quand le sondage en désigne une', async () => {
-      const error = await expectError(
-        db.query(ANON, submit, [dedupSurvey, JSON.stringify({}), false, null, null]),
+    /**
+     * Ce test affirmait l'inverse — PT400 sur une valeur absente — et c'est CE
+     * refus qui a bloqué un formulaire d'inscription en production : la question
+     * désignée avait été supprimée du schéma, plus aucune valeur ne pouvait être
+     * extraite, et chaque inscription repartait en « données invalides » sans
+     * rien que le répondant puisse corriger. La garantie tenable est celle de
+     * l'index partiel : deux clés identiques sont impossibles, une clé absente
+     * ne collisionne avec rien.
+     */
+    it('accepte une réponse sans valeur de dédoublonnage, sans clé', async () => {
+      await db.query(ANON, submit, [dedupSurvey, JSON.stringify({}), false, null, null]);
+      // Une seconde, pour prouver que deux clés nulles ne se heurtent pas.
+      await db.query(ANON, submit, [dedupSurvey, JSON.stringify({}), false, null, '  ']);
+
+      const row = await db.queryOne<{ sans_cle: string }>(
+        OWNER,
+        `select count(*) as sans_cle from public.survey_responses
+          where survey_id = $1 and dedup_key is null`,
+        [dedupSurvey],
       );
-      expect(sqlErrorCode(error)).toBe('PT400');
+      expect(Number(row?.sans_cle)).toBe(2);
     });
 
     it('refuse une seconde soumission avec la même valeur', async () => {
@@ -292,7 +308,8 @@ describe('accès public', () => {
     it('ne stocke pas la valeur en clair mais une empreinte salée par sondage', async () => {
       const row = await db.queryOne<{ dedup_key: string }>(
         OWNER,
-        'select dedup_key from public.survey_responses where survey_id = $1 limit 1',
+        `select dedup_key from public.survey_responses
+          where survey_id = $1 and dedup_key is not null limit 1`,
         [dedupSurvey],
       );
       expect(row?.dedup_key).toMatch(/^[0-9a-f]{64}$/);

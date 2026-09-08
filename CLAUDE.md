@@ -673,6 +673,38 @@ changer.
   Deux compositions auraient divergé, et le courriel aurait fini par annoncer
   une autre heure que l'invitation — sur la seule information qu'un invité
   recopie dans son agenda.
+- **Une réponse sans clé anti-doublon est ENREGISTRÉE, pas refusée.** La
+  fonction SQL exigeait une valeur dès que le sondage désignait une clé. Défaut
+  réel, et le pire de la série : après avoir refait ses questions, une
+  organisation gardait `dedup_field = 'email'`, identifiant que le schéma ne
+  contenait plus. Aucune valeur ne pouvait être extraite, `dedup_hash` renvoyait
+  null, et CHAQUE inscription repartait en 400 « Les données envoyées sont
+  invalides » — sur une saisie parfaitement valide, sans un seul champ à
+  corriger, et sans que rien ne le signale côté organisation. Neuf réponses
+  reçues, puis plus aucune. Le refus prétendait garantir « toute réponse porte
+  une clé » : garantie intenable, puisque la question désignée peut avoir
+  disparu, être facultative, ou n'être POSÉE qu'à une partie des répondants —
+  une adresse demandée aux seuls présents n'existe pas chez ceux qui déclinent.
+  La garantie réelle est celle de l'index partiel : deux réponses vivantes ne
+  peuvent pas porter la MÊME clé ; une clé absente ne collisionne avec rien.
+- **La clé anti-doublon est une DÉSIGNATION, avec les mêmes règles que les
+  autres.** `dedupDesignation` (`src/lib/survey/dedup.ts`) est la seule lecture
+  de `surveys.dedup_field` : une question absente du schéma est ignorée et
+  journalisée (`survey.dedup_field_missing`) — muet plutôt que faux, exactement
+  comme une lecture d'effectif que la question ne peut pas porter. Le même
+  module porte la liste des candidats, qui avait DÉJÀ divergé : l'éditeur et le
+  parcours de création n'acceptaient qu'un courriel ou un téléphone, tandis que
+  la fonction de `builder.ts` — testée mais appelée nulle part — acceptait aussi
+  les champs libres.
+- **Un `<select>` dont la valeur ne correspond à aucune option MENT.** Le
+  navigateur affiche alors la première : l'écran d'édition annonçait « Autoriser
+  plusieurs réponses » alors que la base imposait une clé introuvable, et
+  l'organisation n'avait aucun moyen de le voir. La désignation orpheline est
+  donc une option à part entière, nommée « Question supprimée — à corriger », et
+  un encadré dit la conséquence. Corollaire : quand la question désignée existe
+  mais est facultative ou conditionnée, l'écran dit que l'unicité ne couvrira
+  qu'une partie des réponses — c'est un coût, pas un défaut, et il se connaît
+  avant de publier.
 - **Le champ « Accès » sert deux fois.** Saisi une fois dans les réglages de la
   page publique, il s'affiche dans « S'y rendre » ET dans le courriel. L'écran
   signale qu'il est vide quand l'envoi est activé, plutôt que de laisser

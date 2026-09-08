@@ -12,6 +12,7 @@ import { resolveRequestContext } from '@/lib/data/context';
 import { fr } from '@/lib/i18n/fr';
 import { getSurvey, LEGAL_BASES, parseSurveySchema } from '@/lib/services/surveys';
 import { legalBasisGuide } from '@/lib/survey/consent';
+import { dedupCandidates } from '@/lib/survey/dedup';
 import { saveInformations } from '../../actions';
 
 export const dynamic = 'force-dynamic';
@@ -66,12 +67,10 @@ export default async function InformationsStepPage({
   // Champs pouvant servir de clé d'unicité : une adresse ou un numéro
   // identifient une personne, un texte libre non — deux invités peuvent
   // s'appeler pareil, et le second serait refusé sans comprendre pourquoi.
+  // La liste vient de `dedupCandidates`, partagée avec l'éditeur : deux filtres
+  // avaient déjà divergé.
   const schema = parseSurveySchema(survey.value);
-  const dedupCandidates = schema.ok
-    ? schema.value.steps
-        .flatMap((step) => step.fields)
-        .filter((field) => field.type === 'email' || field.type === 'tel')
-    : [];
+  const candidates = schema.ok ? dedupCandidates(schema.value) : [];
 
   const errorCode = typeof query['erreur'] === 'string' ? query['erreur'] : undefined;
   const error = errorCode ? (ERRORS[errorCode] ?? fr.errors.unexpected) : null;
@@ -220,7 +219,7 @@ export default async function InformationsStepPage({
                 </span>
               </label>
             </li>
-            {dedupCandidates.map((field) => (
+            {candidates.map((field) => (
               <li key={field.id}>
                 <label className="sp-pick">
                   <input

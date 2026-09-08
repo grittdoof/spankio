@@ -93,6 +93,14 @@ describe('POST /api/public/submit', () => {
       schema: SCHEMA,
       responseLimit: 1,
     });
+    // Le cas de production : la clé désigne une question que le schéma ne
+    // contient pas (ou plus). Elle a été supprimée ou renommée depuis.
+    await createSurvey(db, {
+      organisationId: orgId,
+      slug: 'cle-fantome',
+      schema: SCHEMA,
+      dedupField: 'courriel_disparu',
+    });
   }, 120_000);
 
   afterAll(async () => {
@@ -299,6 +307,60 @@ describe('POST /api/public/submit', () => {
       const { status, body } = await readJson<ApiError>(second);
       expect(status).toBe(409);
       expect(body.error.code).toBe('conflict');
+    });
+
+    /**
+     * DÉFAUT RÉEL, constaté sur un formulaire d'inscription ouvert. Après avoir
+     * refait ses questions, l'organisation gardait `dedup_field = 'email'`,
+     * identifiant que le schéma ne contenait plus. Aucune valeur ne pouvait
+     * donc être extraite, et la fonction SQL refusait la réponse : CHAQUE
+     * inscription repartait en 400 « Les données envoyées sont invalides »,
+     * pour une saisie parfaitement valide, sans un seul champ à corriger.
+     */
+    it('enregistre malgré une clé anti-doublon désignant une question absente', async () => {
+      const first = await submit(
+        jsonRequest(
+          'POST',
+          '/api/public/submit',
+          payload('cle-fantome', { nom: 'Alix', email: 'alix@exemple.test' }),
+        ),
+      );
+      expect(first.status).toBe(201);
+
+      // Aucune unicité n'est appliquée — elle est INAPPLICABLE, et le journal
+      // le dit à l'organisation. Elle n'est pas simulée sur une autre clé.
+      const second = await submit(
+        jsonRequest(
+          'POST',
+          '/api/public/submit',
+          payload('cle-fantome', { nom: 'Alix', email: 'alix@exemple.test' }),
+        ),
+      );
+      expect(second.status).toBe(201);
+
+      const row = await db.queryOne<{ total: string; sans_cle: string }>(
+        OWNER,
+        `select count(*) as total, count(*) filter (where dedup_key is null) as sans_cle
+           from public.survey_responses r
+           join public.surveys s on s.id = r.survey_id
+          where s.slug = 'cle-fantome'`,
+      );
+      expect(Number(row?.total)).toBe(2);
+      expect(Number(row?.sans_cle)).toBe(2);
+    });
+
+    /**
+     * Second visage du même défaut : la question désignée EXISTE, mais elle est
+     * facultative — ou n'est posée qu'à une partie des répondants. Celui qui la
+     * laisse vide n'a rien à corriger, et son envoi doit aboutir.
+     */
+    it('enregistre quand la question désignée est restée vide', async () => {
+      const { status } = await readJson<Created>(
+        await submit(
+          jsonRequest('POST', '/api/public/submit', payload('sans-doublon', { nom: 'Sans mail' })),
+        ),
+      );
+      expect(status).toBe(201);
     });
 
     it('refuse au-delà du plafond de réponses', async () => {

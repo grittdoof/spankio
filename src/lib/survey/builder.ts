@@ -230,13 +230,6 @@ export function conditionCandidates(schema: SurveySchema, fieldId: string): Surv
   return candidates;
 }
 
-/** Champs utilisables comme clé anti-doublon : une valeur scalaire stable. */
-export function dedupCandidates(schema: SurveySchema): SurveyField[] {
-  return schema.steps
-    .flatMap((step) => step.fields)
-    .filter((field) => ['email', 'tel', 'text', 'number'].includes(field.type));
-}
-
 /** Le schéma peut-il encore accueillir un champ ? */
 export function canAddField(schema: SurveySchema): boolean {
   const total = schema.steps.reduce((count, step) => count + step.fields.length, 0);

@@ -4,7 +4,6 @@ import {
   canAddField,
   conditionCandidates,
   danglingConditions,
-  dedupCandidates,
   defaultField,
   defaultStep,
   moveItem,
@@ -13,6 +12,7 @@ import {
   uniqueIdentifier,
   usedIdentifiers,
 } from '@/lib/survey/builder';
+import { dedupCandidates } from '@/lib/survey/dedup';
 import { FIELD_TYPES, validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 
 function schemaOf(steps: unknown[]): SurveySchema {
@@ -208,7 +208,7 @@ describe('aides de l’éditeur', () => {
     ]);
   });
 
-  it('ne propose comme clé anti-doublon que des valeurs scalaires', () => {
+  it('ne propose comme clé anti-doublon qu’une adresse ou un numéro', () => {
     const schema = schemaOf([
       {
         id: 'etape_1',
@@ -224,7 +224,9 @@ describe('aides de l’éditeur', () => {
         ],
       },
     ]);
-    expect(dedupCandidates(schema).map((field) => field.id)).toEqual(['email', 'nom']);
+    // Un texte libre est écarté : deux invités peuvent porter le même nom, et
+    // le second serait refusé sans comprendre pourquoi.
+    expect(dedupCandidates(schema).map((field) => field.id)).toEqual(['email']);
   });
 
   it('signale quand le plafond de champs est atteint', () => {

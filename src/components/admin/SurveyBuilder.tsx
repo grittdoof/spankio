@@ -18,6 +18,11 @@ import {
   usedIdentifiers,
 } from '@/lib/survey/builder';
 import { LEGAL_BASES } from '@/lib/services/surveys';
+import {
+  dedupCandidates,
+  dedupCoverageIsPartial,
+  dedupDesignation,
+} from '@/lib/survey/dedup';
 import { LEGAL_BASIS_GUIDE, type LegalBasis } from '@/lib/survey/consent';
 import {
   EDITOR_STEPS,
@@ -192,12 +197,20 @@ export function SurveyBuilder({
    * identifient une personne, un texte libre non — deux invités peuvent
    * s'appeler pareil, et le second serait refusé sans comprendre pourquoi.
    */
-  const dedupCandidates = useMemo(
-    () =>
-      schema.steps
-        .flatMap((step) => step.fields)
-        .filter((field) => field.type === 'email' || field.type === 'tel'),
-    [schema],
+  const dedupChoices = useMemo(() => dedupCandidates(schema), [schema]);
+
+  /**
+   * Ce que vaut la clé anti-doublon ENREGISTRÉE face au schéma d'aujourd'hui.
+   *
+   * Défaut réel : une organisation avait refait ses questions, la clé pointait
+   * toujours sur l'ancienne. Le `<select>` portait une valeur qui ne
+   * correspondait à aucune option, si bien que le navigateur affichait la
+   * première — « Autoriser plusieurs réponses ». L'écran annonçait donc
+   * l'inverse de ce que contenait la base, et personne ne pouvait le voir.
+   */
+  const designation = useMemo(
+    () => dedupDesignation(schema, draft.dedupField),
+    [schema, draft.dedupField],
   );
 
   /**
@@ -702,14 +715,43 @@ export function SurveyBuilder({
                 value={draft.dedupField ?? ''}
               >
                 <option value="">Autoriser plusieurs réponses</option>
-                {dedupCandidates.map((field) => (
+                {dedupChoices.map((field) => (
                   <option key={field.id} value={field.id}>
                     Une seule réponse par « {field.label} »
                   </option>
                 ))}
+                {/* La désignation devenue introuvable reste une option, sinon le
+                    navigateur afficherait la première et l'écran mentirait. */}
+                {designation.kind === 'missing' ? (
+                  <option value={designation.id}>
+                    Question supprimée (« {designation.id} ») — à corriger
+                  </option>
+                ) : null}
               </select>
             )}
           </Field>
+
+          {designation.kind === 'missing' ? (
+            <Callout mark="!" title="La clé anti-doublon ne désigne plus rien">
+              La question « {designation.id} » ne fait plus partie de ce
+              formulaire — elle a été supprimée ou renommée. Aucune unicité n’est
+              donc appliquée : la même personne peut répondre plusieurs fois.
+              Choisissez une autre question ci-dessus, ou revenez à « Autoriser
+              plusieurs réponses » pour que le réglage dise ce qu’il fait.
+            </Callout>
+          ) : null}
+
+          {designation.kind === 'field' && dedupCoverageIsPartial(designation.field) ? (
+            <Callout mark="i" title="L’unicité ne couvrira pas tout le monde" tone="muted">
+              « {designation.field.label} »{' '}
+              {designation.field.condition !== undefined
+                ? 'n’est pas posée à tous les répondants'
+                : 'est facultative'}
+              . Les réponses qui la laissent vide n’emportent aucune clé : rien
+              n’empêche de les renvoyer. C’est un coût, pas un défaut — mais il
+              vaut mieux le connaître avant de publier.
+            </Callout>
+          ) : null}
 
           <label className="sp-choice">
             <input

@@ -279,6 +279,48 @@ describe('manipulation au clavier', () => {
     expect(screen.getByText('Prêt à publier')).toBeTruthy();
   });
 
+  /**
+   * DÉFAUT RÉEL. Une organisation avait refait ses questions ; `dedup_field`
+   * pointait toujours sur « email », identifiant disparu du schéma. Le
+   * `<select>` portait donc une valeur qui ne correspondait à AUCUNE option, et
+   * un navigateur affiche alors la première — « Autoriser plusieurs réponses ».
+   * L'écran annonçait l'inverse de ce que contenait la base, et l'organisation
+   * n'avait aucun moyen de s'en apercevoir.
+   */
+  it('nomme la clé anti-doublon devenue introuvable', async () => {
+    const user = userEvent.setup();
+    render(
+      <SurveyBuilder
+        surveyId="00000000-0000-4000-8000-000000000001"
+        initial={{
+          ...draft(schemaOf('event_registration')),
+          // Identifiant qu'aucune question ne porte : exactement l'état laissé
+          // par des questions refaites.
+          dedupField: 'courriel_disparu',
+        }}
+        publicUrl="https://exemple.test/s/organisation/formulaire-temoin"
+        onSave={saved}
+      />,
+    );
+
+    await goToStep(user, 'Informations');
+
+    const select: HTMLSelectElement = screen.getByLabelText(
+      'Une seule réponse par personne ?',
+    );
+    // La valeur affichée est celle de la base, pas la première option.
+    expect(select.value).toBe('courriel_disparu');
+    expect(screen.getByText('La clé anti-doublon ne désigne plus rien')).toBeTruthy();
+
+    // Et le réglage se corrige sur place, sans quitter l'écran.
+    const candidate = [...select.options].find(
+      (option) => option.value !== '' && option.value !== 'courriel_disparu',
+    );
+    if (!candidate) throw new Error('Aucune question ne peut servir de clé');
+    await user.selectOptions(select, candidate.value);
+    expect(screen.queryByText('La clé anti-doublon ne désigne plus rien')).toBeNull();
+  });
+
   it('exige aussi la date quand c’est un événement', async () => {
     const user = userEvent.setup();
     render(

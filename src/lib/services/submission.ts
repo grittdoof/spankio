@@ -9,6 +9,7 @@ import { eventWhen, eventWhenNote } from '@/lib/event/display';
 import { submittedRecap } from '@/lib/survey/recap';
 import { logger } from '@/lib/logger';
 import { composeConsentNotice } from '@/lib/survey/consent';
+import { dedupDesignation } from '@/lib/survey/dedup';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 import { validateSurveySettings, type SurveySettings } from '@/lib/survey/settings';
 import {
@@ -275,7 +276,24 @@ export async function submitPublicResponse(
     confirmationEmail: confirmationEnabled,
   });
 
-  const dedupValue = dedupValueFrom(validation.value.data, survey.value.dedupField);
+  // La clé anti-doublon désigne une QUESTION, et le schéma vit dans du `jsonb` :
+  // refaire ses questions suffit à laisser une désignation qui ne pointe plus
+  // sur rien. Une désignation devenue impossible est ignorée — même règle que
+  // pour une lecture d'effectif que la question ne peut pas porter — et
+  // journalisée, parce que l'organisation croit son unicité active.
+  const designation = dedupDesignation(survey.value.schema, survey.value.dedupField);
+  if (designation.kind === 'missing') {
+    logger.error(
+      'survey.dedup_field_missing',
+      "Clé anti-doublon désignant une question absente du schéma : l'unicité ne s'applique pas.",
+      { surveyId: survey.value.id, dedupField: designation.id },
+    );
+  }
+
+  const dedupValue =
+    designation.kind === 'field'
+      ? dedupValueFrom(validation.value.data, designation.field.id)
+      : null;
 
   const rpc = await context.port.rpc<string>('submit_survey_response', {
     p_survey_id: survey.value.id,
