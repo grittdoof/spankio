@@ -108,6 +108,25 @@ changer.
   l'éditeur.** Il les reconnaît, affiche qu'il ne sait pas les modifier, et
   n'offre que de les supprimer — les éditer par bribes les écraserait au
   premier changement.
+- **La visibilité d'un champ est TRANSITIVE.** Une condition n'est applicable
+  que si les questions qu'elle observe sont elles-mêmes affichées. Défaut réel
+  qui a bloqué un formulaire en production : « Nom de la personne
+  accompagnante » dépendait de « Serez-vous accompagné ? », elle-même
+  conditionnée par « Serez-vous présent ? ». Un répondant qui annonçait venir
+  accompagné puis revenait dire qu'il ne venait pas laissait « accompagné = Oui »
+  dans l'état ; cette réponse devenue inapplicable continuait à commander
+  l'affichage des deux questions sur l'accompagnant. C'est la même règle que
+  celle qui fait RETIRER une valeur devenue inapplicable à la validation : une
+  question qu'on n'a pas posée n'affirme rien. `isFieldVisible` ne voit pas la
+  transitivité — elle ne juge qu'un champ isolé — et son commentaire le dit :
+  utiliser `isVisibleField(schema, id, answers)` dès que cela compte.
+- **Un refus d'envoi NOMME la question, toujours.** « Certaines réponses
+  doivent être corrigées » sur un formulaire de neuf questions laisse chercher :
+  c'est exactement le reproche qu'on nous a fait. Trois cas, dans cet ordre — le
+  champ fautif est un écran du parcours, on y retourne avec le message en
+  ligne ; il existe au schéma sans être affiché, on nomme la question ; il
+  n'existe pas même au schéma, on nomme la clé. Le message générique nu n'est
+  plus atteignable.
 - **Une seule implémentation des conditions.** `src/lib/survey/conditions.ts`
   sert au rendu public (quel écran afficher) ET à la validation serveur (quel
   champ est requis). Deux implémentations divergeraient, et le serveur finirait

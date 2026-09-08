@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  conditionFields,
   evaluateCondition,
   isAnswered,
+  isVisibleField,
   visibleFields,
   visibleSteps,
 } from '@/lib/survey/conditions';
@@ -217,5 +219,149 @@ describe('assainissement des valeurs', () => {
 
   it('normalise une clé anti-doublon en ignorant casse et espaces', () => {
     expect(normaliseDedupValue('  Jean@Exemple.TEST ')).toBe('jean@exemple.test');
+  });
+});
+
+describe('visibilité TRANSITIVE', () => {
+  /**
+   * Le défaut réel qui a bloqué un formulaire en production. La chaîne est :
+   *
+   *   « Serez-vous présent ? »            → commande
+   *   « Serez-vous accompagné ? »         → commande
+   *   « Nom de la personne accompagnante »
+   *
+   * Un répondant qui annonce venir accompagné puis revient dire qu'il ne vient
+   * PAS laisse « accompagné = Oui » dans l'état. Cette réponse est devenue
+   * inapplicable — la question n'est plus posée — mais elle continuait à
+   * afficher les deux questions sur l'accompagnant.
+   */
+  const chain: SurveySchema = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            {
+              id: 'presence',
+              type: 'radio',
+              label: 'Serez-vous présent ?',
+              required: true,
+              options: [
+                { value: 'oui', label: 'Oui' },
+                { value: 'non', label: 'Non' },
+              ],
+            },
+            {
+              id: 'accompagne',
+              type: 'radio',
+              label: 'Serez-vous accompagné ?',
+              required: true,
+              condition: { field: 'presence', op: 'equals', value: 'oui' },
+              options: [
+                { value: 'option_1', label: 'Oui' },
+                { value: 'option_2', label: 'Non' },
+              ],
+            },
+            {
+              id: 'nom_accompagnant',
+              type: 'text',
+              label: 'Nom de la personne accompagnante',
+              condition: { field: 'accompagne', op: 'equals', value: 'option_1' },
+            },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(`Schéma invalide : ${JSON.stringify(result.issues)}`);
+    return result.schema;
+  })();
+
+  const shown = (answers: Record<string, unknown>) =>
+    visibleFields(chain, answers).map(({ field }) => field.id);
+
+  it('affiche la chaîne complète quand chaque maillon tient', () => {
+    expect(shown({ presence: 'oui', accompagne: 'option_1' })).toEqual([
+      'presence',
+      'accompagne',
+      'nom_accompagnant',
+    ]);
+  });
+
+  it('masque le PETIT-ENFANT quand le parent est masqué, malgré sa réponse restée là', () => {
+    // Le cœur du défaut : « accompagne » n'est plus posée, donc son « Oui »
+    // n'affirme plus rien et ne doit rien commander.
+    expect(shown({ presence: 'non', accompagne: 'option_1' })).toEqual(['presence']);
+  });
+
+  it('masque aussi le petit-enfant déjà rempli', () => {
+    expect(
+      shown({ presence: 'non', accompagne: 'option_1', nom_accompagnant: 'Camille' }),
+    ).toEqual(['presence']);
+  });
+
+  it('répond pareil pour un champ isolé', () => {
+    expect(isVisibleField(chain, 'nom_accompagnant', { presence: 'oui', accompagne: 'option_1' })).toBe(true);
+    expect(isVisibleField(chain, 'nom_accompagnant', { presence: 'non', accompagne: 'option_1' })).toBe(false);
+    expect(isVisibleField(chain, 'inconnu', { presence: 'oui' })).toBe(false);
+  });
+
+  it('relève les champs observés, sous-conditions comprises', () => {
+    expect(conditionFields({ field: 'a', op: 'answered' })).toEqual(['a']);
+    expect(
+      conditionFields({
+        all: [
+          { field: 'a', op: 'answered' },
+          { any: [{ field: 'b', op: 'answered' }, { field: 'c', op: 'answered' }] },
+        ],
+      }),
+    ).toEqual(['a', 'b', 'c']);
+  });
+
+  it('masque un champ dont UNE seule des questions observées est masquée', () => {
+    // Avec `any`, il suffirait qu'une branche soit vraie ; mais si la question
+    // observée n'a pas été posée, la branche ne peut rien affirmer.
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            {
+              id: 'presence',
+              type: 'radio',
+              label: 'Présent ?',
+              options: [
+                { value: 'oui', label: 'Oui' },
+                { value: 'non', label: 'Non' },
+              ],
+            },
+            {
+              id: 'cache',
+              type: 'text',
+              label: 'Caché',
+              condition: { field: 'presence', op: 'equals', value: 'oui' },
+            },
+            {
+              id: 'suite',
+              type: 'text',
+              label: 'Suite',
+              condition: {
+                any: [
+                  { field: 'cache', op: 'answered' },
+                  { field: 'presence', op: 'answered' },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error('Schéma invalide');
+    expect(
+      visibleFields(result.schema, { presence: 'non', cache: 'valeur restée là' }).map(
+        ({ field }) => field.id,
+      ),
+    ).toEqual(['presence']);
   });
 });

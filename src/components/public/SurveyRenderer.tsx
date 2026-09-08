@@ -184,10 +184,76 @@ export function SurveyRenderer({
     setIndex(index - 1);
   }, [index, phase]);
 
+  /**
+   * Ramène au premier champ fautif, ou dit lesquels le sont.
+   *
+   * Un refus ne doit JAMAIS se résumer à « certaines réponses doivent être
+   * corrigées » : sur un formulaire de neuf questions, cela laisse chercher.
+   * Trois cas, dans l'ordre :
+   *
+   *  1. le champ fautif est un écran du parcours → on y retourne, message en
+   *     ligne et focus posé dessus ;
+   *  2. il existe dans le schéma mais n'est plus affiché — un formulaire
+   *     modifié pendant la saisie, par exemple → on NOMME la question ;
+   *  3. il n'existe même pas dans le schéma → on le dit aussi, plutôt que de
+   *     laisser deviner.
+   */
+  const designate = useCallback(
+    (fields: Record<string, string>): boolean => {
+      const faulty = Object.keys(fields);
+      if (faulty.length === 0) return false;
+
+      const first = faulty[0]!;
+      const target = screens.findIndex(
+        (screen) => screen.kind === 'field' && screen.field.id === first,
+      );
+      if (target >= 0) {
+        setPhase('form');
+        setIndex(target);
+        setFieldError(responseErrorMessage(fields[first]!));
+        return true;
+      }
+
+      const labelled = faulty.map((id) => {
+        const known = schema.steps
+          .flatMap((step) => step.fields)
+          .find((field) => field.id === id);
+        const message = responseErrorMessage(fields[id]!);
+        return known ? `« ${known.label} » : ${message}` : `« ${id} » : ${message}`;
+      });
+      setFormError(`${fr.survey.submitErrors.invalid_input} ${labelled.join(' — ')}`);
+      return true;
+    },
+    [schema, screens],
+  );
+
   const send = useCallback(async () => {
-    setSending(true);
     setFormError(null);
 
+    /**
+     * Validation de TOUT le formulaire avant l'envoi, avec la même fonction que
+     * le serveur.
+     *
+     * CEINTURE, pas garde-fou agissant : `goNext` refuse déjà de quitter un
+     * écran dont le champ est mal rempli, y compris le dernier, si bien qu'on
+     * ne peut normalement pas atteindre l'envoi avec une réponse invalide.
+     * Muter ce bloc ne fait donc échouer aucun test, et c'est dit ici plutôt
+     * que laissé croire.
+     *
+     * Il reste parce qu'il ne coûte rien et couvre ce que le contrôle écran par
+     * écran ne peut pas voir : une incohérence ENTRE deux réponses, ou un
+     * changement futur de la navigation. Et parce qu'un refus attrapé ici
+     * désigne la question, alors qu'un refus du serveur arrive après l'envoi.
+     */
+    const validation = validateResponse(schema, answers);
+    if (!validation.ok) {
+      const fields: Record<string, string> = {};
+      for (const error of validation.errors) fields[error.field] ??= error.code;
+      designate(fields);
+      return;
+    }
+
+    setSending(true);
     const result = await onSubmit({ data: answers, consentGiven });
 
     if (result.ok) {
@@ -198,23 +264,10 @@ export function SurveyRenderer({
 
     setSending(false);
 
-    // Un refus portant sur un champ ramène à CE champ : laisser l'utilisateur
-    // chercher lui-même serait cruel sur un formulaire long.
-    const firstFaulty = result.fields ? Object.keys(result.fields)[0] : undefined;
-    if (firstFaulty) {
-      const target = screens.findIndex(
-        (screen) => screen.kind === 'field' && screen.field.id === firstFaulty,
-      );
-      if (target >= 0) {
-        setPhase('form');
-        setIndex(target);
-        setFieldError(responseErrorMessage(result.fields![firstFaulty]!));
-        return;
-      }
-    }
+    if (result.fields && designate(result.fields)) return;
 
     setFormError(submitErrorMessage(result.code));
-  }, [answers, consentGiven, onSubmit, screens]);
+  }, [answers, consentGiven, designate, onSubmit, schema]);
 
   const goNext = useCallback(() => {
     if (!current) return;

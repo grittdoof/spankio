@@ -76,7 +76,7 @@ const field = (id: string) => schema.steps[0]!.fields.find((f) => f.id === id);
 const party = (id: string) => {
   const found = field(id);
   if (!found) throw new Error(`Champ inconnu : ${id}`);
-  return { step: schema.steps[0]!, field: found };
+  return { schema, step: schema.steps[0]!, field: found };
 };
 
 const BASE: AttendanceSettings = { presenceField: 'presence', presenceValue: 'oui' };

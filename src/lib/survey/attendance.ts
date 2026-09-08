@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isFieldVisible } from './conditions';
+import { isVisibleField } from './conditions';
 import { MAX_LENGTHS } from './limits';
 import {
   OTHER_VALUE,
@@ -215,6 +215,11 @@ export interface AttendanceInput {
  * faut donc les deux pour savoir si la question a été posée à quelqu'un.
  */
 export interface PartyQuestion {
+  /**
+   * Le schéma ENTIER, et pas seulement l'étape : la visibilité d'un champ
+   * dépend aussi de celle des questions qu'il observe (transitivité).
+   */
+  readonly schema: SurveySchema;
   readonly step: SurveyStep;
   readonly field: SurveyField;
 }
@@ -227,7 +232,7 @@ export function partyQuestion(
   if (!settings.partyField) return undefined;
   for (const step of schema.steps) {
     const field = step.fields.find((candidate) => candidate.id === settings.partyField);
-    if (field) return { step, field };
+    if (field) return { schema, step, field };
   }
   return undefined;
 }
@@ -269,7 +274,7 @@ export function attendanceOf(
    * moteur de conditions le sait ; ce module l'ignorait, et c'était la seule
    * partie du produit à raisonner sans lui.
    */
-  if (!isFieldVisible(party.step, party.field, response.data)) {
+  if (!isVisibleField(party.schema, party.field.id, response.data)) {
     return { status: 'attending', people: 1, ambiguous: false };
   }
 

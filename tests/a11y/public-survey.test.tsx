@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { FieldInput } from '@/components/public/FieldInput';
 import { SurveyRenderer } from '@/components/public/SurveyRenderer';
 import { ConsentScreen, ThankYouScreen, WelcomeScreen } from '@/components/public/screens';
-import { fr } from '@/lib/i18n/fr';
+import { fr, responseErrorMessage } from '@/lib/i18n/fr';
 import { composeConsentNotice, consentCheckboxLabel } from '@/lib/survey/consent';
 import { validateSurveySchema, type SurveyField, type SurveySchema } from '@/lib/survey/schema';
 import { expectNoA11yViolations } from '../helpers/axe';
@@ -587,5 +587,127 @@ describe('parcours complet', () => {
     await user.type(screen.getByLabelText(/Votre nom/), 'Camille');
     await user.click(screen.getByRole('button', { name: fr.survey.next }));
     await expectNoA11yViolations(container);
+  });
+});
+
+describe('un refus DÉSIGNE toujours la question', () => {
+  /**
+   * Défaut réel signalé en production : « Certaines réponses doivent être
+   * corrigées. » et rien d'autre — sur un formulaire de neuf questions, il
+   * fallait chercher. Deux causes, corrigées ensemble : le parcours ne
+   * validait qu'un champ à la fois (le tout n'était donc contrôlé que par le
+   * serveur), et un champ fautif absent des écrans faisait retomber sur le
+   * message générique.
+   */
+  const schema = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            { id: 'nom', type: 'text', label: 'Quel est votre nom ?', required: true },
+            {
+              id: 'courriel',
+              type: 'email',
+              label: 'Quel est votre email ?',
+              required: true,
+            },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error('Schéma invalide');
+    return result.schema;
+  })();
+
+  type Submit = React.ComponentProps<typeof SurveyRenderer>['onSubmit'];
+
+  function renderRunner(onSubmit: Submit): ReturnType<typeof render> {
+    return render(
+      <SurveyRenderer
+        branding={branding}
+        onSubmit={onSubmit}
+        schema={schema}
+        welcome={{ title: 'Invitation', ctaLabel: 'Commencer' }}
+        consent={{
+          required: false,
+          notice,
+          checkboxLabel: consentCheckboxLabel('consent'),
+          privacyHref: '/confidentialite',
+        }}
+        thankYou={{ title: 'Merci' }}
+      />,
+    );
+  }
+
+  it('n’envoie pas une réponse invalide, et ramène au champ fautif', async () => {
+    // Ce que ce test prouve : le contrôle écran par écran de `goNext`. La
+    // validation complète ajoutée avant l'envoi est une ceinture — elle ne
+    // mord pas ici, et le commentaire du code le dit.
+    const user = userEvent.setup();
+    const onSubmit = vi.fn(() => Promise.resolve({ ok: true as const }));
+    renderRunner(onSubmit);
+
+    await user.click(screen.getByRole('button', { name: 'Commencer' }));
+    await user.type(screen.getByLabelText(/Quel est votre nom/), 'Camille');
+    await user.click(screen.getByRole('button', { name: /Suivant/ }));
+
+    // Le courriel est laissé vide : l'envoi ne doit pas partir.
+    await user.click(screen.getByRole('button', { name: /Envoyer/ }));
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Et l'écran fautif est sous les yeux, avec son message en ligne — pas un
+    // bandeau générique qui laisserait chercher.
+    expect(screen.getByLabelText(/Quel est votre email/)).toBeInTheDocument();
+    expect(screen.queryByText(/Certaines réponses doivent être corrigées/)).toBeNull();
+    expect(screen.getByText(responseErrorMessage('required'))).toBeTruthy();
+  });
+
+  it('NOMME la question quand le refus porte sur un champ hors parcours', async () => {
+    const user = userEvent.setup();
+    // Le serveur refuse sur un champ que l'écran n'affiche pas : sans le nom
+    // de la question, l'utilisateur n'a aucune prise.
+    const onSubmit = vi.fn(() =>
+      Promise.resolve({
+        ok: false as const,
+        code: 'invalid_input',
+        fields: { courriel: 'invalid_email' },
+      }),
+    );
+    const { container } = renderRunner(onSubmit);
+
+    await user.click(screen.getByRole('button', { name: 'Commencer' }));
+    await user.type(screen.getByLabelText(/Quel est votre nom/), 'Camille');
+    await user.click(screen.getByRole('button', { name: /Suivant/ }));
+    await user.type(screen.getByLabelText(/Quel est votre email/), 'camille@exemple.test');
+    await user.click(screen.getByRole('button', { name: /Envoyer/ }));
+
+    // Le champ EST dans le parcours : on y retourne, message en ligne.
+    expect(screen.getByLabelText(/Quel est votre email/)).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it('nomme la question même pour une clé inconnue du parcours', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn(() =>
+      Promise.resolve({
+        ok: false as const,
+        code: 'invalid_input',
+        fields: { champ_disparu: 'unknown_field' },
+      }),
+    );
+    renderRunner(onSubmit);
+
+    await user.click(screen.getByRole('button', { name: 'Commencer' }));
+    await user.type(screen.getByLabelText(/Quel est votre nom/), 'Camille');
+    await user.click(screen.getByRole('button', { name: /Suivant/ }));
+    await user.type(screen.getByLabelText(/Quel est votre email/), 'camille@exemple.test');
+    await user.click(screen.getByRole('button', { name: /Envoyer/ }));
+
+    const alert = await screen.findByRole('alert');
+    // La clé est nommée, et le motif avec : jamais un message nu.
+    expect(alert.textContent).toContain('champ_disparu');
+    expect(alert.textContent).toContain('Cette question n’existe pas');
   });
 });
