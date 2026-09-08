@@ -262,14 +262,20 @@ export function Invitation({
           <p className="sp-brandline">
             {branding.logoUrl ? (
               // Même raison que pour la bannière : un logo par organisation.
+              //
+              // `width`/`height` ne dimensionnent pas — le CSS borne la
+              // hauteur et la largeur suit le rapport de forme réel de
+              // l'image. Ils déclarent ce rapport pour que le navigateur
+              // réserve la place avant le chargement, et sont donc mis à
+              // l'échelle avec la taille rendue.
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 alt={branding.organisationName}
                 className="sp-brandline__logo"
                 decoding="async"
-                height={40}
+                height={80}
                 src={branding.logoUrl}
-                width={120}
+                width={240}
               />
             ) : (
               <span className="sp-brandline__name">{branding.organisationName}</span>

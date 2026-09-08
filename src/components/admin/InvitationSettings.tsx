@@ -6,6 +6,7 @@ import { Callout } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { checkCtaColor, CTA_MIN_RATIO, CTA_PAGE_RATIO } from '@/lib/design/cta';
+import type { SurveySettings } from '@/lib/survey/settings';
 import {
   isBlockAllowed,
   PUBLIC_BLOCK_META,
@@ -36,14 +37,27 @@ import {
  *     plutôt que de laisser découvrir une section absente.
  */
 
+/**
+ * Textes des écrans d'encadrement.
+ *
+ * Ils vivent dans `settings.thankYou`, pas dans `settings.publicPage` : ce sont
+ * des réglages du PARCOURS, antérieurs à cet écran. On les édite ici parce que
+ * c'est là qu'on décide de ce que l'invité lit — et parce qu'ils n'étaient
+ * éditables nulle part, ce qui obligeait à passer par la base pour changer une
+ * phrase.
+ */
+export type InvitationTexts = Pick<SurveySettings, 'thankYou'>;
+
 export interface InvitationSettingsProps {
   initial: PublicPageSettings;
+  initialTexts: InvitationTexts;
   /** Adresse publique, pour aller voir le résultat. */
   publicUrl: string;
   /** Le formulaire est-il publié ? Sinon la page publique n'existe pas encore. */
   published: boolean;
   onSave: (
     draft: PublicPageSettings,
+    texts: InvitationTexts,
   ) => Promise<{ ok: true } | { ok: false; message?: string }>;
 }
 
@@ -57,11 +71,13 @@ const BLOCKS_WITH_OWN_CARD: readonly PublicBlock[] = [
 
 export function InvitationSettings({
   initial,
+  initialTexts,
   publicUrl,
   published,
   onSave,
 }: InvitationSettingsProps) {
   const [draft, setDraft] = useState<PublicPageSettings>(initial);
+  const [texts, setTexts] = useState<InvitationTexts>(initialTexts);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +94,23 @@ export function InvitationSettings({
 
   const patch = (changes: Partial<PublicPageSettings>) => {
     setDraft((previous) => ({ ...previous, ...changes }));
+    setNotice(null);
+  };
+
+  /**
+   * Un texte effacé retire la clé au lieu d'enregistrer une chaîne vide : le
+   * rendu retombe alors sur le libellé par défaut de l'interface, au lieu
+   * d'afficher un titre vide.
+   */
+  const patchThankYou = (changes: Record<string, string>) => {
+    setTexts((previous) => {
+      const next = { ...(previous.thankYou ?? {}) } as Record<string, unknown>;
+      for (const [key, value] of Object.entries(changes)) {
+        if (value.trim() === '') delete next[key];
+        else next[key] = value;
+      }
+      return { thankYou: next };
+    });
     setNotice(null);
   };
 
@@ -108,12 +141,15 @@ export function InvitationSettings({
     // La couleur est composée AU MOMENT de l'enregistrement, depuis la palette
     // validée — jamais recopiée du champ de saisie. Une seule source de vérité,
     // et ce qui partira est exactement ce que l'aperçu montrait.
-    const result = await onSave({
-      ...draft,
-      ...(verdict?.ok
-        ? { ctaColor: verdict.palette.background }
-        : { ctaColor: undefined }),
-    });
+    const result = await onSave(
+      {
+        ...draft,
+        ...(verdict?.ok
+          ? { ctaColor: verdict.palette.background }
+          : { ctaColor: undefined }),
+      },
+      texts,
+    );
     setSaving(false);
     if (result.ok) {
       setNotice('Page publique enregistrée.');
@@ -197,6 +233,49 @@ export function InvitationSettings({
             )}
           </Field>
         ) : null}
+      </section>
+
+      {/* --- Écran de fin -------------------------------------------------- */}
+      <section className="sp-card sp-stack">
+        <h2 className="sp-card__title">Écran de fin</h2>
+        <p className="sp-muted">
+          Ce que l’invité lit juste après avoir envoyé sa réponse. Les liens
+          d’agenda et d’itinéraire s’affichent en dessous, s’ils sont ouverts.
+        </p>
+
+        <Field
+          hint="Par défaut : « Merci pour votre réponse »."
+          id="inv-fin-titre"
+          label="Titre"
+        >
+          {(attributes) => (
+            <input
+              {...attributes}
+              className="sp-input"
+              maxLength={300}
+              onChange={(event) => patchThankYou({ title: event.target.value })}
+              type="text"
+              value={texts.thankYou?.title ?? ''}
+            />
+          )}
+        </Field>
+
+        <Field
+          hint="Une phrase, pas un paragraphe : elle est lue une fois."
+          id="inv-fin-phrase"
+          label="Phrase"
+        >
+          {(attributes) => (
+            <textarea
+              {...attributes}
+              className="sp-textarea"
+              maxLength={2000}
+              onChange={(event) => patchThankYou({ message: event.target.value })}
+              rows={3}
+              value={texts.thankYou?.message ?? ''}
+            />
+          )}
+        </Field>
       </section>
 
       {/* --- Couleur du bouton -------------------------------------------- */}

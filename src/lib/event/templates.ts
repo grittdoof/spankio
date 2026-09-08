@@ -72,7 +72,8 @@ const eventRegistration = template({
     },
     thankYou: {
       title: 'Votre inscription est enregistrée',
-      message: 'Vous pouvez ajouter l’événement à votre agenda ci-dessous.',
+      message:
+        'Vous pouvez ajouter l’événement à votre agenda grâce au lien ci-dessous.',
       showCalendar: true,
     },
     /**

@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { InvitationSettings } from '@/components/admin/InvitationSettings';
+import {
+  InvitationSettings,
+  type InvitationTexts,
+} from '@/components/admin/InvitationSettings';
 import type { PublicPageSettings } from '@/lib/survey/public-page';
 import { expectNoA11yViolations } from '../helpers/axe';
 
@@ -22,20 +25,30 @@ const noop = () => Promise.resolve({ ok: true as const });
  * l'enregistrement doit être observable. Ce double retient le dernier
  * brouillon envoyé.
  */
-function Harness({ initial }: { initial: PublicPageSettings }) {
+function Harness({
+  initial,
+  texts = {},
+}: {
+  initial: PublicPageSettings;
+  texts?: InvitationTexts;
+}) {
   const [saved, setSaved] = useState<PublicPageSettings | null>(null);
+  const [savedTexts, setSavedTexts] = useState<InvitationTexts | null>(null);
   return (
     <>
       <InvitationSettings
         initial={initial}
-        onSave={(draft) => {
+        initialTexts={texts}
+        onSave={(draft, nextTexts) => {
           setSaved(draft);
+          setSavedTexts(nextTexts);
           return Promise.resolve({ ok: true });
         }}
         publicUrl="https://spankio.test/s/org/invitation"
         published
       />
       <output data-testid="enregistre">{saved ? JSON.stringify(saved) : ''}</output>
+      <output data-testid="textes">{savedTexts ? JSON.stringify(savedTexts) : ''}</output>
     </>
   );
 }
@@ -45,6 +58,7 @@ describe('accessibilité', () => {
     const { container } = render(
       <InvitationSettings
         initial={{}}
+        initialTexts={{}}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -64,6 +78,7 @@ describe('accessibilité', () => {
           organiserWord: { text: 'Bonjour.' },
           travelNote: 'Métro Miromesnil.',
         }}
+        initialTexts={{ thankYou: { title: 'Votre inscription est enregistrée' } }}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -76,6 +91,7 @@ describe('accessibilité', () => {
     render(
       <InvitationSettings
         initial={{}}
+        initialTexts={{}}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
@@ -92,6 +108,7 @@ describe('accessibilité', () => {
     render(
       <InvitationSettings
         initial={{}}
+        initialTexts={{}}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published={false}
@@ -250,11 +267,53 @@ describe('couleur du bouton', () => {
     const { container } = render(
       <InvitationSettings
         initial={{ ctaColor: '#0B4A96' }}
+        initialTexts={{}}
         onSave={noop}
         publicUrl="https://spankio.test/s/org/invitation"
         published
       />,
     );
     await expectNoA11yViolations(container);
+  });
+});
+
+describe('écran de fin', () => {
+  it('rend le texte enregistré modifiable', async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        initial={{}}
+        texts={{ thankYou: { title: 'Votre inscription est enregistrée' } }}
+      />,
+    );
+
+    await user.type(
+      screen.getByLabelText('Phrase'),
+      'Vous pouvez ajouter l’événement à votre agenda grâce au lien ci-dessous.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+    const saved = JSON.parse(
+      screen.getByTestId('textes').textContent ?? '',
+    ) as { thankYou?: { title?: string; message?: string } };
+    expect(saved.thankYou?.title).toBe('Votre inscription est enregistrée');
+    expect(saved.thankYou?.message).toBe(
+      'Vous pouvez ajouter l’événement à votre agenda grâce au lien ci-dessous.',
+    );
+  });
+
+  it('retire la clé plutôt que d’enregistrer une chaîne vide', async () => {
+    // Un titre vide afficherait un écran de fin sans titre ; l'absence de clé
+    // fait retomber le rendu sur le libellé par défaut de l'interface.
+    const user = userEvent.setup();
+    render(<Harness initial={{}} texts={{ thankYou: { title: 'Merci !' } }} />);
+
+    await user.clear(screen.getByLabelText('Titre'));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+
+    const saved = JSON.parse(
+      screen.getByTestId('textes').textContent ?? '',
+    ) as { thankYou?: Record<string, unknown> };
+    expect(saved.thankYou?.['title']).toBeUndefined();
   });
 });
