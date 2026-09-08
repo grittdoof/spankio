@@ -33,10 +33,23 @@ export const attendanceSettingsSchema = z.object({
   /** Question donnant le nombre de personnes. */
   partyField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
   /**
-   * `extra` : le nombre s'ajoute au répondant (« combien vous accompagnent »).
-   * `total` : le nombre inclut déjà le répondant (« combien serez-vous »).
+   * Comment lire la réponse désignée :
+   *
+   * - `extra` : un nombre qui s'ajoute au répondant (« combien vous
+   *   accompagnent » — « 2 » vaut trois personnes) ;
+   * - `total` : un nombre qui inclut déjà le répondant (« combien serez-vous »
+   *   — « 2 » vaut deux personnes) ;
+   * - `one`  : un oui/non, où une seule réponse ajoute UNE personne. Le cas
+   *   d'un événement qui n'accepte qu'un accompagnant : « Serez-vous
+   *   accompagné ? » suffit alors, sans demander de nombre.
    */
-  partyMode: z.enum(['extra', 'total']).optional(),
+  partyMode: z.enum(['extra', 'total', 'one']).optional(),
+  /**
+   * En mode `one`, la réponse qui ajoute une personne. Sans elle la
+   * désignation est incomplète et le comptage retombe à une personne par
+   * réponse — comparer à rien ne déclencherait jamais.
+   */
+  partyValue: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
   /**
    * Nombre de places, quand l'événement en a un.
    *
@@ -56,6 +69,9 @@ export const attendanceSettingsSchema = z.object({
 });
 
 export type AttendanceSettings = z.infer<typeof attendanceSettingsSchema>;
+
+/** Lecture retenue pour la question d'effectif. */
+export type PartyMode = NonNullable<AttendanceSettings['partyMode']>;
 
 /** Le comptage est-il configuré au point d'être exploitable ? */
 export function isAttendanceConfigured(settings: AttendanceSettings | undefined): boolean {
@@ -78,19 +94,39 @@ export function presenceCandidates(schema: SurveySchema): SurveyField[] {
 }
 
 /**
- * Questions qui peuvent donner un nombre : un champ numérique, ou un choix
- * dont les libellés sont des nombres. Les libellés, pas les valeurs : celles-ci
- * sont des identifiants figés à la création (`option_1`…), alors que le libellé
- * porte le sens (« 2 »).
+ * Questions qui peuvent déterminer l'effectif.
+ *
+ * Trois familles, et c'est le TYPE qui décide de la lecture possible (voir
+ * `partyModesFor`) : un champ numérique, un choix dont les libellés sont des
+ * nombres, ou un simple choix unique — ce dernier ne peut être lu qu'en
+ * oui/non. Les libellés, pas les valeurs : celles-ci sont des identifiants
+ * figés à la création (`option_1`…), alors que le libellé porte le sens (« 2 »).
  */
 export function partyCandidates(schema: SurveySchema): SurveyField[] {
-  return allFields(schema).filter((field) => {
-    if (field.type === 'number') return true;
-    if (field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') {
-      return field.options.some((option) => parseCount(option.label) !== null);
-    }
-    return false;
-  });
+  return allFields(schema).filter((field) => partyModesFor(field).length > 0);
+}
+
+/** Modes de lecture applicables à une question donnée, dans l'ordre proposé. */
+export function partyModesFor(field: SurveyField | undefined): PartyMode[] {
+  if (!field) return [];
+  if (field.type === 'number') return ['extra', 'total'];
+
+  if (field.type === 'select' || field.type === 'radio') {
+    const numeric = field.options.some((option) => parseCount(option.label) !== null);
+    // Un choix unique peut TOUJOURS se lire en oui/non ; s'il porte en plus
+    // des libellés numériques, il peut aussi se lire comme un nombre.
+    return numeric ? ['extra', 'total', 'one'] : ['one'];
+  }
+
+  if (field.type === 'checkbox') {
+    // Plusieurs cases cochées ne forment pas un oui/non : seul le nombre a un
+    // sens, et l'ambiguïté est signalée ailleurs.
+    return field.options.some((option) => parseCount(option.label) !== null)
+      ? ['extra', 'total']
+      : [];
+  }
+
+  return [];
 }
 
 /** Valeurs proposables comme « oui, je viens ». */
@@ -237,6 +273,31 @@ export function attendanceOf(
     return { status: 'attending', people: 1, ambiguous: false };
   }
 
+  const mode = settings.partyMode ?? 'extra';
+
+  /**
+   * Lecture en oui/non : une seule réponse ajoute UNE personne.
+   *
+   * Sans valeur désignée, la comparaison ne se déclencherait jamais : on
+   * retombe alors sur une personne par réponse, sans réserve — un total muet
+   * vaut mieux qu'un total faux.
+   */
+  if (mode === 'one') {
+    if (!settings.partyValue) {
+      return { status: 'attending', people: 1, ambiguous: false };
+    }
+    const answer = response.data[party.field.id];
+    if (answer === undefined || answer === null || answer === '') {
+      // Question posée, laissée vide : on ne sait pas s'il vient accompagné.
+      return { status: 'attending', people: 1, ambiguous: true };
+    }
+    return {
+      status: 'attending',
+      people: answer === settings.partyValue ? 2 : 1,
+      ambiguous: false,
+    };
+  }
+
   const counted = countFrom(party.field, response.data[party.field.id]);
   if (counted === null) {
     // La question a été POSÉE et laissée vide : là, l'effectif est vraiment
@@ -245,7 +306,6 @@ export function attendanceOf(
     return { status: 'attending', people: 1, ambiguous: true };
   }
 
-  const mode = settings.partyMode ?? 'extra';
   const people = mode === 'total' ? Math.max(1, counted) : 1 + counted;
   return { status: 'attending', people, ambiguous: false };
 }

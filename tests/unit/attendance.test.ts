@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   attendanceOf,
+  partyModesFor,
   partyQuestion,
   attendanceRows,
   countAttendance,
@@ -94,12 +95,13 @@ describe('configuration', () => {
     expect(presenceCandidates(schema).map((f) => f.id)).toEqual(['presence', 'accompagnants']);
   });
 
-  it('propose comme question d’effectif un nombre ou un choix à libellés numériques', () => {
-    expect(partyCandidates(schema).map((f) => f.id)).toEqual([
-      'accompagnants',
-      'total',
-      'multi',
-    ]);
+  it('n’écarte de l’effectif que les questions qu’aucune lecture ne couvre', () => {
+    // Un champ libre ne se compare ni ne se compte : « Nom » n'est pas
+    // candidat. Le détail des lectures est vérifié plus bas.
+    const candidates = partyCandidates(schema).map((f) => f.id);
+    expect(candidates).not.toContain('nom');
+    expect(candidates).toContain('total');
+    expect(candidates).toContain('presence');
   });
 
   it('n’expose les valeurs de présence que de la question désignée', () => {
@@ -365,5 +367,140 @@ describe('question d’effectif masquée par une condition', () => {
     expect(partyQuestion(conditional, settings)?.field.id).toBe('combien');
     expect(partyQuestion(conditional, { ...settings, partyField: undefined })).toBeUndefined();
     expect(partyQuestion(conditional, { ...settings, partyField: 'inconnu' })).toBeUndefined();
+  });
+});
+
+describe('lecture en oui/non (un seul accompagnant)', () => {
+  /**
+   * Le scénario demandé : l'événement n'accepte qu'un accompagnant, donc
+   * « Serez-vous accompagné ? » suffit — inutile de demander un nombre. Une
+   * réponse « oui » ajoute UNE personne.
+   */
+  const settings: AttendanceSettings = {
+    ...BASE,
+    partyField: 'presence_plus',
+    partyMode: 'one',
+    partyValue: 'oui_accompagne',
+  };
+
+  const yesNo: SurveySchema = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            {
+              id: 'presence',
+              type: 'radio',
+              label: 'Serez-vous présent ?',
+              options: [
+                { value: 'oui', label: 'Oui' },
+                { value: 'non', label: 'Non' },
+              ],
+            },
+            {
+              id: 'presence_plus',
+              type: 'radio',
+              label: 'Serez-vous accompagné ?',
+              required: true,
+              options: [
+                { value: 'oui_accompagne', label: 'Oui' },
+                { value: 'non_accompagne', label: 'Non' },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(`Schéma invalide : ${JSON.stringify(result.issues)}`);
+    return result.schema;
+  })();
+
+  const question = partyQuestion(yesNo, settings);
+
+  it('compte DEUX personnes sur la réponse désignée', () => {
+    const row = attendanceOf(
+      settings,
+      { data: { presence: 'oui', presence_plus: 'oui_accompagne' } },
+      question,
+    );
+    expect(row).toEqual({ status: 'attending', people: 2, ambiguous: false });
+  });
+
+  it('compte UNE personne sur toute autre réponse', () => {
+    const row = attendanceOf(
+      settings,
+      { data: { presence: 'oui', presence_plus: 'non_accompagne' } },
+      question,
+    );
+    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  });
+
+  it('signale la réserve quand la question est restée vide', () => {
+    const row = attendanceOf(settings, { data: { presence: 'oui' } }, question);
+    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: true });
+  });
+
+  it('reste muet plutôt que faux si aucune réponse n’est désignée', () => {
+    // Comparer à rien ne se déclencherait jamais : une personne par réponse,
+    // sans réserve — un total muet vaut mieux qu'un total faux.
+    const incomplete: AttendanceSettings = { ...settings, partyValue: undefined };
+    const row = attendanceOf(
+      incomplete,
+      { data: { presence: 'oui', presence_plus: 'oui_accompagne' } },
+      partyQuestion(yesNo, incomplete),
+    );
+    expect(row).toEqual({ status: 'attending', people: 1, ambiguous: false });
+  });
+
+  it('additionne correctement sur un ensemble', () => {
+    const totals = countAttendance(yesNo, settings, [
+      { data: { presence: 'oui', presence_plus: 'oui_accompagne' } },
+      { data: { presence: 'oui', presence_plus: 'non_accompagne' } },
+      { data: { presence: 'oui', presence_plus: 'oui_accompagne' } },
+      { data: { presence: 'non' } },
+    ]);
+    expect(totals).toEqual({
+      attending: 3,
+      declined: 1,
+      unknown: 0,
+      people: 5,
+      ambiguous: 0,
+    });
+  });
+});
+
+describe('lectures applicables à une question', () => {
+  it('un champ numérique se lit en accompagnants ou en total, jamais en oui/non', () => {
+    expect(partyModesFor(field('total'))).toEqual(['extra', 'total']);
+  });
+
+  it('un choix à libellés numériques accepte les trois lectures', () => {
+    expect(partyModesFor(field('accompagnants'))).toEqual(['extra', 'total', 'one']);
+  });
+
+  it('un choix sans libellé numérique ne se lit QU’en oui/non', () => {
+    // « Serez-vous accompagné ? » n'est pas un nombre : proposer « le total »
+    // donnerait un comptage qui ne se déclenche jamais.
+    expect(partyModesFor(field('presence'))).toEqual(['one']);
+  });
+
+  it('une case à cocher multiple ne peut pas être un oui/non', () => {
+    expect(partyModesFor(field('multi'))).toEqual(['extra', 'total']);
+  });
+
+  it('ne propose rien pour un champ inutilisable, ni pour rien du tout', () => {
+    expect(partyModesFor(field('nom'))).toEqual([]);
+    expect(partyModesFor(undefined)).toEqual([]);
+  });
+
+  it('les candidats sont exactement les questions ayant au moins une lecture', () => {
+    expect(partyCandidates(schema).map((f) => f.id)).toEqual([
+      'presence',
+      'accompagnants',
+      'total',
+      'multi',
+    ]);
   });
 });

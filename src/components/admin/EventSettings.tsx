@@ -11,9 +11,11 @@ import {
   detailCandidates,
   identityCandidates,
   partyCandidates,
+  partyModesFor,
   presenceCandidates,
   presenceValues,
   type AttendanceSettings,
+  type PartyMode,
 } from '@/lib/survey/attendance';
 import type { SurveySchema } from '@/lib/survey/schema';
 import { BannerUpload } from './BannerUpload';
@@ -128,6 +130,44 @@ export function EventSettings({
   const chosenParty = partyOptions.find(
     (field) => field.id === draft.attendance.partyField,
   );
+  /**
+   * Lectures possibles de la question choisie. C'est le TYPE de la question qui
+   * décide : un oui/non ne se lit pas comme un nombre, et l'inverse. Proposer
+   * une lecture inapplicable donnerait un comptage qui ne se déclenche jamais.
+   */
+  const partyModes = partyModesFor(chosenParty);
+  const partyValueOptions = presenceValues(schema, draft.attendance.partyField);
+
+  /**
+   * Change de lecture en réinitialisant ce qui n'a plus de sens : quitter le
+   * mode oui/non abandonne la valeur désignée, y entrer en présélectionne une —
+   * sans quoi le comptage resterait muet jusqu'à ce qu'on pense à la choisir.
+   */
+  const setPartyMode = (mode: PartyMode) =>
+    patch({
+      attendance: {
+        ...draft.attendance,
+        partyMode: mode,
+        ...(mode === 'one'
+          ? { partyValue: draft.attendance.partyValue ?? partyValueOptions[0]?.value }
+          : { partyValue: undefined }),
+      },
+    });
+
+  const PARTY_MODE_LABELS: Readonly<Record<PartyMode, { name: string; desc: string }>> = {
+    extra: {
+      name: 'Un nombre d’accompagnants',
+      desc: 'Le répondant s’ajoute : « 2 » vaut trois personnes.',
+    },
+    total: {
+      name: 'Un nombre total de personnes',
+      desc: 'Le répondant est déjà compté : « 2 » vaut deux personnes.',
+    },
+    one: {
+      name: 'Un oui ou non',
+      desc: 'Une seule réponse ajoute UNE personne : « oui » vaut deux personnes. À retenir quand l’événement n’accepte qu’un accompagnant — inutile alors de demander un nombre.',
+    },
+  };
   const identityOptions = identityCandidates(schema);
   const detailOptions = detailCandidates(schema);
   const presenceValueOptions = presenceValues(schema, draft.attendance.presenceField);
@@ -421,8 +461,8 @@ export function EventSettings({
               <>
                 <Field
                   id="evt-effectif"
-                  label="Question donnant le nombre de personnes"
-                  hint="Facultatif. Sans elle, chaque réponse présente compte pour une personne."
+                  label="Question qui détermine l’effectif"
+                  hint="Facultatif. Sans elle, chaque réponse présente compte pour une personne. Un nombre, ou un simple oui/non si vous n’acceptez qu’un accompagnant."
                 >
                   {(attributes) => (
                     <select
@@ -467,54 +507,72 @@ export function EventSettings({
                   </Callout>
                 ) : null}
 
-                {draft.attendance.partyField ? (
+                {chosenParty && partyModes.length > 1 ? (
                   <fieldset className="sp-fieldset">
-                    <legend>Ce nombre compte…</legend>
+                    <legend>Comment lire cette réponse ?</legend>
                     <ul className="sp-picks">
-                      <li>
-                        <label className="sp-pick">
-                          <input
-                            checked={(draft.attendance.partyMode ?? 'extra') === 'extra'}
-                            name="partyMode"
-                            onChange={() =>
-                              patch({
-                                attendance: { ...draft.attendance, partyMode: 'extra' },
-                              })
-                            }
-                            type="radio"
-                            value="extra"
-                          />
-                          <span className="sp-pick__text">
-                            <span className="sp-pick__name">Les accompagnants</span>
-                            <span className="sp-pick__desc">
-                              Le répondant s’ajoute : « 2 » vaut trois personnes.
+                      {partyModes.map((mode) => (
+                        <li key={mode}>
+                          <label className="sp-pick">
+                            <input
+                              checked={(draft.attendance.partyMode ?? partyModes[0]) === mode}
+                              name="partyMode"
+                              onChange={() => setPartyMode(mode)}
+                              type="radio"
+                              value={mode}
+                            />
+                            <span className="sp-pick__text">
+                              <span className="sp-pick__name">
+                                {PARTY_MODE_LABELS[mode].name}
+                              </span>
+                              <span className="sp-pick__desc">
+                                {PARTY_MODE_LABELS[mode].desc}
+                              </span>
                             </span>
-                          </span>
-                        </label>
-                      </li>
-                      <li>
-                        <label className="sp-pick">
-                          <input
-                            checked={draft.attendance.partyMode === 'total'}
-                            name="partyMode"
-                            onChange={() =>
-                              patch({
-                                attendance: { ...draft.attendance, partyMode: 'total' },
-                              })
-                            }
-                            type="radio"
-                            value="total"
-                          />
-                          <span className="sp-pick__text">
-                            <span className="sp-pick__name">Le total</span>
-                            <span className="sp-pick__desc">
-                              Le répondant est déjà compté : « 2 » vaut deux personnes.
-                            </span>
-                          </span>
-                        </label>
-                      </li>
+                          </label>
+                        </li>
+                      ))}
                     </ul>
                   </fieldset>
+                ) : null}
+
+                {/* Une seule lecture possible : on l'annonce, au lieu d'offrir
+                    un choix qui n'en est pas un. */}
+                {chosenParty && partyModes.length === 1 && partyModes[0] ? (
+                  <p className="sp-hint">
+                    {PARTY_MODE_LABELS[partyModes[0]].name} —{' '}
+                    {PARTY_MODE_LABELS[partyModes[0]].desc}
+                  </p>
+                ) : null}
+
+                {chosenParty && (draft.attendance.partyMode ?? partyModes[0]) === 'one' ? (
+                  <Field
+                    hint="Toute autre réponse compte pour une seule personne."
+                    id="evt-effectif-valeur"
+                    label="Réponse qui ajoute une personne"
+                  >
+                    {(attributes) => (
+                      <select
+                        {...attributes}
+                        className="sp-select"
+                        onChange={(event) =>
+                          patch({
+                            attendance: {
+                              ...draft.attendance,
+                              partyValue: event.target.value,
+                            },
+                          })
+                        }
+                        value={draft.attendance.partyValue ?? ''}
+                      >
+                        {partyValueOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </Field>
                 ) : null}
 
                 <Field

@@ -302,13 +302,17 @@ describe('comptage des présents', () => {
     );
 
     await user.selectOptions(
-      screen.getByLabelText(/Question donnant le nombre de personnes/),
+      screen.getByLabelText(/Question qui détermine l’effectif/),
       'accompagnants',
     );
-    // Sans cette question, « 2 » vaudrait deux ou trois personnes selon la
-    // lecture — et personne ne saurait laquelle.
-    expect(screen.getByRole('group', { name: 'Ce nombre compte…' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /Les accompagnants/ })).toBeTruthy();
+    // Sans ce choix, « 2 » vaudrait deux ou trois personnes selon la lecture —
+    // et personne ne saurait laquelle. Les lectures proposées dépendent du
+    // TYPE de la question : « Combien vous accompagnent ? » porte des libellés
+    // numériques, elle accepte donc les trois.
+    expect(screen.getByRole('group', { name: 'Comment lire cette réponse ?' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /Un nombre d’accompagnants/ })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /Un nombre total/ })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: /Un oui ou non/ })).toBeTruthy();
   });
 
   it('dit ce que coûte une question d’effectif FACULTATIVE', async () => {
@@ -336,7 +340,7 @@ describe('comptage des présents', () => {
     expect(screen.queryByText(/Cette question est/)).toBeNull();
 
     await user.selectOptions(
-      screen.getByLabelText(/Question donnant le nombre de personnes/),
+      screen.getByLabelText(/Question qui détermine l’effectif/),
       'accompagnants',
     );
 
@@ -554,5 +558,40 @@ describe('accessibilité du téléversement de bannière', () => {
     expect(input.getAttribute('accept')).toContain('image/png');
     expect(input.getAttribute('accept')).not.toContain('svg');
     expect(screen.getByText(/3 Mio au maximum/)).toBeTruthy();
+  });
+});
+
+describe('lecture en oui/non', () => {
+  it('n’offre QUE le oui/non sur une question sans libellé numérique, et demande la réponse qui compte', async () => {
+    const user = userEvent.setup();
+    render(
+      <EventSettings
+        organisationId={ORG}
+        schema={schema}
+        surveyDescription="Une soirée d’exception."
+        organisationName="Organisation Témoin"
+        publicUrl="https://exemple.test/s/org/invitation"
+        surveyId={SURVEY}
+        initial={{
+          ...draft,
+          attendance: { presenceField: 'presence', presenceValue: 'oui' },
+        }}
+        onSave={saved}
+      />,
+    );
+
+    // « Serez-vous présent ? » n'a pas de libellé numérique : une seule
+    // lecture est possible, donc aucun choix n'est offert — on l'annonce.
+    await user.selectOptions(
+      screen.getByLabelText(/Question qui détermine l’effectif/),
+      'presence',
+    );
+    expect(screen.queryByRole('group', { name: 'Comment lire cette réponse ?' })).toBeNull();
+    expect(screen.getByText(/Un oui ou non —/)).toBeTruthy();
+
+    // La réponse qui ajoute une personne est présélectionnée, jamais laissée
+    // vide : sans elle le comptage resterait muet.
+    const valueSelect = screen.getByLabelText(/Réponse qui ajoute une personne/);
+    expect(valueSelect).toHaveValue('oui');
   });
 });

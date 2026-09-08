@@ -426,6 +426,20 @@ changer.
   ressortira « à vérifier », et il faudra le rappeler. C'est le cas qui a
   produit le premier « à vérifier » incompris en production — une invitée
   ayant annoncé venir accompagnée sans dire de combien.
+- **Trois lectures d'une réponse d'effectif, et c'est le TYPE de la question
+  qui décide lesquelles sont offertes.** `extra` (un nombre d'accompagnants),
+  `total` (un nombre déjà inclusif) et `one` (un oui/non : la réponse désignée
+  ajoute UNE personne). Un champ numérique n'accepte pas `one`, un choix sans
+  libellé numérique n'accepte que `one`, une case à cocher multiple n'accepte
+  aucun oui/non. Proposer une lecture inapplicable donnerait un comptage qui ne
+  se déclenche jamais — c'est le même raisonnement que pour les opérateurs de
+  condition. `one` existe pour l'événement qui n'accepte qu'un accompagnant :
+  « Serez-vous accompagné ? » suffit alors, et demander un nombre serait une
+  question de plus pour une réponse déjà connue.
+- **En mode oui/non, une valeur non désignée rend le comptage MUET, pas faux.**
+  Sans `partyValue`, la comparaison ne se déclencherait jamais : on compte une
+  personne par réponse, sans réserve. L'écran de réglages en présélectionne une
+  dès qu'on entre dans ce mode, pour que le cas ne se présente pas.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
