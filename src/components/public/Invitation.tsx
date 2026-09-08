@@ -421,7 +421,12 @@ export function Invitation({
                 longitude={mapPoint.longitude}
               />
             ) : null}
-            {travelNote ? <p className="sp-invite__prose">{travelNote}</p> : null}
+            {/* Les retours à la ligne sont PRÉSERVÉS : un accès se rédige en
+                liste — métro, bus, parking — et l'écraser en un paragraphe le
+                rend illisible. */}
+            {travelNote ? (
+              <p className="sp-invite__prose sp-invite__prose--lines">{travelNote}</p>
+            ) : null}
             {directions ? (
               <EventActions directions={directions} headingLevel={3} />
             ) : null}

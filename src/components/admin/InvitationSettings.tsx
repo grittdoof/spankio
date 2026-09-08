@@ -824,7 +824,7 @@ export function InvitationSettings({
       <section className="sp-card sp-stack">
         <BlockSwitch allowed={allowed('directions')} block="directions" onToggle={setAllowed} />
         <Field
-          hint="Transports, stationnement, entrée à emprunter. Aucune carte n’est affichée sur la page publique : seuls des liens sont proposés, donc rien ne part vers un tiers avant le clic."
+          hint="Transports, stationnement, entrée à emprunter. Une ligne par information : les retours à la ligne sont conservés, à l’écran comme dans le courriel."
           id="inv-acces"
           label="Accès"
         >
@@ -832,7 +832,7 @@ export function InvitationSettings({
             <textarea
               {...attributes}
               className="sp-textarea"
-              maxLength={500}
+              maxLength={2000}
               onChange={(event) =>
                 patch({
                   ...(event.target.value.trim()

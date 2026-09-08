@@ -129,7 +129,17 @@ describe('validation du contenu', () => {
 
   it('borne les textes', () => {
     expect(parse({ statusLabel: 'x'.repeat(61) }).success).toBe(false);
-    expect(parse({ travelNote: 'x'.repeat(501) }).success).toBe(false);
+    // L'accès se rédige en plusieurs lignes : son plafond est celui d'une
+    // introduction d'étape, pas celui d'une aide de champ.
+    expect(parse({ travelNote: 'x'.repeat(2000) }).success).toBe(true);
+    expect(parse({ travelNote: 'x'.repeat(2001) }).success).toBe(false);
+  });
+
+  it('garde les sauts de ligne de l’accès, et ne rogne que les bords', () => {
+    // `trim()` retire les blancs de bord, jamais ceux du milieu : un accès
+    // écrasé en un seul paragraphe devient illisible.
+    const result = parse({ travelNote: '  Métro Miromesnil\nBus 22, 43\n  ' });
+    expect(result.success && result.data.travelNote).toBe('Métro Miromesnil\nBus 22, 43');
   });
 
   it('découpe les espaces : un intitulé fait d’espaces n’en est pas un', () => {

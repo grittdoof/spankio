@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { registrationConfirmationEmail } from '@/lib/email/templates/confirmation';
+import { submittedRecap } from '@/lib/survey/recap';
 import { emailCandidates, isConfirmationConfigured } from '@/lib/survey/confirmation';
 import { composeConsentNotice } from '@/lib/survey/consent';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
@@ -184,5 +185,104 @@ describe('contenu du courriel', () => {
       branding: { ...branding, accentColor: 'red;position:fixed;top:0' },
     });
     expect(hostile.html).not.toContain('position:fixed');
+  });
+});
+
+describe('récapitulatif de ce qui a été saisi', () => {
+  const schema: SurveySchema = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            { id: 'nom', type: 'text', label: 'Nom et prénom' },
+            {
+              id: 'presence',
+              type: 'radio',
+              label: 'Serez-vous présent ?',
+              options: [
+                { value: 'oui', label: 'Oui, je serai présent' },
+                { value: 'non', label: 'Non' },
+              ],
+            },
+            {
+              id: 'combien',
+              type: 'select',
+              label: 'Nombre d’accompagnants',
+              options: [
+                { value: 'option_1', label: '1' },
+                { value: 'option_2', label: '2' },
+              ],
+              condition: { field: 'presence', op: 'equals', value: 'oui' },
+            },
+            { id: 'telephone', type: 'tel', label: 'Téléphone' },
+            { id: 'remarque', type: 'textarea', label: 'Remarque' },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error('Schéma invalide');
+    return result.schema;
+  })();
+
+  it('relit les LIBELLÉS, jamais les valeurs d’option', () => {
+    // `option_2` ne veut rien dire pour la personne qui a répondu « 2 ».
+    const recap = submittedRecap(schema, {
+      nom: 'Camille Arnoult',
+      presence: 'oui',
+      combien: 'option_2',
+    });
+    expect(recap).toEqual([
+      { label: 'Nom et prénom', value: 'Camille Arnoult' },
+      { label: 'Serez-vous présent ?', value: 'Oui, je serai présent' },
+      { label: 'Nombre d’accompagnants', value: '2' },
+    ]);
+  });
+
+  it('omet les questions non posées, et les réponses vides', () => {
+    // « Nombre d'accompagnants » est masqué quand on décline : le faire figurer
+    // laisserait croire à un oubli. Et « Téléphone : — » n'apprend rien.
+    const recap = submittedRecap(schema, { nom: 'Karim Zebiri', presence: 'non' });
+    expect(recap.map((line) => line.label)).toEqual([
+      'Nom et prénom',
+      'Serez-vous présent ?',
+    ]);
+  });
+
+  it('tronque une réponse libre trop longue', () => {
+    // Une réponse peut faire 5 000 caractères : la recopier en entier rendrait
+    // illisible un courriel dont le rôle est la vérification d'un coup d'œil.
+    const recap = submittedRecap(schema, { remarque: 'a'.repeat(600) });
+    const value = recap[0]?.value ?? '';
+    expect(value.length).toBeLessThanOrEqual(301);
+    expect(value.endsWith('…')).toBe(true);
+  });
+
+  it('figure dans le courriel, sous un intitulé', () => {
+    const { html, text } = registrationConfirmationEmail({
+      ...complete,
+      recap: [{ label: 'Nom et prénom', value: 'Camille Arnoult' }],
+    });
+    expect(html).toContain('Vos réponses');
+    expect(html).toContain('Camille Arnoult');
+    expect(text).toContain('Nom et prénom : Camille Arnoult');
+  });
+
+  it('n’ajoute AUCUN intitulé quand il n’y a rien à relire', () => {
+    expect(registrationConfirmationEmail({ ...complete, recap: [] }).html).not.toContain(
+      'Vos réponses',
+    );
+  });
+});
+
+describe('accès multiligne', () => {
+  it('garde les sauts de ligne, dans le HTML comme dans le texte', () => {
+    // Un accès se rédige en liste : métro, bus, parking.
+    const acces = 'Métro Miromesnil (9 · 13)\nBus 22, 43, 52\nParking Haussmann-Berri';
+    const { html, text } = registrationConfirmationEmail({ ...complete, access: acces });
+    expect(html).toContain('white-space:pre-line');
+    expect(html).toContain('Bus 22, 43, 52');
+    expect(text).toContain('Parking Haussmann-Berri');
   });
 });

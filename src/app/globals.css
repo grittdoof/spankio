@@ -220,11 +220,27 @@ body {
   color: var(--sp-accent-hover);
 }
 
-img,
-svg,
-video {
+/* Défauts d'élément, à spécificité NULLE comme tous les autres : un composant
+   préfixé `sp-` doit pouvoir reprendre la main sans lutter. */
+:where(img, svg, video) {
   display: block;
   max-width: 100%;
+}
+
+/* EXCEPTION mesurée : les tuiles d'une carte Leaflet.
+
+   Leaflet empile ses tuiles dans des « panes » de largeur ZÉRO, positionnés en
+   absolu. Un `max-width: 100%` hérité s'y résout donc à `max-width: 0`, et
+   chaque tuile est rendue à 0 pixel de large : la carte paraît vide, seul le
+   marqueur — qui porte sa propre taille — reste visible. Mesuré en production
+   sur l'invitation : tuile de 256 px de haut et 0 de large, les huit images
+   pourtant bien téléchargées.
+
+   Leçon retenue : « l'image est chargée » ne veut pas dire « l'image est
+   visible ». Vérifier `naturalWidth` ne prouve rien sur le rendu. */
+.sp-map img,
+.sp-invite__map img {
+  max-width: none;
 }
 
 :where(button, input, select, textarea) {
@@ -2929,6 +2945,13 @@ summary.sp-btn::-webkit-details-marker {
 
 .sp-invite__prose:last-child {
   margin-bottom: 0;
+}
+
+/* Texte dont les retours à la ligne portent du sens : l'accès à un lieu se
+   rédige en liste, pas en paragraphe. `pre-line` garde les sauts et replie les
+   lignes trop longues, contrairement à `pre`. */
+.sp-invite__prose--lines {
+  white-space: pre-line;
 }
 
 .sp-invite__note {

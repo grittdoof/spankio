@@ -5,7 +5,8 @@ import {
   type AttendanceSettings,
   type AttendanceStatus,
 } from './attendance';
-import { OTHER_VALUE, otherKey, type SurveyField, type SurveySchema } from './schema';
+import { answerText } from './answer-text';
+import { otherKey, type SurveySchema } from './schema';
 
 /**
  * Liste d'accueil : une rangée par réponse, lisible à l'entrée d'un événement.
@@ -75,56 +76,6 @@ export function parseGuestFilter(raw: string | undefined): GuestFilter {
 }
 
 /**
- * Texte lisible d'une réponse à une question, pour l'afficher dans une rangée.
- *
- * Les choix sont rendus par leur LIBELLÉ, jamais par leur valeur : celle-ci est
- * un identifiant figé à la création (`option_1`) qui ne veut rien dire pour une
- * personne. Une saisie libre « autre » est reprise telle quelle.
- */
-export function answerText(
-  field: SurveyField,
-  data: Readonly<Record<string, unknown>>,
-): string | null {
-  const value = data[field.id];
-  if (value === undefined || value === null || value === '') return null;
-
-  if (typeof value === 'string') {
-    if (field.type === 'select' || field.type === 'radio') {
-      if (value === OTHER_VALUE) {
-        const free = data[otherKey(field.id)];
-        return typeof free === 'string' && free !== '' ? free : null;
-      }
-      const option = field.options.find((candidate) => candidate.value === value);
-      return option ? option.label : null;
-    }
-    return value;
-  }
-
-  if (typeof value === 'number') return String(value);
-
-  // Choix multiple : les libellés, séparés par une virgule. Utile surtout à la
-  // recherche — la seconde ligne d'une rangée ne propose jamais ce type.
-  if (Array.isArray(value)) {
-    const labels = value
-      .filter((entry): entry is string => typeof entry === 'string')
-      .map((entry) => {
-        if (entry === OTHER_VALUE) {
-          const free = data[otherKey(field.id)];
-          return typeof free === 'string' ? free : '';
-        }
-        if (field.type === 'checkbox' || field.type === 'select' || field.type === 'radio') {
-          return field.options.find((candidate) => candidate.value === entry)?.label ?? '';
-        }
-        return entry;
-      })
-      .filter((label) => label !== '');
-    return labels.length > 0 ? labels.join(', ') : null;
-  }
-
-  return null;
-}
-
-/**
  * Initiales du nom : au plus deux lettres, prises au début des deux premiers
  * mots. `Array.from` et non `slice` — une lettre accentuée composée compte pour
  * un caractère à l'écran mais deux en unités de code.
@@ -154,6 +105,9 @@ function searchableText(
   }
   return parts.join(' ').toLocaleLowerCase('fr-FR');
 }
+
+/** Ré-exporté : la liste d'accueil en est le premier consommateur. */
+export { answerText };
 
 /** Insensible à la casse ET aux accents : « Elodie » doit trouver « Élodie ». */
 export function normaliseSearch(term: string): string {

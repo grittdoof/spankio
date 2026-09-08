@@ -6,6 +6,7 @@ import { bannerPublicUrl } from '@/lib/event/banner';
 import { eventLocation, eventNote } from '@/lib/event/calendar-content';
 import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
 import { eventWhen, eventWhenNote } from '@/lib/event/display';
+import { submittedRecap } from '@/lib/survey/recap';
 import { logger } from '@/lib/logger';
 import { composeConsentNotice } from '@/lib/survey/consent';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
@@ -299,7 +300,7 @@ export async function submitPublicResponse(
   // L'envoi vient APRÈS l'enregistrement, et ne peut pas le remettre en
   // cause : `sendEmail` ne lève jamais, et son échec n'est que journalisé.
   const confirmationSent = confirmationEnabled
-    ? await sendConfirmation(survey.value, validation.value.data, deps)
+    ? await sendConfirmation(survey.value, survey.value.schema, validation.value.data, deps)
     : false;
 
   return {
@@ -322,6 +323,7 @@ export async function submitPublicResponse(
  */
 async function sendConfirmation(
   survey: PublicSurvey,
+  schema: SurveySchema,
   data: Readonly<Record<string, unknown>>,
   deps: SubmissionDeps,
 ): Promise<boolean> {
@@ -375,6 +377,9 @@ async function sendConfirmation(
     // L'accès vient du champ « Accès » des réglages de la page publique : une
     // seule saisie, affichée à l'écran ET reprise ici.
     access: survey.settings.publicPage?.travelNote ?? null,
+    // Ce que la personne a saisi, pour qu'elle le vérifie : c'est sa propre
+    // réponse qu'on lui relit, et les libellés d'option, jamais leurs valeurs.
+    recap: submittedRecap(schema, data),
     directions:
       directionsLinks({
         latitude: survey.event.latitude,

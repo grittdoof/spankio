@@ -251,6 +251,37 @@ describe('cascade : les composants l’emportent sur les défauts d’élément'
     ).toEqual([]);
   });
 
+  it('les défauts de MISE EN PAGE sont eux aussi à spécificité nulle', () => {
+    // Le bloc ci-dessus ne surveille que la couleur : c'est ce qui a laissé
+    // passer `img, svg, video { max-width: 100% }` pendant toute la refonte.
+    expect(css).toMatch(/:where\(img, svg, video\)\s*\{/);
+    expect(css).not.toMatch(/(?:^|\n)img,\s*\n?svg/);
+  });
+
+  it('les tuiles d’une carte échappent au plafond de largeur des images', () => {
+    // Défaut réel mesuré en production : Leaflet empile ses tuiles dans des
+    // « panes » de largeur ZÉRO, où `max-width: 100%` se résout à
+    // `max-width: 0`. Les huit images étaient téléchargées et rendues à 0 px
+    // de large — carte vide, seul le marqueur visible. « Chargée » ne veut pas
+    // dire « visible ».
+    const escape = rules.find(
+      (rule) =>
+        rule.selector.includes('.sp-invite__map img') &&
+        /max-width\s*:\s*none/.test(rule.body),
+    );
+    expect(
+      escape,
+      'Sans cette règle, les tuiles Leaflet sont rendues à 0 pixel de large.',
+    ).toBeDefined();
+    // La carte de l'espace d'administration a le même besoin.
+    expect(
+      rules.some(
+        (rule) =>
+          rule.selector.includes('.sp-map img') && /max-width\s*:\s*none/.test(rule.body),
+      ),
+    ).toBe(true);
+  });
+
   it('le défaut de lien reste à spécificité nulle', () => {
     // Le défaut d'origine, nommé : `a:hover` non enveloppé rendait invisible
     // le libellé de tout bouton plein rendu comme un lien.

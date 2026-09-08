@@ -38,6 +38,11 @@ export interface ConfirmationContext {
   access?: string | null;
   directions?: DirectionsLinks | null;
   calendar?: CalendarLinks | null;
+  /**
+   * Ce que le répondant a saisi, pour qu'il le vérifie. Vide, le bloc
+   * n'apparaît pas — un titre « Vos réponses » suivi de rien serait pire.
+   */
+  recap?: readonly { readonly label: string; readonly value: string }[];
   /** Adresse de l'invitation, pour la revoir. */
   publicUrl: string;
   legalLinks?: readonly { label: string; url: string }[];
@@ -76,6 +81,12 @@ export function registrationConfirmationEmail(
               { label: 'Autre agenda (.ics)', url: context.calendar.ics },
             ],
           },
+        ]
+      : []),
+    ...((context.recap?.length ?? 0) > 0
+      ? [
+          { paragraph: 'Vos réponses' },
+          { facts: context.recap ?? [] },
         ]
       : []),
     ...(context.directions

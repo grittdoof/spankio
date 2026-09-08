@@ -119,8 +119,15 @@ export const publicPageSchema = z.object({
   /** Déroulé de l'événement. */
   programme: z.array(momentSchema).max(20).optional(),
 
-  /** Comment s'y rendre : transports, stationnement. */
-  travelNote: text(MAX_LENGTHS.hint).optional(),
+  /**
+   * Comment s'y rendre : transports, stationnement, entrée à emprunter.
+   *
+   * Plafond relevé au format d'une introduction d'étape, et SAUTS DE LIGNE
+   * conservés : un accès se rédige en une liste — métro, bus, parking — et
+   * l'écraser en un paragraphe le rend illisible. `trim()` ne retire que les
+   * blancs de bord, jamais ceux du milieu.
+   */
+  travelNote: text(MAX_LENGTHS.stepIntro).optional(),
 
   /** Questions fréquentes. */
   faq: z.array(questionSchema).max(20).optional(),
