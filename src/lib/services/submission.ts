@@ -9,6 +9,7 @@ import { eventWhen, eventWhenNote } from '@/lib/event/display';
 import { submittedRecap } from '@/lib/survey/recap';
 import { logger } from '@/lib/logger';
 import { composeConsentNotice } from '@/lib/survey/consent';
+import { isConfirmationBlockShown } from '@/lib/survey/confirmation';
 import { dedupDesignation } from '@/lib/survey/dedup';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 import { validateSurveySettings, type SurveySettings } from '@/lib/survey/settings';
@@ -358,6 +359,17 @@ async function sendConfirmation(
     return false;
   }
 
+  /**
+   * Quels blocs le courriel montre.
+   *
+   * Le filtrage vit ICI, jamais dans le gabarit — même règle que pour la page
+   * publique (`invitationContent`) : un gabarit qui déciderait lui-même
+   * finirait par afficher un titre orphelin. Et un bloc autorisé mais vide ne
+   * s'affiche toujours pas : l'interrupteur ne fabrique pas de contenu.
+   */
+  const shows = (block: Parameters<typeof isConfirmationBlockShown>[1]) =>
+    isConfirmationBlockShown(confirmation, block);
+
   const site = (deps.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const supabaseUrl = deps.supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const publicUrl = `${site}/s/${survey.organisationSlug}/${survey.slug}`;
@@ -375,37 +387,44 @@ async function sendConfirmation(
       organisationName: survey.organisationName,
       logoUrl: survey.organisationLogoUrl,
       accentColor: survey.settings.publicPage?.ctaColor ?? null,
-      contactEmail: survey.organisationContactEmail,
-      contactPhone: survey.organisationContactPhone,
-      postalAddress: survey.organisationAddress,
+      // Le nom de l'organisation reste : c'est l'expéditeur, pas une
+      // coordonnée. Seuls le courriel, le téléphone et l'adresse se ferment.
+      contactEmail: shows('contact') ? survey.organisationContactEmail : null,
+      contactPhone: shows('contact') ? survey.organisationContactPhone : null,
+      postalAddress: shows('contact') ? survey.organisationAddress : null,
       siteUrl: site,
     },
     surveyTitle: survey.title,
     bannerUrl:
-      survey.bannerPath && supabaseUrl
+      shows('banner') && survey.bannerPath && supabaseUrl
         ? bannerPublicUrl(supabaseUrl, survey.bannerPath)
         : null,
     customText: confirmation.text ?? null,
-    when: eventWhen(when),
-    whenNote: eventWhenNote(when),
-    place: eventLocation({
-      locationLabel: survey.event.locationLabel,
-      address: survey.event.address,
-    }),
+    when: shows('when') ? eventWhen(when) : null,
+    // L'heure de fin se ferme SANS la date : c'est le cas qui a motivé ces
+    // interrupteurs, une fin seulement indicative qu'on ne veut pas annoncer.
+    whenNote: shows('endTime') ? eventWhenNote(when) : null,
+    place: shows('place')
+      ? eventLocation({
+          locationLabel: survey.event.locationLabel,
+          address: survey.event.address,
+        })
+      : null,
     // L'accès vient du champ « Accès » des réglages de la page publique : une
     // seule saisie, affichée à l'écran ET reprise ici.
-    access: survey.settings.publicPage?.travelNote ?? null,
+    access: shows('access') ? (survey.settings.publicPage?.travelNote ?? null) : null,
     // Ce que la personne a saisi, pour qu'elle le vérifie : c'est sa propre
     // réponse qu'on lui relit, et les libellés d'option, jamais leurs valeurs.
-    recap: submittedRecap(schema, data),
-    directions:
-      directionsLinks({
-        latitude: survey.event.latitude,
-        longitude: survey.event.longitude,
-        address: survey.event.address,
-        label: survey.event.locationLabel,
-      }) ?? null,
-    calendar: start
+    recap: shows('recap') ? submittedRecap(schema, data) : [],
+    directions: shows('directions')
+      ? (directionsLinks({
+          latitude: survey.event.latitude,
+          longitude: survey.event.longitude,
+          address: survey.event.address,
+          label: survey.event.locationLabel,
+        }) ?? null)
+      : null,
+    calendar: shows('calendar') && start
       ? calendarLinks(
           {
             title: survey.title,
@@ -428,7 +447,7 @@ async function sendConfirmation(
           `${site}/api/ics/${survey.id}`,
         )
       : null,
-    publicUrl,
+    ...(shows('link') ? { publicUrl } : {}),
     ...(site ? { legalLinks: [{ label: 'Confidentialité', url: `${site}/confidentialite` }] } : {}),
   });
 

@@ -43,8 +43,11 @@ export interface ConfirmationContext {
    * n'apparaît pas — un titre « Vos réponses » suivi de rien serait pire.
    */
   recap?: readonly { readonly label: string; readonly value: string }[];
-  /** Adresse de l'invitation, pour la revoir. */
-  publicUrl: string;
+  /**
+   * Adresse de l'invitation, pour la revoir. Absente, le bouton n'apparaît
+   * pas : l'organisation peut fermer ce bloc.
+   */
+  publicUrl?: string | null;
   legalLinks?: readonly { label: string; url: string }[];
 }
 
@@ -101,7 +104,9 @@ export function registrationConfirmationEmail(
           },
         ]
       : []),
-    { action: { label: 'Revoir l’invitation', url: context.publicUrl } },
+    ...(context.publicUrl
+      ? [{ action: { label: 'Revoir l’invitation', url: context.publicUrl } }]
+      : []),
   ];
 
   const { html, text } = renderEmail({

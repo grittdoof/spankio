@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { attendanceSettingsSchema } from './attendance';
+import { confirmationSchema } from './confirmation';
 import { MAX_LENGTHS } from './limits';
 import { publicPageSchema } from './public-page';
 
@@ -72,15 +73,11 @@ export const surveySettingsSchema = z.object({
    * plateforme ne peut pas savoir laquelle des questions porte un courriel — un
    * formulaire peut en demander deux, celui de l'invité et celui de son
    * assistant. Sans désignation, rien n'est envoyé.
+   *
+   * `hidden` dit quels blocs du courriel sont fermés — liste de MASQUAGE, comme
+   * pour la page publique : voir `src/lib/survey/confirmation.ts`.
    */
-  confirmation: z
-    .object({
-      enabled: z.boolean().optional(),
-      emailField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
-      /** Texte en tête du courriel. À défaut, une phrase neutre est composée. */
-      text: text(MAX_LENGTHS.stepIntro).optional(),
-    })
-    .optional(),
+  confirmation: confirmationSchema.optional(),
 });
 
 export type SurveySettings = z.infer<typeof surveySettingsSchema>;

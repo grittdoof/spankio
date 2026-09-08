@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { POST as submit } from '@/app/api/public/submit/route';
+import { resolveRequestContext } from '@/lib/data/context';
+import type { EmailMessage, EmailResult } from '@/lib/email/resend';
+import { submitPublicResponse } from '@/lib/services/submission';
 import { RATE_LIMITS, resetMemoryLimiter } from '@/lib/security/rate-limit';
 import { OWNER, asUser, createTestDb, type TestDb } from '../helpers/db';
 import {
@@ -429,6 +432,22 @@ describe('courriel de confirmation', () => {
         confirmation: { enabled: true, emailField: 'email' },
       },
     });
+    await createSurvey(db, {
+      organisationId,
+      slug: 'sans-heure-de-fin',
+      kind: 'event',
+      moduleKey: 'event',
+      schema: SCHEMA,
+      eventStartsAt: '2027-06-01T17:00:00.000Z',
+      eventEndsAt: '2027-06-01T21:00:00.000Z',
+      settings: {
+        confirmation: {
+          enabled: true,
+          emailField: 'email',
+          hidden: ['endTime', 'recap'],
+        },
+      },
+    });
   }, 120_000);
 
   afterAll(async () => {
@@ -475,6 +494,43 @@ describe('courriel de confirmation', () => {
     // que le code fait. L'adresse sert aussi à écrire au répondant, la preuve
     // le dit.
     expect(row?.consent_text).toContain('Courriel de confirmation');
+  });
+
+  /**
+   * Les interrupteurs du courriel ne se vérifient qu'ICI : le gabarit sait
+   * omettre un bloc, mais rien ne prouverait que les RÉGLAGES l'atteignent. Le
+   * service est donc appelé avec un envoi factice, et c'est le message
+   * réellement composé qui est lu.
+   */
+  it('n’envoie que les blocs restés ouverts', async () => {
+    const captured: EmailMessage[] = [];
+    const fake = (message: EmailMessage): Promise<EmailResult> => {
+      captured.push(message);
+      return Promise.resolve({ sent: true });
+    };
+
+    const context = await resolveRequestContext();
+    const result = await submitPublicResponse(
+      context,
+      {
+        organisationSlug: 'org-conf',
+        surveySlug: 'sans-heure-de-fin',
+        data: { nom: 'Yann Le Goff', email: 'yann@exemple.test' },
+        consentGiven: true,
+      },
+      { sendEmail: fake, siteUrl: 'https://spankio.test' },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(captured).toHaveLength(1);
+    const message = captured[0]!;
+
+    // La date reste, l'heure de fin part : les deux se ferment séparément.
+    expect(message.text).toContain('juin 2027');
+    expect(message.text).not.toContain('Fin prévue');
+    // Et le récapitulatif, fermé lui aussi, ne laisse pas d'intitulé orphelin.
+    expect(message.text).not.toContain('Vos réponses');
+    expect(message.text).not.toContain('Yann Le Goff');
   });
 });
 

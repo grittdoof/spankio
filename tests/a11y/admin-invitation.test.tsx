@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   InvitationSettings,
@@ -377,6 +377,42 @@ describe('courriel de confirmation', () => {
     const user = userEvent.setup();
     render(<Harness initial={{ travelNote: 'Métro Miromesnil.' }} />);
     await user.click(screen.getByRole('checkbox', { name: /Envoyer un courriel/ }));
+    expect(screen.queryByText(/Le champ « Accès » est vide/)).toBeNull();
+  });
+
+  it('ferme un bloc du courriel sans toucher aux autres', async () => {
+    // Le cas demandé : ne pas annoncer une heure de fin seulement indicative.
+    const user = userEvent.setup();
+    render(<Harness initial={{}} texts={{ confirmation: { enabled: true, emailField: 'email' } }} />);
+
+    // Les interrupteurs du courriel sont interrogés DANS leur groupe : la page
+    // publique a ses propres blocs, dont certains portent un nom voisin.
+    const group = within(screen.getByRole('group', { name: 'Ce que le courriel affiche' }));
+    const endTime = group.getByRole('checkbox', { name: /L’heure de fin/ });
+    const date = group.getByRole('checkbox', { name: /^La date/ });
+    expect(endTime).toBeChecked();
+    expect(date).toBeChecked();
+
+    await user.click(endTime);
+    expect(endTime).not.toBeChecked();
+    expect(date).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    const saved = JSON.parse(
+      screen.getByTestId('textes').textContent ?? '',
+    ) as { confirmation?: { hidden?: string[] } };
+    // La liste enregistrée est celle des blocs MASQUÉS, pas des blocs montrés.
+    expect(saved.confirmation?.hidden).toEqual(['endTime']);
+  });
+
+  it('n’avertit plus sur l’accès quand le bloc « Accès » est fermé', async () => {
+    // L'avertissement dit une conséquence ; sans le bloc, il n'y en a pas.
+    const user = userEvent.setup();
+    render(<Harness initial={{}} texts={{ confirmation: { enabled: true, emailField: 'email' } }} />);
+    expect(screen.getByText(/Le champ « Accès » est vide/)).toBeTruthy();
+
+    const group = within(screen.getByRole('group', { name: 'Ce que le courriel affiche' }));
+    await user.click(group.getByRole('checkbox', { name: /L’accès/ }));
     expect(screen.queryByText(/Le champ « Accès » est vide/)).toBeNull();
   });
 

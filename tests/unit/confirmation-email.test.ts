@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { registrationConfirmationEmail } from '@/lib/email/templates/confirmation';
 import { submittedRecap } from '@/lib/survey/recap';
-import { emailCandidates, isConfirmationConfigured } from '@/lib/survey/confirmation';
+import {
+  CONFIRMATION_BLOCKS,
+  emailCandidates,
+  isConfirmationBlockShown,
+  isConfirmationConfigured,
+  toggleConfirmationBlock,
+} from '@/lib/survey/confirmation';
 import { composeConsentNotice } from '@/lib/survey/consent';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 
@@ -284,5 +290,82 @@ describe('accès multiligne', () => {
     expect(html).toContain('white-space:pre-line');
     expect(html).toContain('Bus 22, 43, 52');
     expect(text).toContain('Parking Haussmann-Berri');
+  });
+});
+
+describe('blocs du courriel', () => {
+  /**
+   * Ce qui s'affiche est réglable, et c'est la liste des blocs MASQUÉS qui est
+   * enregistrée : un bloc ajouté plus tard ne doit pas naître invisible sur
+   * tous les formulaires existants. Même décision que pour la page publique.
+   */
+  it('montre tout par défaut', () => {
+    for (const block of CONFIRMATION_BLOCKS) {
+      expect(isConfirmationBlockShown(undefined, block)).toBe(true);
+      expect(isConfirmationBlockShown({}, block)).toBe(true);
+    }
+  });
+
+  it('ferme uniquement ce qui est listé', () => {
+    const settings = { hidden: ['endTime' as const] };
+    expect(isConfirmationBlockShown(settings, 'endTime')).toBe(false);
+    expect(isConfirmationBlockShown(settings, 'when')).toBe(true);
+  });
+
+  it('fige la liste entière au premier changement', () => {
+    // Sans normalisation, fermer un bloc rouvrirait ceux qu'une version future
+    // aurait fermés par défaut.
+    expect(toggleConfirmationBlock({}, 'endTime', false)).toEqual(['endTime']);
+    expect(toggleConfirmationBlock({ hidden: ['endTime'] }, 'recap', false)).toEqual([
+      'endTime',
+      'recap',
+    ]);
+    // L'ordre est celui du courriel, jamais celui des clics.
+    expect(toggleConfirmationBlock({ hidden: ['recap'] }, 'endTime', false)).toEqual([
+      'endTime',
+      'recap',
+    ]);
+    expect(toggleConfirmationBlock({ hidden: ['endTime'] }, 'endTime', true)).toEqual([]);
+  });
+
+  /**
+   * Le cas demandé : ne pas annoncer une heure de fin seulement indicative. La
+   * DATE, elle, reste — les deux se ferment séparément.
+   */
+  it('retire l’heure de fin sans retirer la date', () => {
+    const { html, text } = registrationConfirmationEmail({
+      ...complete,
+      whenNote: null,
+    });
+    for (const rendered of [html, text]) {
+      expect(rendered).toContain('mercredi 18 novembre 2026 à 19:30');
+      expect(rendered).not.toContain('Fin prévue');
+    }
+  });
+
+  it('retire chaque bloc sans emporter les autres', () => {
+    const { html } = registrationConfirmationEmail({
+      ...complete,
+      bannerUrl: null,
+      place: null,
+      access: null,
+      calendar: null,
+      directions: null,
+      publicUrl: null,
+      recap: [],
+      branding: { ...branding, contactEmail: null, contactPhone: null, postalAddress: null },
+    });
+
+    // Ce qui reste : le logo, le texte, la date. Rien d'orphelin.
+    expect(html).toContain('mercredi 18 novembre 2026');
+    expect(html).toContain('Spie batignolles');
+    expect(html).not.toContain('visuel.png');
+    expect(html).not.toContain('Musée Jacquemart-André');
+    expect(html).not.toContain('Métro Miromesnil');
+    expect(html).not.toContain('Ajouter à mon agenda');
+    expect(html).not.toContain('S’y rendre');
+    expect(html).not.toContain('Revoir l’invitation');
+    expect(html).not.toContain('evenements@exemple.test');
+    expect(html).not.toContain('92023 Nanterre');
   });
 });

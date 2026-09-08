@@ -728,6 +728,16 @@ changer.
   d'accessibilité AFFIRMAIT cette présélection, qui n'existait qu'à l'écran.
   Tout `<select>` dont la valeur peut être absente porte donc une option vide
   explicite, qui dit la conséquence.
+- **Chaque bloc du courriel de confirmation s'ouvre ou se ferme**, et la liste
+  enregistrée est celle des blocs MASQUÉS — mêmes décisions que pour la page
+  publique, et pour les mêmes raisons (`src/lib/survey/confirmation.ts`). Le
+  besoin est venu du client : une heure de fin seulement indicative qu'il ne
+  voulait pas annoncer. L'heure de fin est donc un bloc DISTINCT de la date, et
+  fermer l'un ne ferme pas l'autre. Le filtrage vit dans l'appelant
+  (`sendConfirmation`), jamais dans le gabarit — comme `invitationContent` pour
+  la page : un gabarit qui déciderait lui-même finirait par afficher un titre
+  orphelin. Corollaire : l'avertissement « le champ Accès est vide » disparaît
+  quand le bloc « Accès » est fermé, puisqu'il n'énonce plus de conséquence.
 - **Le champ « Accès » sert deux fois.** Saisi une fois dans les réglages de la
   page publique, il s'affiche dans « S'y rendre » ET dans le courriel. L'écran
   signale qu'il est vide quand l'envoi est activé, plutôt que de laisser

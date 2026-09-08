@@ -6,7 +6,14 @@ import { Callout } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { checkCtaColor, CTA_MIN_RATIO, CTA_PAGE_RATIO } from '@/lib/design/cta';
-import { emailCandidates } from '@/lib/survey/confirmation';
+import {
+  CONFIRMATION_BLOCKS,
+  CONFIRMATION_BLOCK_LABELS,
+  emailCandidates,
+  isConfirmationBlockShown,
+  toggleConfirmationBlock,
+  type ConfirmationBlock,
+} from '@/lib/survey/confirmation';
 import type { SurveySchema } from '@/lib/survey/schema';
 import type { SurveySettings } from '@/lib/survey/settings';
 import {
@@ -124,6 +131,15 @@ export function InvitationSettings({
 
   const emailOptions = emailCandidates(schema);
   const confirmation = texts.confirmation ?? {};
+
+  /**
+   * Blocs du courriel. Comme pour la page publique, c'est la liste des blocs
+   * MASQUÉS qui est enregistrée, et le premier clic la fige entièrement :
+   * sinon fermer « l'heure de fin » rouvrirait au passage tout bloc qu'une
+   * version future aurait fermé par défaut.
+   */
+  const shownInEmail = (block: ConfirmationBlock) =>
+    isConfirmationBlockShown(confirmation, block);
 
   const patchConfirmation = (changes: Partial<NonNullable<InvitationTexts['confirmation']>>) => {
     setTexts((previous) => ({
@@ -344,7 +360,42 @@ export function InvitationSettings({
                   )}
                 </Field>
 
-                {(draft.travelNote ?? '').trim() === '' ? (
+                <fieldset className="sp-fieldset">
+                  <legend>Ce que le courriel affiche</legend>
+                  <p className="sp-muted">
+                    Décochez ce que vous ne voulez pas envoyer. Un bloc coché mais
+                    sans contenu ne s’affiche pas non plus.
+                  </p>
+                  <ul className="sp-picks">
+                    {CONFIRMATION_BLOCKS.map((block) => (
+                      <li key={block}>
+                        <label className="sp-choice">
+                          <input
+                            checked={shownInEmail(block)}
+                            onChange={(event) =>
+                              patchConfirmation({
+                                hidden: toggleConfirmationBlock(
+                                  confirmation,
+                                  block,
+                                  event.target.checked,
+                                ),
+                              })
+                            }
+                            type="checkbox"
+                          />
+                          <span className="sp-choice__label">
+                            {CONFIRMATION_BLOCK_LABELS[block].name}
+                            <span className="sp-choice__desc">
+                              {CONFIRMATION_BLOCK_LABELS[block].desc}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </fieldset>
+
+                {shownInEmail('access') && (draft.travelNote ?? '').trim() === '' ? (
                   <p className="sp-hint">
                     Le champ « Accès » est vide : le courriel n’aura pas de ligne
                     d’accès. Renseignez-le dans « S’y rendre » ci-dessus — la même

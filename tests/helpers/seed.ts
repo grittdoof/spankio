@@ -100,6 +100,7 @@ export interface SurveyInput {
   opensAt?: string | null;
   closesAt?: string | null;
   eventStartsAt?: string | null;
+  eventEndsAt?: string | null;
   /** Réglages d'affichage et d'envoi, rangés dans `surveys.settings`. */
   settings?: unknown;
 }
@@ -111,12 +112,13 @@ export async function createSurvey(db: TestDb, input: SurveyInput): Promise<stri
     `insert into public.surveys (
        organisation_id, module_key, slug, title, kind, status, schema,
        purpose, legal_basis, retention_days, recipients, require_consent,
-       dedup_field, response_limit, opens_at, closes_at, event_starts_at, settings
+       dedup_field, response_limit, opens_at, closes_at, event_starts_at,
+       event_ends_at, settings
      )
      values (
        $1, $2, $3, $4, $5::public.survey_kind, $6::public.survey_status, $7::jsonb,
        'Recenser un besoin', 'consent', 365, 'Service organisateur', $8,
-       $9, $10, $11, $12, $13, $14::jsonb
+       $9, $10, $11, $12, $13, $14, $15::jsonb
      )
      returning id`,
     [
@@ -133,6 +135,7 @@ export async function createSurvey(db: TestDb, input: SurveyInput): Promise<stri
       input.opensAt ?? null,
       input.closesAt ?? null,
       input.eventStartsAt ?? (input.kind === 'event' ? '2027-06-01T10:00:00Z' : null),
+      input.eventEndsAt ?? null,
       JSON.stringify(input.settings ?? {}),
     ],
   );
