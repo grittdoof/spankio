@@ -248,7 +248,42 @@ export function Invitation({
 
   return (
     <div className="sp-invite">
-      {/* --- Héro : visuel, marque, titre ------------------------------- */}
+      {/* --- Bande de marque : le logo, centré, en tête de page ---------
+          À la demande du client. La marque est ce qu'un invité reconnaît
+          avant de lire quoi que ce soit ; elle était rangée en haut de la
+          colonne de texte, donc décentrée et à hauteur variable selon la
+          longueur du titre. Le filet du bas sépare la marque de
+          l'invitation : deux zones, deux lectures.
+
+          Conséquence recherchée sur grand écran : la colonne de texte ne
+          commence plus par le logo, si bien que le visuel et le texte se
+          centrent l'un sur l'autre au lieu de s'aligner par le haut. */}
+      <p className="sp-invite__brand">
+        {branding.logoUrl ? (
+          // `width`/`height` ne dimensionnent pas — le CSS borne la hauteur et
+          // la largeur suit le rapport de forme réel de l'image. Ils déclarent
+          // ce rapport pour que le navigateur réserve la place avant le
+          // chargement, et sont donc mis à l'échelle avec la taille rendue.
+          //
+          // `next/image` est écarté : il ferait transiter le logo de CHAQUE
+          // organisation par l'optimiseur de Vercel, facturé à l'usage.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt={branding.organisationName}
+            className="sp-invite__logo"
+            decoding="async"
+            height={80}
+            src={branding.logoUrl}
+            width={240}
+          />
+        ) : (
+          // Sans logo déposé, le nom tient la place : une invitation sans
+          // marque ne dirait pas de qui elle vient.
+          <span className="sp-invite__name">{branding.organisationName}</span>
+        )}
+      </p>
+
+      {/* --- Héro : visuel, titre --------------------------------------- */}
       <header className="sp-invite__hero">
         {/* Même cadre que l'aperçu de l'éditeur et que la miniature de la
             liste (`BannerFrame`) : l'organisation voit exactement ce que verra
@@ -266,29 +301,6 @@ export function Invitation({
         ) : null}
 
         <div className="sp-invite__title">
-          <p className="sp-brandline">
-            {branding.logoUrl ? (
-              // Même raison que pour la bannière : un logo par organisation.
-              //
-              // `width`/`height` ne dimensionnent pas — le CSS borne la
-              // hauteur et la largeur suit le rapport de forme réel de
-              // l'image. Ils déclarent ce rapport pour que le navigateur
-              // réserve la place avant le chargement, et sont donc mis à
-              // l'échelle avec la taille rendue.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt={branding.organisationName}
-                className="sp-brandline__logo"
-                decoding="async"
-                height={80}
-                src={branding.logoUrl}
-                width={240}
-              />
-            ) : (
-              <span className="sp-brandline__name">{branding.organisationName}</span>
-            )}
-          </p>
-
           <p className="sp-invite__badges">
             {status ? (
               <span className="sp-invite__status">

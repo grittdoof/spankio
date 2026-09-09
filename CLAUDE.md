@@ -267,6 +267,16 @@ changer.
   société parmi les champs libres : elle n'a pas été reprise. Si une
   organisation veut ce classement, elle pose la question en liste fermée, et
   l'onglet « Questions » la restitue déjà.
+- **La marque ouvre l'invitation, seule, centrée et séparée par un filet.** Le
+  logo était rangé en haut de la colonne de texte du héro : décentré, et placé
+  plus ou moins haut selon la longueur du titre. Le client l'a demandé au
+  sommet. Effet second, recherché : la colonne de texte ne commençant plus par
+  le logo, l'`align-items: center` du héro centre enfin le visuel SUR le texte
+  au lieu de les aligner par le haut — mesuré, les deux centres tombent à
+  325 px. Corollaire de mise en garde : ajouter un enfant à la grille
+  `.sp-invite` a décalé les rangées implicites, et deux rangées codées en dur
+  pendant que les autres se plaçaient seules auraient superposé le héro et la
+  colonne de lecture. Les quatre rangées sont donc explicites.
 - **L'invitation publique n'est pas un formulaire : elle se lit avant de se
   remplir.** D'où une mise en page éditoriale — héro, colonne de lecture,
   compte à rebours collant à droite, barre d'inscription collante en bas — et

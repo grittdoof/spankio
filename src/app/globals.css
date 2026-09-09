@@ -1185,31 +1185,27 @@ body {
   object-position: center;
 }
 
-.sp-brandline {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* Le logo de l'organisation, sur l'invitation publique.
+/* Le logo de l'organisation, dans la bande de marque de l'invitation publique.
 
    Hauteur DOUBLÉE sur grand écran et une fois et demie sur téléphone, à la
    demande du client : à 2,5rem, un logo composé d'un mot et d'un symbole se
    lisait mal sur la seule page que voient ses invités. Seule la hauteur est
    contrainte — un logo est presque toujours plus large que haut, et le borner
-   en largeur le réduirait à un timbre. */
-.sp-brandline__logo {
+   en largeur le réduirait à un timbre. Mesuré : 60px sur un téléphone de
+   375px, 80px à 1440px. */
+.sp-invite__logo {
   max-height: 3.75rem;
   width: auto;
 }
 
 @media (min-width: 40rem) {
-  .sp-brandline__logo {
+  .sp-invite__logo {
     max-height: 5rem;
   }
 }
 
-.sp-brandline__name {
+/* Repli sans logo déposé : une invitation doit dire de qui elle vient. */
+.sp-invite__name {
   color: var(--sp-marine);
   font-weight: 700;
 }
@@ -2832,6 +2828,24 @@ summary.sp-btn::-webkit-details-marker {
   margin-inline: auto;
 }
 
+/* Bande de marque, en tête de l'invitation.
+
+   Le logo était rangé en haut de la colonne de texte : décentré, et placé
+   plus ou moins haut selon la longueur du titre. Le client l'a demandé au
+   sommet et centré, séparé par un filet — deux zones, deux lectures. Le filet
+   fait 1 pixel dans la bordure de la charte : il distingue sans découper.
+
+   Effet second, recherché : la colonne de texte ne commence plus par le logo,
+   donc `align-items: center` du héro centre enfin le visuel SUR le texte au
+   lieu de les aligner par le haut. */
+.sp-invite__brand {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding-bottom: var(--sp-space-4);
+  border-bottom: 1px solid var(--sp-border);
+}
+
 .sp-invite__hero {
   display: grid;
   gap: var(--sp-space-5);
@@ -3353,8 +3367,17 @@ summary.sp-btn::-webkit-details-marker {
     align-items: start;
   }
 
+  /* Rangées explicites, et TOUTES : la bande de marque a décalé l'implicite,
+     et deux rangées codées en dur pendant que les autres se plaçaient seules
+     auraient superposé le héro et la colonne de lecture. */
+  .sp-invite__brand {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
   .sp-invite__hero {
     grid-column: 1 / -1;
+    grid-row: 2;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
     align-items: center;
     justify-items: start;
@@ -3381,18 +3404,19 @@ summary.sp-btn::-webkit-details-marker {
      lecture — mettrait le compte à rebours dans la colonne de gauche. */
   .sp-invite__main {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .sp-invite .sp-countdown {
     position: sticky;
     top: var(--sp-space-5);
     grid-column: 2;
-    grid-row: 2;
+    grid-row: 3;
   }
 
   .sp-invite__cta {
     grid-column: 1 / -1;
+    grid-row: 4;
   }
 }
 

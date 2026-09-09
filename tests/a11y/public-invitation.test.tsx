@@ -235,8 +235,54 @@ describe('blocs fermés', () => {
   });
 
   it('affiche le nom de l’organisation même sans logo : une invitation a un émetteur', () => {
-    render(<Invitation {...bare} onStart={noop} />);
+    const { container } = render(<Invitation {...bare} onStart={noop} />);
     expect(screen.getByText('Organisation Témoin')).toBeTruthy();
+    // Le repli occupe la MÊME bande que le logo : sans elle, une organisation
+    // sans logo perdrait le filet qui sépare la marque de l'invitation.
+    expect(container.querySelector('.sp-invite__brand .sp-invite__name')).toBeTruthy();
+  });
+});
+
+describe('bande de marque', () => {
+  /**
+   * Demande du client : le logo au SOMMET et centré, séparé par un filet. Il
+   * était rangé en haut de la colonne de texte du héro — donc décentré, et
+   * placé plus ou moins haut selon la longueur du titre.
+   *
+   * Ce que ce test fige est la POSITION dans le document, la seule chose
+   * qu'un rendu sans moteur de mise en page puisse établir. Le centrage et le
+   * filet sont du CSS : mesurés dans un navigateur (logo centré à 720 px sur
+   * 1440, à 187 sur 375 ; filet de 1 px), hors CI — risque R3.
+   */
+  const withLogo = {
+    ...full,
+    branding: { ...branding, logoUrl: 'https://exemple.test/logo.png' },
+  };
+
+  it('sort le logo de la colonne de texte pour le mettre en tête', () => {
+    const { container } = render(<Invitation {...withLogo} onStart={noop} />);
+
+    const logo = container.querySelector('.sp-invite__logo');
+    expect(logo).toBeTruthy();
+    // Dans la bande, et NULLE PART ailleurs : c'est l'inverse qui était vrai.
+    expect(container.querySelector('.sp-invite__brand .sp-invite__logo')).toBe(logo);
+    expect(container.querySelector('.sp-invite__title .sp-invite__logo')).toBeNull();
+
+    // Et la bande précède le héro : c'est ce qui la met « tout en haut », et
+    // ce qui laisse le visuel et le texte se centrer l'un sur l'autre.
+    const brand = container.querySelector('.sp-invite__brand');
+    const hero = container.querySelector('.sp-invite__hero');
+    if (!brand || !hero) throw new Error('Bande de marque ou héro absent');
+    expect(brand.compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it('garde le logo porteur du nom de l’organisation', () => {
+    // Le nom n'est écrit nulle part ailleurs quand un logo existe : un `alt`
+    // vide rendrait l'émetteur inconnu d'un lecteur d'écran.
+    render(<Invitation {...withLogo} onStart={noop} />);
+    expect(screen.getByAltText('Organisation Témoin')).toBeTruthy();
   });
 });
 
