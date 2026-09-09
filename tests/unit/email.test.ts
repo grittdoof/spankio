@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isPlausibleEmail, sendEmail } from '@/lib/email/resend';
-import { renderEmail, safeHexColor } from '@/lib/email/templates/layout';
+import { BANNER_HEIGHT, BANNER_WIDTH } from '@/lib/event/banner';
+import {
+  EMAIL_CONTENT_WIDTH,
+  displayedImageSize,
+  renderEmail,
+  safeHexColor,
+} from '@/lib/email/templates/layout';
 import {
   membershipApprovedEmail,
   membershipRejectedEmail,
@@ -256,5 +262,91 @@ describe('emails du parcours de rattachement', () => {
       expect(mail.text).not.toMatch(interdits);
       expect(mail.subject).not.toMatch(interdits);
     }
+  });
+});
+
+describe('rapport de forme d’une image', () => {
+  /**
+   * DÉFAUT RÉEL, signalé sur Outlook 2608 (M365 Apps) : le visuel arrivait
+   * écrasé. Les attributs portaient les dimensions de la SOURCE et le rapport
+   * de forme n'était tenu que par `height: auto`. Le moteur de rendu d'Outlook
+   * sous Windows est celui de Word : il ignore `height: auto` et applique
+   * l'attribut `height`, tout en ramenant la largeur à celle de la cellule —
+   * une source de 1200 × 704 s'affichait donc en 504 × 704.
+   *
+   * Ce qui est vérifié ici est la seule chose vérifiable sans Outlook : que les
+   * attributs décrivent l'AFFICHAGE et respectent le rapport de forme de la
+   * source. Le rendu réel dans Outlook n'est pas couvert — voir R3.
+   */
+  it('met dans les attributs les dimensions d’affichage, pas celles de la source', () => {
+    const size = displayedImageSize({ width: BANNER_WIDTH, height: BANNER_HEIGHT });
+    expect(size.width).toBe(EMAIL_CONTENT_WIDTH);
+    expect(size.height).toBe(296);
+
+    // Le rapport de forme est conservé à l'arrondi près, et l'écart est dit.
+    const sourceRatio = BANNER_WIDTH / BANNER_HEIGHT;
+    const shownRatio = size.width / (size.height ?? 1);
+    expect(Math.abs(shownRatio - sourceRatio) / sourceRatio).toBeLessThan(0.005);
+  });
+
+  it('n’agrandit pas une image plus petite que la colonne', () => {
+    // L'agrandir la rendrait floue pour rien : elle garde sa taille exacte.
+    expect(displayedImageSize({ width: 300, height: 200 })).toEqual({
+      width: 300,
+      height: 200,
+    });
+  });
+
+  it('omet la hauteur plutôt que d’écrire une valeur absurde', () => {
+    // Sans rapport de forme exploitable, `height="NaN"` serait pire que rien :
+    // le client déduit alors la hauteur de l'image elle-même.
+    for (const source of [
+      { width: 0, height: 704 },
+      { width: 1200, height: 0 },
+      { width: Number.NaN, height: 704 },
+      { width: Number.POSITIVE_INFINITY, height: 704 },
+    ]) {
+      const size = displayedImageSize(source);
+      expect(size.height).toBeNull();
+      expect(size.width).toBe(EMAIL_CONTENT_WIDTH);
+    }
+  });
+
+  it('émet ces dimensions dans le HTML, et jamais celles de la source', () => {
+    const { html } = renderEmail({
+      title: 'Titre',
+      preheader: 'Aperçu',
+      branding: { organisationName: 'Organisation Témoin' },
+      blocks: [
+        { image: { url: 'https://exemple.test/visuel.png', width: BANNER_WIDTH, height: BANNER_HEIGHT } },
+      ],
+    });
+
+    expect(html).toContain(`width="${EMAIL_CONTENT_WIDTH}"`);
+    expect(html).toContain('height="296"');
+    // Les dimensions de la source ne doivent plus figurer nulle part.
+    expect(html).not.toContain(`width="${BANNER_WIDTH}"`);
+    expect(html).not.toContain(`height="${BANNER_HEIGHT}"`);
+  });
+
+  it('double le gabarit d’un tableau de largeur fixe pour Outlook', () => {
+    // Outlook ignore `max-width` : sans ce tableau conditionnel, la carte
+    // occupe tout le volet de lecture — et l'image de largeur fixe, posée
+    // dans une cellule de largeur indéterminée, redevient déformée. Les deux
+    // correctifs ne valent qu'ensemble.
+    const { html } = renderEmail({
+      title: 'Titre',
+      preheader: 'Aperçu',
+      branding: { organisationName: 'Organisation Témoin' },
+      blocks: [{ paragraph: 'Bonjour' }],
+    });
+
+    expect(html).toContain('<!--[if mso]>');
+    expect(html).toContain('width="560" align="center"');
+    expect(html).toContain('max-width:560px;');
+    // Ouvert et refermé : un commentaire conditionnel non fermé emporterait
+    // la fin du document chez Outlook seulement.
+    expect(html.split('<!--[if mso]>').length - 1).toBe(2);
+    expect(html.split('<![endif]-->').length - 1).toBe(2);
   });
 });

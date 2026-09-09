@@ -7,9 +7,69 @@ import { escapeHtml, safeUrl } from '@/lib/security/escape';
  * externes : tout est en styles en ligne et en tableaux. Les couleurs sont
  * exprimées en hexadécimal (oklch n'est pas supporté par les clients mail).
  *
+ * OUTLOOK SOUS WINDOWS REND AVEC LE MOTEUR DE WORD, et c'est la contrainte qui
+ * dicte deux choix de ce fichier. Il ignore `max-width` : le gabarit est donc
+ * doublé d'un tableau conditionnel `[if mso]` de largeur FIXE, sans quoi la
+ * carte occupait toute la largeur du volet de lecture. Et il ignore
+ * `height: auto` : les attributs d'une image portent donc ses dimensions
+ * d'affichage, jamais celles de la source (voir `displayedImageSize`). Les
+ * deux vont ensemble — une image de largeur fixe dans une carte de largeur
+ * indéterminée resterait déformée.
+ *
  * Toute valeur venant d'une organisation est échappée, et les URL sont
  * filtrées : le branding est une donnée, donc une entrée non fiable.
  */
+
+/**
+ * LARGEUR DE LA COLONNE DE CONTENU, en pixels.
+ *
+ * Le gabarit fait 560 de large et la carte 28 de marge de chaque côté : une
+ * image y est donc affichée à 504. Ce nombre n'est pas décoratif — c'est celui
+ * qui doit figurer dans les ATTRIBUTS `width`/`height` de l'image, voir
+ * `displayedImageSize`.
+ */
+const EMAIL_SHELL_WIDTH = 560;
+const EMAIL_CARD_PADDING = 28;
+export const EMAIL_CONTENT_WIDTH = EMAIL_SHELL_WIDTH - EMAIL_CARD_PADDING * 2;
+
+/**
+ * Dimensions AFFICHÉES d'une image, calculées depuis ses dimensions sources.
+ *
+ * DÉFAUT RÉEL, signalé sur Outlook 2608 (M365 Apps) : le visuel arrivait
+ * écrasé. Les attributs portaient les dimensions de la SOURCE (1200 × 704) et
+ * le rapport de forme n'était tenu que par `height: auto` en CSS. Or le moteur
+ * de rendu d'Outlook sous Windows est celui de Word : il ignore `height: auto`
+ * et applique l'attribut `height`, tout en ramenant la largeur à celle de la
+ * cellule. Une image de 1200 × 704 se retrouvait donc affichée en 504 × 704 —
+ * un tiers plus haute que large. Aucun autre client ne montrait le défaut,
+ * parce que tous les autres respectent `height: auto`.
+ *
+ * La correction est de faire porter aux attributs les dimensions RÉELLES
+ * d'affichage : le rapport de forme est alors juste même quand `height: auto`
+ * est ignoré. Une image plus petite que la colonne n'est pas agrandie.
+ *
+ * L'arrondi de la hauteur introduit au plus un demi-pixel d'écart de rapport
+ * (504 × 704 / 1200 = 295,68 → 296, soit 0,1 %) : invisible, et préférable à
+ * une hauteur décimale que certains clients tronquent.
+ */
+export function displayedImageSize(source: {
+  readonly width: number;
+  readonly height: number;
+}): { readonly width: number; readonly height: number | null } {
+  const ratioIsKnown =
+    Number.isFinite(source.width) &&
+    Number.isFinite(source.height) &&
+    source.width > 0 &&
+    source.height > 0;
+
+  // Sans rapport de forme exploitable, on n'invente pas de hauteur : l'attribut
+  // est omis, et le client la déduit lui-même de l'image. Un `height="NaN"`
+  // serait pire que pas de hauteur du tout.
+  if (!ratioIsKnown) return { width: EMAIL_CONTENT_WIDTH, height: null };
+
+  const width = Math.min(Math.round(source.width), EMAIL_CONTENT_WIDTH);
+  return { width, height: Math.round((width * source.height) / source.width) };
+}
 
 /** Couleurs de la charte, en hexadécimal pour les clients mail. */
 const CHARTE = {
@@ -112,10 +172,18 @@ function renderBlockHtml(block: EmailBlock, accent: string): string {
   if (block.image) {
     const url = safeUrl(block.image.url);
     if (url) {
+      // Les attributs portent les dimensions d'AFFICHAGE, jamais celles de la
+      // source : c'est ce qui tient le rapport de forme chez les clients qui
+      // ignorent `height: auto` — Outlook sous Windows en tête.
+      const size = displayedImageSize(block.image);
       parts.push(
-        `<img src="${escapeHtml(url)}" alt="" width="${block.image.width}" ` +
-          `height="${block.image.height}" style="display:block;width:100%;max-width:100%;` +
-          `height:auto;border:0;border-radius:12px;margin:0 0 18px;" />`,
+        `<img src="${escapeHtml(url)}" alt="" width="${size.width}" ` +
+          (size.height === null ? '' : `height="${size.height}" `) +
+          `style="display:block;width:100%;max-width:${size.width}px;` +
+          // `-ms-interpolation-mode` : sans lui, Outlook et IE redimensionnent
+          // au plus proche voisin, ce qui crénèle un visuel réduit.
+          `height:auto;border:0;border-radius:12px;margin:0 0 18px;` +
+          `-ms-interpolation-mode:bicubic;" />`,
       );
     }
   }
@@ -238,7 +306,10 @@ export function renderEmail(content: EmailContent): { html: string; text: string
   )}</div>
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:${CHARTE.background};">
 <tr><td align="center" style="padding:32px 16px;">
-<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:560px;">
+<!--[if mso]>
+<table role="presentation" cellpadding="0" cellspacing="0" width="${EMAIL_SHELL_WIDTH}" align="center"><tr><td>
+<![endif]-->
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:${EMAIL_SHELL_WIDTH}px;">
 <tr><td style="padding:0 0 20px;">${header}</td></tr>
 <tr><td style="background:${CHARTE.surface};border:1px solid ${CHARTE.border};border-radius:16px;padding:28px;">
 <h1 style="margin:0 0 18px;font-size:22px;line-height:1.25;color:${CHARTE.marine};">${escapeHtml(
@@ -253,6 +324,9 @@ ${content.blocks.map((block) => renderBlockHtml(block, accent)).join('')}
 ${legal ? `<p style="margin:0;">${legal}</p>` : ''}
 </td></tr>
 </table>
+<!--[if mso]>
+</td></tr></table>
+<![endif]-->
 </td></tr>
 </table>
 </body>

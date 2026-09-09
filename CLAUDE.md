@@ -690,6 +690,29 @@ changer.
   jamais, l'envoi vient APRÈS l'écriture, et son résultat n'est qu'un booléen
   informatif dans `SubmissionResult`. Une adresse absente n'est même pas une
   anomalie : la question désignée peut être facultative.
+- **Les attributs d'une image de courriel portent ses dimensions
+  d'AFFICHAGE, jamais celles de la source.** Défaut réel signalé sur Outlook
+  2608 (M365 Apps) : le visuel arrivait écrasé. Les attributs disaient
+  1200 × 704 et le rapport de forme n'était tenu que par `height: auto`. Or
+  Outlook sous Windows rend avec le moteur de Word : il ignore `height: auto`
+  et applique l'attribut `height`, tout en ramenant la largeur à celle de la
+  cellule. Reproduit dans un navigateur en imitant ce moteur — l'image
+  ressortait en 502 × 704, soit un rapport de 0,71 au lieu de 1,70, deux fois
+  et demie trop haute. Aucun autre client ne le montrait, tous respectant
+  `height: auto`. `displayedImageSize` calcule donc les dimensions réelles
+  depuis la largeur de la colonne (504 px), et n'agrandit pas une image plus
+  petite. Sans rapport de forme exploitable, la hauteur est OMISE : le client
+  la déduit de l'image, ce qu'un `height="NaN"` empêcherait. C'est aussi
+  pourquoi le logo d'organisation n'a pas d'attribut de hauteur — la
+  plateforme ne connaît pas son rapport de forme.
+- **Le gabarit de courriel est doublé d'un tableau conditionnel `[if mso]` de
+  largeur fixe.** Outlook ignore `max-width` : la carte occupait toute la
+  largeur du volet de lecture. Les deux correctifs ne valent qu'ENSEMBLE — une
+  image de largeur fixe posée dans une cellule de largeur indéterminée
+  redevient déformée dès que `height: auto` est ignoré. Un test compte les
+  ouvertures ET les fermetures du commentaire conditionnel : un commentaire non
+  refermé emporterait la fin du document chez Outlook seulement, donc
+  invisiblement.
 - **Le visuel d'un courriel est DÉCORATIF** (`alt` vide). Beaucoup de clients
   mail bloquent les images : un `alt` bavard laisserait un pavé de texte à la
   place de la bannière, alors que son contenu est déjà dit par les faits qui la
