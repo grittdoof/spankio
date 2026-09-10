@@ -6,6 +6,7 @@ import { FieldInput } from '@/components/public/FieldInput';
 import { SurveyRenderer } from '@/components/public/SurveyRenderer';
 import { ConsentScreen, ThankYouScreen, WelcomeScreen } from '@/components/public/screens';
 import { fr, responseErrorMessage } from '@/lib/i18n/fr';
+import type { AttendanceSettings } from '@/lib/survey/attendance';
 import { composeConsentNotice, consentCheckboxLabel } from '@/lib/survey/consent';
 import { validateSurveySchema, type SurveyField, type SurveySchema } from '@/lib/survey/schema';
 import { expectNoA11yViolations } from '../helpers/axe';
@@ -363,7 +364,7 @@ describe('enveloppe des écrans', () => {
           checkboxLabel: consentCheckboxLabel('consent'),
           privacyHref: '/confidentialite',
         }}
-        thankYou={{ title: 'Merci' }}
+        thankYou={{ title: 'Merci', declined: { title: 'Merci de nous avoir prévenus' } }}
         onSubmit={() => Promise.resolve({ ok: true as const })}
       />,
     );
@@ -445,7 +446,7 @@ describe('parcours complet', () => {
           checkboxLabel: consentCheckboxLabel('consent'),
           privacyHref: '/confidentialite',
         }}
-        thankYou={{ title: fr.survey.thankYouTitle }}
+        thankYou={{ title: fr.survey.thankYouTitle, declined: { title: 'Merci de nous avoir prévenus' } }}
         onSubmit={onSubmit}
       />,
     );
@@ -521,6 +522,123 @@ describe('parcours complet', () => {
     });
   });
 
+  /**
+   * DÉFAUT RÉEL signalé en production. Une personne qui répondait « Non, je ne
+   * pourrai pas venir » lisait « Votre inscription est enregistrée. Vous pouvez
+   * ajouter l'événement à votre agenda », suivie de la date, du lieu, de
+   * l'adresse et de l'organisateur.
+   */
+  describe('écran de fin d’un refus', () => {
+    const event = {
+      calendar: {
+        google: 'https://exemple.test/g',
+        outlook: 'https://exemple.test/o',
+        ics: 'https://exemple.test/i',
+        note: null,
+      },
+      directions: {
+        google: 'https://exemple.test/dg',
+        apple: 'https://exemple.test/da',
+        openStreetMap: 'https://exemple.test/dosm',
+      },
+      summary: [
+        'mercredi 18 novembre 2026 à 19:30',
+        'Musée Jacquemart-André',
+        'Organisé par Spie batignolles',
+      ],
+    } as const;
+
+    async function answer(presence: 'Oui' | 'Non', attendance?: AttendanceSettings) {
+      const user = userEvent.setup();
+      render(
+        <SurveyRenderer
+          schema={schema}
+          branding={branding}
+          welcome={{ title: 'Formulaire', ctaLabel: fr.survey.start }}
+          consent={{
+            required: false,
+            notice,
+            checkboxLabel: consentCheckboxLabel('consent'),
+            privacyHref: '/confidentialite',
+          }}
+          thankYou={{
+            title: 'Votre inscription est enregistrée',
+            message: 'Vous pouvez ajouter l’événement à votre agenda.',
+            declined: {
+              title: fr.survey.declinedTitle,
+              message: fr.survey.declinedMessage,
+            },
+          }}
+          {...(attendance ? { attendance } : {})}
+          event={event}
+          onSubmit={vi.fn().mockResolvedValue({ ok: true })}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: fr.survey.start }));
+      await user.type(screen.getByLabelText(/Votre nom/), 'Camille');
+      await user.click(screen.getByRole('button', { name: fr.survey.next }));
+      await user.click(screen.getByRole('radio', { name: presence }));
+      if (presence === 'Oui') {
+        await user.click(screen.getByRole('button', { name: fr.survey.next }));
+        await user.type(screen.getByLabelText(/Combien de personnes/), '2');
+      }
+      await user.click(screen.getByRole('button', { name: fr.survey.submit }));
+    }
+
+    const attendance: AttendanceSettings = {
+      presenceField: 'presence',
+      presenceValue: 'oui',
+    };
+
+    it('ne parle ni d’inscription ni d’agenda à qui a décliné', async () => {
+      await answer('Non', attendance);
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('heading', { name: fr.survey.declinedTitle }),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByText(fr.survey.declinedMessage)).toBeInTheDocument();
+
+      // Le texte de l'organisation ne s'affiche pas : il est écrit pour les
+      // personnes qui viennent.
+      expect(screen.queryByText(/ajouter l’événement à votre agenda/i)).toBeNull();
+      // Ni agenda, ni itinéraire, ni rappel de la date ou du lieu.
+      expect(screen.queryByRole('link', { name: /Google Agenda/i })).toBeNull();
+      expect(screen.queryByRole('link', { name: /Google Maps/i })).toBeNull();
+      expect(screen.queryByText('Musée Jacquemart-André')).toBeNull();
+      expect(screen.queryByText(/18 novembre 2026/)).toBeNull();
+    });
+
+    it('laisse tout en place pour qui vient', async () => {
+      // Contre-épreuve : le correctif ne doit pas priver un présent de son
+      // rappel d'événement.
+      await answer('Oui', attendance);
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('heading', { name: 'Votre inscription est enregistrée' }),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByText('Musée Jacquemart-André')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Google Agenda/i })).toBeInTheDocument();
+    });
+
+    it('ne change rien sans question de présence désignée', async () => {
+      // La plateforme ne peut pas savoir laquelle des réponses signifie « je ne
+      // viens pas » : elle n'invente pas, et l'écran reste celui d'avant.
+      await answer('Non');
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('heading', { name: 'Votre inscription est enregistrée' }),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.getByText('Musée Jacquemart-André')).toBeInTheDocument();
+    });
+  });
+
   it('ramène au champ fautif quand le serveur refuse', async () => {
     const user = userEvent.setup();
     const onSubmit = vi
@@ -576,7 +694,7 @@ describe('parcours complet', () => {
           checkboxLabel: consentCheckboxLabel('consent'),
           privacyHref: '/confidentialite',
         }}
-        thankYou={{ title: fr.survey.thankYouTitle }}
+        thankYou={{ title: fr.survey.thankYouTitle, declined: { title: 'Merci de nous avoir prévenus' } }}
         onSubmit={vi.fn().mockResolvedValue({ ok: true })}
       />,
     );
@@ -636,7 +754,7 @@ describe('un refus DÉSIGNE toujours la question', () => {
           checkboxLabel: consentCheckboxLabel('consent'),
           privacyHref: '/confidentialite',
         }}
-        thankYou={{ title: 'Merci' }}
+        thankYou={{ title: 'Merci', declined: { title: 'Merci de nous avoir prévenus' } }}
       />,
     );
   }

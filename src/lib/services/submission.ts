@@ -9,6 +9,7 @@ import { eventWhen, eventWhenNote } from '@/lib/event/display';
 import { submittedRecap } from '@/lib/survey/recap';
 import { logger } from '@/lib/logger';
 import { composeConsentNotice } from '@/lib/survey/consent';
+import { hasDeclined } from '@/lib/survey/attendance';
 import { isConfirmationBlockShown } from '@/lib/survey/confirmation';
 import { dedupDesignation } from '@/lib/survey/dedup';
 import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
@@ -370,6 +371,18 @@ async function sendConfirmation(
   const shows = (block: Parameters<typeof isConfirmationBlockShown>[1]) =>
     isConfirmationBlockShown(confirmation, block);
 
+  /**
+   * Un REFUS ne reçoit aucun rappel d'événement.
+   *
+   * Même règle que l'écran de fin, et même défaut évité : la date, le lieu,
+   * l'accès, l'itinéraire et l'agenda n'ont aucun sens pour quelqu'un qui vient
+   * d'annoncer qu'il ne viendra pas. Ce qui reste utile lui reste : le rappel de
+   * ce qu'il a saisi, et le lien vers l'invitation s'il change d'avis.
+   */
+  const declined = hasDeclined(survey.settings.attendance, data);
+  const showsEvent = (block: Parameters<typeof isConfirmationBlockShown>[1]) =>
+    !declined && shows(block);
+
   const site = (deps.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const supabaseUrl = deps.supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const publicUrl = `${site}/s/${survey.organisationSlug}/${survey.slug}`;
@@ -400,11 +413,11 @@ async function sendConfirmation(
         ? bannerPublicUrl(supabaseUrl, survey.bannerPath)
         : null,
     customText: confirmation.text ?? null,
-    when: shows('when') ? eventWhen(when) : null,
+    when: showsEvent('when') ? eventWhen(when) : null,
     // L'heure de fin se ferme SANS la date : c'est le cas qui a motivé ces
     // interrupteurs, une fin seulement indicative qu'on ne veut pas annoncer.
-    whenNote: shows('endTime') ? eventWhenNote(when) : null,
-    place: shows('place')
+    whenNote: showsEvent('endTime') ? eventWhenNote(when) : null,
+    place: showsEvent('place')
       ? eventLocation({
           locationLabel: survey.event.locationLabel,
           address: survey.event.address,
@@ -412,11 +425,11 @@ async function sendConfirmation(
       : null,
     // L'accès vient du champ « Accès » des réglages de la page publique : une
     // seule saisie, affichée à l'écran ET reprise ici.
-    access: shows('access') ? (survey.settings.publicPage?.travelNote ?? null) : null,
+    access: showsEvent('access') ? (survey.settings.publicPage?.travelNote ?? null) : null,
     // Ce que la personne a saisi, pour qu'elle le vérifie : c'est sa propre
     // réponse qu'on lui relit, et les libellés d'option, jamais leurs valeurs.
     recap: shows('recap') ? submittedRecap(schema, data) : [],
-    directions: shows('directions')
+    directions: showsEvent('directions')
       ? (directionsLinks({
           latitude: survey.event.latitude,
           longitude: survey.event.longitude,
@@ -424,7 +437,7 @@ async function sendConfirmation(
           label: survey.event.locationLabel,
         }) ?? null)
       : null,
-    calendar: shows('calendar') && start
+    calendar: showsEvent('calendar') && start
       ? calendarLinks(
           {
             title: eventTitle({
@@ -451,6 +464,7 @@ async function sendConfirmation(
         )
       : null,
     ...(shows('link') ? { publicUrl } : {}),
+    ...(declined ? { declined: true } : {}),
     ...(site ? { legalLinks: [{ label: 'Confidentialité', url: `${site}/confidentialite` }] } : {}),
   });
 

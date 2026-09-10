@@ -140,6 +140,16 @@ export const fr = {
     full: 'Le nombre maximal de réponses a été atteint.',
     thankYouTitle: 'Merci pour votre réponse',
     thankYouMessage: 'Votre réponse a bien été enregistrée.',
+    /**
+     * Écran de fin d'un REFUS. Textes de la plateforme, jamais celui de
+     * l'organisation : son message de remerciement est écrit pour les
+     * personnes qui viennent — « Votre inscription est enregistrée, ajoutez
+     * l'événement à votre agenda » n'a aucun sens pour qui vient d'annoncer
+     * qu'il ne viendra pas.
+     */
+    declinedTitle: 'Merci de nous avoir prévenus',
+    declinedMessage:
+      'Votre réponse est enregistrée : nous notons que vous ne pourrez pas être présent.',
     addToCalendar: 'Ajouter à mon agenda',
     directions: 'Itinéraire',
     consentTitle: 'Avant d’envoyer',

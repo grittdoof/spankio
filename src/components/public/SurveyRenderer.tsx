@@ -6,6 +6,7 @@ import { fr, responseErrorMessage, submitErrorMessage } from '@/lib/i18n/fr';
 import type { ConsentNotice } from '@/lib/survey/consent';
 import { visibleFields, visibleSteps } from '@/lib/survey/conditions';
 import { otherKey, type SurveyField, type SurveySchema, type SurveyStep } from '@/lib/survey/schema';
+import { hasDeclined, type AttendanceSettings } from '@/lib/survey/attendance';
 import { validateResponse } from '@/lib/survey/validate-response';
 import { FieldInput } from './FieldInput';
 import {
@@ -47,7 +48,20 @@ export interface SurveyRendererProps {
    */
   welcome: Omit<WelcomeContent, 'branding'>;
   consent: { required: boolean; notice: ConsentNotice; checkboxLabel: string; privacyHref: string };
-  thankYou: { title: string; message?: string | undefined };
+  thankYou: {
+    title: string;
+    message?: string | undefined;
+    /**
+     * Variante d'un REFUS. Les textes viennent de la plateforme, pas de
+     * l'organisation : son message est écrit pour les personnes qui viennent.
+     */
+    declined: { title: string; message?: string | undefined };
+  };
+  /**
+   * Désignation du comptage, pour savoir si la réponse décline. Sans elle, la
+   * plateforme ne peut pas le savoir — et n'invente rien.
+   */
+  attendance?: AttendanceSettings | undefined;
   event?:
     | {
         calendar: CalendarActions;
@@ -70,6 +84,7 @@ export function SurveyRenderer({
   welcome,
   consent,
   thankYou,
+  attendance,
   event,
   onSubmit,
 }: SurveyRendererProps) {
@@ -330,14 +345,28 @@ export function SurveyRenderer({
   }
 
   if (phase === 'done') {
+    /**
+     * DÉFAUT RÉEL signalé en production : l'écran de fin ne regardait pas les
+     * réponses. Une personne qui venait de répondre « Non, je ne pourrai pas
+     * venir » lisait « Votre inscription est enregistrée », suivie de la date,
+     * du lieu, de l'organisateur et d'un lien pour ajouter la soirée à son
+     * agenda.
+     *
+     * Un refus reçoit donc les textes de la plateforme et AUCUN rappel
+     * d'événement. Le geste n'est pas symétrique : sans désignation de la
+     * question de présence, ou si elle est restée vide, rien ne change — on ne
+     * sait pas, et on n'invente pas.
+     */
+    const declined = hasDeclined(attendance, answers);
+
     return (
       <StandaloneStage>
         <ThankYouScreen
-          title={thankYou.title}
-          message={thankYou.message}
-          calendar={event?.calendar}
-          directions={event?.directions}
-          eventSummary={event?.summary}
+          title={declined ? thankYou.declined.title : thankYou.title}
+          message={declined ? thankYou.declined.message : thankYou.message}
+          calendar={declined ? undefined : event?.calendar}
+          directions={declined ? undefined : event?.directions}
+          eventSummary={declined ? undefined : event?.summary}
         />
       </StandaloneStage>
     );

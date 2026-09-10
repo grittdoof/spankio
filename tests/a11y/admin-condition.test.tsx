@@ -182,7 +182,7 @@ describe('ce que voit le répondant', () => {
           checkboxLabel: consentCheckboxLabel('consent'),
           privacyHref: '/confidentialite',
         }}
-        thankYou={{ title: 'Merci' }}
+        thankYou={{ title: 'Merci', declined: { title: 'Merci de nous avoir prévenus' } }}
         onSubmit={() => Promise.resolve({ ok: true as const })}
       />,
     );

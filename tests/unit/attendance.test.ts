@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   attendanceOf,
   effectivePartyMode,
+  hasDeclined,
   partyModesFor,
   partyQuestion,
   attendanceRows,
@@ -606,5 +607,40 @@ describe('lecture incohérente avec la question', () => {
     expect(effectivePartyMode(field('accompagnants'), undefined)).toBe('extra');
     // Sauf si la question ne peut pas le porter.
     expect(effectivePartyMode(field('accompagne'), undefined)).toBe('one');
+  });
+});
+
+describe('refus d’une invitation', () => {
+  /**
+   * DÉFAUT RÉEL signalé en production : l'écran de fin ne regardait pas les
+   * réponses. Une personne qui venait de répondre « Non, je ne pourrai pas
+   * venir » lisait « Votre inscription est enregistrée », suivie de la date, du
+   * lieu, de l'organisateur et d'un lien pour ajouter la soirée à son agenda.
+   *
+   * Le refus se lit avec le MÊME moteur que le comptage : deux lectures
+   * auraient divergé, et l'écran aurait fini par contredire les statistiques.
+   */
+  it('reconnaît un refus', () => {
+    expect(hasDeclined(BASE, { presence: 'non' })).toBe(true);
+  });
+
+  it('ne prend pas une présence pour un refus', () => {
+    expect(hasDeclined(BASE, { presence: 'oui' })).toBe(false);
+  });
+
+  it('ne conclut RIEN sans désignation', () => {
+    // La plateforme est générique : sans question de présence désignée, elle ne
+    // peut pas savoir laquelle des réponses signifie « je ne viens pas ».
+    expect(hasDeclined(undefined, { presence: 'non' })).toBe(false);
+    expect(hasDeclined({}, { presence: 'non' })).toBe(false);
+    expect(hasDeclined({ presenceField: 'presence' }, { presence: 'non' })).toBe(false);
+  });
+
+  it('ne conclut rien d’une question laissée vide', () => {
+    // « Sans réponse » n'est pas un refus : le confondre priverait un invité
+    // qui a sauté la question du rappel de l'événement.
+    for (const answers of [{}, { presence: '' }, { presence: null }]) {
+      expect(hasDeclined(BASE, answers)).toBe(false);
+    }
   });
 });

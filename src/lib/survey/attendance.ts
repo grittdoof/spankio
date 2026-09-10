@@ -272,6 +272,26 @@ export function partyQuestion(
 }
 
 /**
+ * La réponse DÉCLINE-t-elle l'invitation ?
+ *
+ * Sert à l'écran de fin et au courriel : quelqu'un qui vient d'annoncer qu'il
+ * ne viendra pas ne doit pas lire « Votre inscription est enregistrée » suivie
+ * de la date, du lieu et d'un lien d'agenda. Défaut réel signalé en
+ * production — l'écran de fin ne regardait pas les réponses.
+ *
+ * Le statut vient de `attendanceOf`, jamais d'une seconde lecture : sans
+ * désignation, ou si la question de présence n'a pas été renseignée, la réponse
+ * n'est PAS un refus — on ne sait pas, et on n'invente pas.
+ */
+export function hasDeclined(
+  settings: AttendanceSettings | undefined,
+  answers: Readonly<Record<string, unknown>>,
+): boolean {
+  if (!settings) return false;
+  return attendanceOf(settings, { data: answers }, undefined).status === 'declined';
+}
+
+/**
  * Statut et effectif d'une réponse.
  *
  * `unknown` n'est pas un défaut : une réponse peut avoir sauté la question de

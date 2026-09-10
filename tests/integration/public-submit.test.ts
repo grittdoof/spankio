@@ -434,6 +434,19 @@ describe('courriel de confirmation', () => {
     });
     await createSurvey(db, {
       organisationId,
+      slug: 'presence-designee',
+      kind: 'event',
+      moduleKey: 'event',
+      schema: SCHEMA,
+      eventStartsAt: '2027-06-01T17:00:00.000Z',
+      eventLocationLabel: 'Salle des fêtes',
+      settings: {
+        confirmation: { enabled: true, emailField: 'email' },
+        attendance: { presenceField: 'presence', presenceValue: 'oui' },
+      },
+    });
+    await createSurvey(db, {
+      organisationId,
       slug: 'titre-agenda',
       title: 'Une invitation au titre beaucoup trop long pour une case d’agenda',
       kind: 'event',
@@ -507,6 +520,71 @@ describe('courriel de confirmation', () => {
     // que le code fait. L'adresse sert aussi à écrire au répondant, la preuve
     // le dit.
     expect(row?.consent_text).toContain('Courriel de confirmation');
+  });
+
+  /**
+   * Même défaut que sur l'écran de fin, et même règle : un refus ne reçoit
+   * aucun rappel d'événement. Ce qui ne se vérifie qu'ICI, c'est que le statut
+   * de la réponse atteint la composition du courriel.
+   */
+  it('n’envoie ni agenda ni lieu à qui a décliné', async () => {
+    const captured: EmailMessage[] = [];
+    const fake = (message: EmailMessage): Promise<EmailResult> => {
+      captured.push(message);
+      return Promise.resolve({ sent: true });
+    };
+
+    const context = await resolveRequestContext();
+    const result = await submitPublicResponse(
+      context,
+      {
+        organisationSlug: 'org-conf',
+        surveySlug: 'presence-designee',
+        data: { nom: 'Théo Blanc', email: 'theo@exemple.test', presence: 'non' },
+        consentGiven: true,
+      },
+      { sendEmail: fake, siteUrl: 'https://spankio.test' },
+    );
+
+    expect(result.ok).toBe(true);
+    const message = captured[0]!;
+
+    // Le sujet et le titre ne parlent plus d'inscription confirmée.
+    expect(message.subject).toContain('Réponse enregistrée');
+    expect(message.text).toContain('vous ne pourrez pas être présent');
+    // Ni date, ni lieu, ni agenda, ni itinéraire.
+    expect(message.text).not.toContain('juin 2027');
+    expect(message.text).not.toContain('Salle des fêtes');
+    expect(message.text).not.toContain('Ajouter à mon agenda');
+    expect(message.text).not.toContain('S’y rendre');
+    // Ce qui reste utile lui reste : la relecture de ce qu'il a saisi.
+    expect(message.text).toContain('Théo Blanc');
+  });
+
+  it('laisse le courriel entier à qui vient', async () => {
+    // Contre-épreuve : le correctif ne prive pas un présent de son rappel.
+    const captured: EmailMessage[] = [];
+    const fake = (message: EmailMessage): Promise<EmailResult> => {
+      captured.push(message);
+      return Promise.resolve({ sent: true });
+    };
+
+    const context = await resolveRequestContext();
+    await submitPublicResponse(
+      context,
+      {
+        organisationSlug: 'org-conf',
+        surveySlug: 'presence-designee',
+        data: { nom: 'Inès Roy', email: 'ines@exemple.test', presence: 'oui' },
+        consentGiven: true,
+      },
+      { sendEmail: fake, siteUrl: 'https://spankio.test' },
+    );
+
+    const message = captured[0]!;
+    expect(message.subject).toContain('Inscription confirmée');
+    expect(message.text).toContain('juin 2027');
+    expect(message.text).toContain('Salle des fêtes');
   });
 
   /**

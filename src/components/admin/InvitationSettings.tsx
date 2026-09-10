@@ -434,7 +434,7 @@ export function InvitationSettings({
         </Field>
 
         <Field
-          hint="Une phrase, pas un paragraphe : elle est lue une fois."
+          hint="Une phrase, pas un paragraphe : elle est lue une fois. Elle ne s’affiche qu’aux personnes qui VIENNENT — une réponse négative reçoit un texte neutre, sans rappel de la date ni lien d’agenda."
           id="inv-fin-phrase"
           label="Phrase"
         >

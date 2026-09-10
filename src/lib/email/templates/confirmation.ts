@@ -49,6 +49,15 @@ export interface ConfirmationContext {
    */
   publicUrl?: string | null;
   legalLinks?: readonly { label: string; url: string }[];
+  /**
+   * La réponse DÉCLINE l'invitation.
+   *
+   * Le sujet, le titre et la phrase d'introduction changent — « Inscription
+   * confirmée » adressé à quelqu'un qui vient d'annoncer son absence est un
+   * contresens. Les faits de l'événement, eux, ne sont pas filtrés ici : c'est
+   * l'appelant qui ne les transmet pas, comme pour les blocs fermés.
+   */
+  declined?: boolean;
 }
 
 export function registrationConfirmationEmail(
@@ -64,9 +73,15 @@ export function registrationConfirmationEmail(
   if (context.place) facts.push({ label: 'Lieu', value: context.place });
   if (context.access) facts.push({ label: 'Accès', value: context.access });
 
-  const intro =
-    context.customText?.trim() ||
-    `Votre inscription à « ${context.surveyTitle} » est enregistrée.`;
+  /**
+   * Le texte de l'organisation est écrit pour les personnes qui VIENNENT :
+   * « Nous avons hâte de vous accueillir » adressé à un refus serait pénible.
+   * Un refus reçoit donc la phrase de la plateforme.
+   */
+  const intro = context.declined
+    ? `Votre réponse à « ${context.surveyTitle} » est enregistrée : nous notons que vous ne pourrez pas être présent.`
+    : context.customText?.trim() ||
+      `Votre inscription à « ${context.surveyTitle} » est enregistrée.`;
 
   const blocks: Parameters<typeof renderEmail>[0]['blocks'] = [
     ...(context.bannerUrl
@@ -110,7 +125,9 @@ export function registrationConfirmationEmail(
   ];
 
   const { html, text } = renderEmail({
-    title: 'Votre inscription est enregistrée',
+    title: context.declined
+      ? 'Merci de nous avoir prévenus'
+      : 'Votre inscription est enregistrée',
     preheader: context.when
       ? `${context.surveyTitle} — ${context.when}`
       : context.surveyTitle,
@@ -120,7 +137,9 @@ export function registrationConfirmationEmail(
   });
 
   return {
-    subject: `Inscription confirmée — ${context.surveyTitle}`,
+    subject: context.declined
+      ? `Réponse enregistrée — ${context.surveyTitle}`
+      : `Inscription confirmée — ${context.surveyTitle}`,
     html,
     text,
   };

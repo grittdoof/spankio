@@ -468,6 +468,21 @@ changer.
   oui, et éventuellement la question donnant le nombre — le tout dans
   `settings.attendance`, donc sans migration. Sans désignation, la page des
   réponses continue de compter des RÉPONSES, ce qui reste exact.
+- **Un REFUS ne reçoit ni « inscription enregistrée », ni agenda, ni rappel de
+  l'événement.** Défaut réel signalé en production, et le plus visible de la
+  série : l'écran de fin ne regardait pas les réponses. Une personne qui venait
+  de répondre « Non, je ne pourrai pas venir » lisait « Votre inscription est
+  enregistrée. Vous pouvez ajouter l'évènement à votre agenda », suivie de la
+  date, du lieu, de l'adresse et de l'organisateur. Le courriel avait le même
+  défaut, jusqu'à son sujet — « Inscription confirmée ». `hasDeclined` lit le
+  statut avec le MÊME moteur que le comptage (`attendanceOf`) : deux lectures
+  auraient divergé, et l'écran aurait fini par contredire les statistiques.
+  Trois corollaires : le texte de remerciement de l'ORGANISATION ne s'affiche
+  pas à un refus — il est écrit pour les personnes qui viennent, et l'écran de
+  réglages le dit ; ce qui reste utile reste, à savoir la relecture de ce qui a
+  été saisi ; et sans désignation de la question de présence, ou si elle est
+  restée vide, RIEN ne change — « sans réponse » n'est pas un refus, et le
+  confondre priverait un invité de son rappel.
 - **Un effectif indéterminé est signalé, pas arbitré.** Plusieurs cases
   cochées là où une seule était attendue, ou aucun nombre indiqué : la réponse
   compte pour une personne — celle qui a répondu vient bien — et elle est

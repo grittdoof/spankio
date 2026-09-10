@@ -330,7 +330,14 @@ export default async function PublicSurveyPage({ params }: PageProps) {
         thankYou={{
           title: survey.settings.thankYou?.title ?? fr.survey.thankYouTitle,
           message: survey.settings.thankYou?.message ?? fr.survey.thankYouMessage,
+          // Un refus ne reçoit PAS le texte de l'organisation : celui-ci est
+          // écrit pour les personnes qui viennent.
+          declined: {
+            title: fr.survey.declinedTitle,
+            message: fr.survey.declinedMessage,
+          },
         }}
+        attendance={survey.settings.attendance}
         event={event}
       />
     </main>
