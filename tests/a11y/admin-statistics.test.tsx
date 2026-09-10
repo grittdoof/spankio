@@ -219,7 +219,7 @@ describe('liste d’accueil', () => {
     return (
       <GuestList
         counting
-        deleteAction={() => {}}
+        deleteSelectionAction={() => {}}
         list={list}
         named
         rows={list.rows}
@@ -236,11 +236,34 @@ describe('liste d’accueil', () => {
     await expectNoA11yViolations(container);
   });
 
-  it('donne un nom accessible à chaque suppression : « Supprimer » seul serait ambigu', () => {
+  it('nomme chaque case de sélection par l’invité qu’elle désigne', () => {
+    // « Case à cocher » répété trente fois ne dit rien à qui n'a pas la rangée
+    // sous les yeux. La suppression par rangée a laissé place à une sélection :
+    // un seul bouton agit, et il faut donc savoir CE QU'ON coche.
     render(guests());
     expect(
-      screen.getByRole('button', { name: /Supprimer la réponse de Camille Arnoult/i }),
+      screen.getByRole('checkbox', { name: /Sélectionner la réponse de Camille Arnoult/i }),
     ).toBeTruthy();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(list.rows.length);
+  });
+
+  it('n’offre qu’UN bouton de suppression, et ne présélectionne rien', () => {
+    // Un bouton par rangée invitait à effacer une réponse d'un seul clic mal
+    // placé ; et une case cochée d'avance ferait supprimer sans avoir choisi.
+    render(guests());
+    const buttons = screen.getAllByRole('button', { name: /Supprimer/i });
+    expect(buttons).toHaveLength(1);
+    for (const box of screen.getAllByRole('checkbox')) {
+      expect(box).not.toBeChecked();
+    }
+  });
+
+  it('ne montre aucune sélection quand la suppression n’est pas offerte', () => {
+    // C'est le cas de l'atelier : la mise en forme se voit, sans donner prise
+    // à une action destructrice sur des données de démonstration.
+    render(guests({ deleteSelectionAction: undefined }));
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /Supprimer/i })).toBeNull();
   });
 
   it('porte le statut par un MOT, jamais par la seule couleur', () => {

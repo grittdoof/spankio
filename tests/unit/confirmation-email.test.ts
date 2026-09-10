@@ -283,13 +283,47 @@ describe('récapitulatif de ce qui a été saisi', () => {
 });
 
 describe('accès multiligne', () => {
-  it('garde les sauts de ligne, dans le HTML comme dans le texte', () => {
-    // Un accès se rédige en liste : métro, bus, parking.
-    const acces = 'Métro Miromesnil (9 · 13)\nBus 22, 43, 52\nParking Haussmann-Berri';
+  /**
+   * DÉFAUT RÉEL, signalé par le client : l'accès arrivait sur une seule ligne.
+   * Le rendu s'appuyait sur `white-space: pre-line`, que le moteur de Word —
+   * donc Outlook sous Windows — n'applique pas.
+   *
+   * Et ce test l'affirmait déjà : il cherchait la PROPRIÉTÉ CSS dans la source,
+   * c'est-à-dire qu'on l'avait bien écrite — pas qu'elle produisait des lignes.
+   * Il vérifie désormais les balises `<br />`, comprises de tous les clients.
+   */
+  const acces = 'Métro Miromesnil (9 · 13)\nBus 22, 43, 52\nParking Haussmann-Berri';
+
+  it('coupe les lignes avec de vraies balises, pas avec du CSS', () => {
     const { html, text } = registrationConfirmationEmail({ ...complete, access: acces });
-    expect(html).toContain('white-space:pre-line');
-    expect(html).toContain('Bus 22, 43, 52');
+
+    expect(html).toContain('Métro Miromesnil (9 · 13)<br />Bus 22, 43, 52<br />Parking');
+    // Le CSS que le client cible ignore n'est plus la seule garantie.
+    expect(html).not.toContain('white-space:pre-line');
+    // Et le texte brut garde ses retours à la ligne tels quels.
     expect(text).toContain('Parking Haussmann-Berri');
+  });
+
+  it('normalise les fins de ligne Windows plutôt que de doubler les sauts', () => {
+    // Un texte collé depuis Windows arrive en CRLF : sans normalisation, le
+    // `\r` resterait dans le HTML et certains clients doubleraient l'interligne.
+    const { html } = registrationConfirmationEmail({
+      ...complete,
+      access: 'Métro Miromesnil\r\nBus 22\rParking',
+    });
+    expect(html).toContain('Métro Miromesnil<br />Bus 22<br />Parking');
+    expect(html).not.toContain('\r');
+  });
+
+  it('échappe AVANT d’insérer les balises', () => {
+    // L'ordre inverse afficherait « <br /> » en clair, ou pire laisserait
+    // passer une balise venue de la saisie.
+    const { html } = registrationConfirmationEmail({
+      ...complete,
+      access: '<b>Métro</b>\nBus',
+    });
+    expect(html).toContain('&lt;b&gt;Métro&lt;/b&gt;<br />Bus');
+    expect(html).not.toContain('<b>Métro</b>');
   });
 });
 

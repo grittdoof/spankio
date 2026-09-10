@@ -138,6 +138,30 @@ export interface EmailContent {
   legalLinks?: readonly { label: string; url: string }[];
 }
 
+/**
+ * Texte multiligne, en HTML de COURRIEL.
+ *
+ * DÉFAUT RÉEL, signalé par le client : le champ « Accès » se rédige en liste —
+ * métro, bus, parking — et arrivait sur une seule ligne. Le rendu s'appuyait
+ * sur `white-space: pre-line`, que le moteur de Word — donc Outlook sous
+ * Windows — n'applique pas. Un test le vérifiait pourtant… en cherchant la
+ * propriété CSS dans la source, c'est-à-dire en constatant qu'on l'avait bien
+ * écrite, pas qu'elle produisait des lignes. Même leçon que pour le rapport de
+ * forme d'une image : ne pas vérifier ce qu'on ÉMET, mais ce qui est RENDU.
+ *
+ * Un `<br />` réel est compris de tous les clients, Outlook inclus. L'ordre
+ * compte : on échappe D'ABORD, on insère les balises ENSUITE — l'inverse
+ * échapperait les `<br />` eux-mêmes, qui s'afficheraient en clair.
+ */
+function escapeMultiline(value: string): string {
+  return escapeHtml(value)
+    // CRLF et CR isolés : un texte collé depuis Windows ou un vieux Mac ne
+    // doit pas produire deux sauts, ni aucun.
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .join('<br />');
+}
+
 function renderBlockHtml(block: EmailBlock, accent: string): string {
   const parts: string[] = [];
 
@@ -195,11 +219,11 @@ function renderBlockHtml(block: EmailBlock, accent: string): string {
           `<tr><td style="padding:0 0 12px;">` +
           `<div style="font-size:12px;line-height:1.4;color:${CHARTE.muted};` +
           `text-transform:uppercase;letter-spacing:0.06em;">${escapeHtml(fact.label)}</div>` +
-          // `white-space: pre-line` : la valeur d'un fait peut être
-          // multiligne — l'accès à un lieu se rédige en liste. Les clients
-          // mail qui l'ignorent replient simplement le texte.
+          // La valeur d'un fait peut être multiligne — l'accès à un lieu se
+          // rédige en liste. Les sauts deviennent des `<br />`, jamais un
+          // `white-space: pre-line` : voir `escapeMultiline`.
           `<div style="font-size:15px;line-height:1.45;color:${CHARTE.text};` +
-          `font-weight:600;white-space:pre-line;">${escapeHtml(fact.value)}</div>` +
+          `font-weight:600;">${escapeMultiline(fact.value)}</div>` +
           `</td></tr>`,
       )
       .join('');

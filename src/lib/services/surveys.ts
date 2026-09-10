@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toIsoString } from '@/lib/export/csv';
-import { eq, isNull, type DbError } from '@/lib/data/port';
+import { eq, inList, isNull, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
 import { isBannerPathOf } from '@/lib/event/banner';
 import { templateByKey } from '@/lib/event/templates';
@@ -541,6 +541,53 @@ export async function softDeleteResponse(
   const row = deleted.data[0];
   if (!row) return { ok: false, error: { code: 'PT404', message: 'Réponse introuvable' } };
   return { ok: true, value: row };
+}
+
+/**
+ * Plafond d'une suppression groupée.
+ *
+ * L'écran n'affiche jamais plus de `GUEST_MAX` rangées : au-delà, la requête
+ * n'a pas pu être composée par un clic, et rien ne justifie de l'exécuter.
+ */
+export const BULK_DELETE_MAX = 300;
+
+/**
+ * Suppression logique de PLUSIEURS réponses, en une écriture.
+ *
+ * Deux garde-fous, et le second est celui qui compte :
+ *
+ *  1. le RLS, qui écarte les réponses d'une autre organisation ;
+ *  2. `survey_id`, qui limite la suppression au sondage AFFICHÉ. Sans lui, un
+ *     formulaire forgé effacerait d'un coup les réponses d'un autre sondage de
+ *     la même organisation — autorisé par le RLS, mais sans rapport avec
+ *     l'écran d'où part le geste.
+ *
+ * Le retour est la liste des identifiants RÉELLEMENT supprimés, jamais celle
+ * des identifiants demandés : c'est ce qui permet de dire un chiffre exact
+ * plutôt que de supposer que tout a fonctionné.
+ */
+export async function softDeleteResponses(
+  context: RequestContext,
+  surveyId: string,
+  responseIds: readonly string[],
+): Promise<SurveyOutcome<{ ids: string[] }>> {
+  if (responseIds.length === 0) return { ok: true, value: { ids: [] } };
+
+  const deleted = await context.port.update<{ id: string }>(
+    'survey_responses',
+    { deleted_at: new Date().toISOString() },
+    [
+      eq('survey_id', surveyId),
+      inList('id', responseIds.slice(0, BULK_DELETE_MAX)),
+      // Déjà supprimée : on ne réécrit pas sa date, sinon le délai de grâce
+      // avant la purge repartirait de zéro.
+      isNull('deleted_at'),
+    ],
+    'id',
+  );
+  if (deleted.error) return { ok: false, error: deleted.error };
+
+  return { ok: true, value: { ids: deleted.data.map((row) => row.id) } };
 }
 
 /**

@@ -232,6 +232,25 @@ changer.
   `attendance.identityField` et `attendance.detailField` disent quelles
   questions titrent et précisent une rangée. Sans désignation, la rangée est
   titrée par son horodatage — exact, et l'écran dit comment faire mieux.
+- **Les invités se suppriment par SÉLECTION, jamais rangée par rangée.**
+  Demande du client. Toutes les cases portent le même nom (`responseId`), le
+  navigateur envoie la sélection entière et `getAll` la relit : l'écran continue
+  de fonctionner sans JavaScript, comme sa recherche et ses filtres. Le bouton
+  par rangée a DISPARU, pour deux raisons — son `<form>` se serait retrouvé
+  imbriqué dans celui de la sélection, ce qu'aucun navigateur n'accepte ; et un
+  bouton « Supprimer » par rangée invitait à effacer une inscription d'un seul
+  clic mal placé. Rien n'est coché par défaut, et la case porte le nom de
+  l'invité qu'elle désigne : « case à cocher » répété trente fois ne dit rien à
+  qui n'a pas la rangée sous les yeux.
+- **Une suppression groupée est bornée par le SONDAGE affiché, pas seulement
+  par le RLS.** `softDeleteResponses` filtre sur `survey_id` en plus de la liste
+  d'identifiants : sans lui, un formulaire forgé effacerait d'un coup les
+  réponses d'un autre sondage de la même organisation — autorisé par le RLS,
+  mais sans aucun rapport avec l'écran d'où part le geste. Elle exclut aussi les
+  réponses DÉJÀ supprimées, sinon le délai de grâce avant la purge repartirait
+  de zéro. Et elle renvoie les identifiants RÉELLEMENT écrits : le compte rendu
+  annonce ce nombre, jamais celui de la sélection — « 12 supprimées » quand il y
+  en a eu 11 serait un chiffre faux que rien ne signalerait.
 - **La liste d'accueil remplace le tableau des réponses, l'export ne perd
   rien.** À l'entrée d'un événement on cherche UN nom et on lit UN statut ;
   douze colonnes obligeaient à défiler horizontalement pour trouver ces deux
@@ -730,6 +749,17 @@ changer.
   ouvertures ET les fermetures du commentaire conditionnel : un commentaire non
   refermé emporterait la fin du document chez Outlook seulement, donc
   invisiblement.
+- **Un saut de ligne de courriel est une BALISE, jamais du CSS.** Défaut réel
+  signalé par le client : le champ « Accès » se rédige en liste — métro, bus,
+  parking — et arrivait sur une seule ligne. Le rendu s'appuyait sur
+  `white-space: pre-line`, que le moteur de Word — donc Outlook sous Windows —
+  n'applique pas. Et un test l'affirmait déjà : il cherchait la PROPRIÉTÉ CSS
+  dans la source, c'est-à-dire qu'on l'avait bien écrite, pas qu'elle produisait
+  des lignes. Deuxième fois que ce piège se referme, après le rapport de forme
+  d'une image : ne pas vérifier ce qu'on ÉMET, mais ce qui est RENDU.
+  `escapeMultiline` échappe D'ABORD et insère les `<br />` ENSUITE — l'inverse
+  afficherait les balises en clair — et normalise les fins de ligne Windows,
+  sans quoi un `\r` résiduel doublerait l'interligne chez certains clients.
 - **Le visuel d'un courriel est DÉCORATIF** (`alt` vide). Beaucoup de clients
   mail bloquent les images : un `alt` bavard laisserait un pavé de texte à la
   place de la bannière, alors que son contenu est déjà dit par les faits qui la

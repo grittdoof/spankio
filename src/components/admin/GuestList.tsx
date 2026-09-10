@@ -57,11 +57,29 @@ export interface GuestListProps {
   named: boolean;
   settingsHref: string;
   /**
-   * Action de suppression. Omise, la rangée n'offre pas de suppression : c'est
-   * le cas de l'atelier de design, qui montre la mise en forme sans donner
-   * prise à une action destructrice sur des données de démonstration.
+   * Action de suppression de la SÉLECTION. Omise, la liste n'offre aucune
+   * suppression : c'est le cas de l'atelier de design, qui montre la mise en
+   * forme sans donner prise à une action destructrice sur des données de
+   * démonstration.
    */
-  deleteAction?: (formData: FormData) => void | Promise<void>;
+  deleteSelectionAction?: (formData: FormData) => void | Promise<void>;
+}
+
+/**
+ * Enveloppe la liste d'un `<form>` UNIQUEMENT quand il y a une action.
+ *
+ * Un `<form>` sans action renverrait la page sur elle-même à la moindre touche
+ * « Entrée », et l'atelier de design n'a pas d'action à offrir.
+ */
+function FormOrPlain({
+  action,
+  children,
+}: {
+  action?: (formData: FormData) => void | Promise<void>;
+  children: React.ReactNode;
+}) {
+  if (!action) return <>{children}</>;
+  return <form action={action}>{children}</form>;
 }
 
 export function GuestList({
@@ -72,7 +90,7 @@ export function GuestList({
   counting,
   named,
   settingsHref,
-  deleteAction,
+  deleteSelectionAction,
 }: GuestListProps) {
   const path = `/admin/sondages/${surveyId}/reponses`;
   const more = list.rows.length > rows.length;
@@ -144,9 +162,31 @@ export function GuestList({
           title="Rien à afficher"
         />
       ) : (
+        /* La liste est un FORMULAIRE quand la suppression est offerte : les
+           cases à cocher y sont, et le bouton juste après. Il ne peut pas
+           envelopper la recherche — deux formulaires imbriqués sont interdits,
+           et c'est aussi pourquoi la suppression par rangée a disparu : son
+           propre `<form>` se serait retrouvé dans celui-ci. */
+        <FormOrPlain action={deleteSelectionAction}>
         <ul className="sp-guests">
           {rows.map((row) => (
             <li className={`sp-guest${row.ambiguous ? ' sp-guest--check' : ''}`} key={row.id}>
+              {deleteSelectionAction ? (
+                /* Toutes les cases portent le MÊME nom : le navigateur envoie
+                   la sélection entière, sans une ligne de JavaScript. Le nom
+                   accessible désigne l'invité — « case à cocher » répété
+                   trente fois ne dirait rien à qui n'a pas la rangée sous les
+                   yeux. */
+                <input
+                  aria-label={`Sélectionner la réponse ${
+                    row.name ? `de ${row.name}` : `du ${moment(row.submittedAt)}`
+                  }`}
+                  className="sp-guest__pick"
+                  name="responseId"
+                  type="checkbox"
+                  value={row.id}
+                />
+              ) : null}
               <span aria-hidden="true" className="sp-guest__avatar">
                 {row.initials || '·'}
               </span>
@@ -187,26 +227,26 @@ export function GuestList({
                 {row.ambiguous ? (
                   <span className="sp-badge sp-badge--warning">à vérifier</span>
                 ) : null}
-                {deleteAction ? (
-                  <form action={deleteAction}>
-                    <input name="surveyId" type="hidden" value={surveyId} />
-                    <input name="responseId" type="hidden" value={row.id} />
-                    <button
-                      className="sp-btn sp-btn--ghost sp-btn--sm sp-btn--danger-text"
-                      type="submit"
-                    >
-                      <span aria-hidden="true">Supprimer</span>
-                      <span className="sp-visually-hidden">
-                        Supprimer la réponse{' '}
-                        {row.name ? `de ${row.name}` : `du ${moment(row.submittedAt)}`}
-                      </span>
-                    </button>
-                  </form>
-                ) : null}
               </span>
             </li>
           ))}
         </ul>
+
+        {deleteSelectionAction ? (
+          <p className="sp-guests__bulk">
+            <input name="surveyId" type="hidden" value={surveyId} />
+            <button className="sp-btn sp-btn--outline sp-btn--danger-text" type="submit">
+              Supprimer la sélection
+            </button>
+            <span className="sp-hint">
+              Suppression logique : les réponses sortent aussitôt des listes, des
+              comptages et des exports, et la purge définitive n’intervient
+              qu’après le délai de conservation. Rien n’est sélectionné par
+              défaut.
+            </span>
+          </p>
+        ) : null}
+        </FormOrPlain>
       )}
 
       {more ? (

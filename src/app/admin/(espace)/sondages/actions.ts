@@ -12,6 +12,7 @@ import {
   createSurveySchema,
   deleteSurvey,
   softDeleteResponse,
+  softDeleteResponses,
 } from '@/lib/services/surveys';
 
 /**
@@ -84,6 +85,50 @@ export async function deleteSurveyAction(formData: FormData): Promise<void> {
 
   revalidatePath('/admin/sondages');
   redirect('/admin/sondages?ok=supprime');
+}
+
+/**
+ * Suppression groupée de réponses.
+ *
+ * La sélection est un simple jeu de cases à cocher portant le MÊME nom : le
+ * navigateur les envoie toutes, `getAll` les relit, et l'écran continue de
+ * fonctionner sans JavaScript — comme la recherche et les filtres de cette
+ * même vue.
+ *
+ * Le message de retour porte le nombre RÉELLEMENT supprimé, pas le nombre
+ * demandé. Les deux peuvent différer : une réponse déjà supprimée dans un
+ * autre onglet, ou un identifiant que le RLS écarte. Annoncer « 12 supprimées »
+ * quand il y en a eu 11 serait un chiffre faux qu'aucune alerte ne signalerait.
+ */
+export async function deleteResponsesAction(formData: FormData): Promise<void> {
+  const surveyId = idSchema.safeParse(formData.get('surveyId'));
+  if (!surveyId.success) redirect('/admin/sondages?erreur=identifiant');
+
+  const back = `/admin/sondages/${surveyId.data}/reponses?onglet=invites`;
+
+  // Les identifiants non conformes sont ÉCARTÉS, pas fatals : ils ne peuvent
+  // venir que d'un formulaire forgé, et refuser tout le lot punirait un geste
+  // légitime pour une valeur qui n'aurait rien supprimé de toute façon.
+  const ids = formData
+    .getAll('responseId')
+    .map((value) => idSchema.safeParse(value))
+    .filter((parsed): parsed is { success: true; data: string } => parsed.success)
+    .map((parsed) => parsed.data);
+
+  if (ids.length === 0) redirect(`${back}&erreur=aucune-selection`);
+
+  const context = await resolveRequestContext();
+  const deleted = await softDeleteResponses(context, surveyId.data, ids);
+  if (!deleted.ok) {
+    logger.warn('responses.bulk_delete_refused', 'Suppression groupée refusée.', {
+      code: deleted.error.code,
+      demandees: ids.length,
+    });
+    redirect(`${back}&erreur=suppression`);
+  }
+
+  revalidatePath(`/admin/sondages/${surveyId.data}/reponses`);
+  redirect(`${back}&supprimees=${deleted.value.ids.length}`);
 }
 
 export async function deleteResponseAction(formData: FormData): Promise<void> {

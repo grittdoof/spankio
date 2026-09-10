@@ -35,7 +35,7 @@ import { eventInsights } from '@/lib/survey/insights';
 import { recentResponses, responsePace } from '@/lib/survey/pace';
 import { validateSurveySettings } from '@/lib/survey/settings';
 import { computeStatistics } from '@/lib/survey/statistics';
-import { deleteResponseAction } from '../../actions';
+import { deleteResponsesAction } from '../../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +50,28 @@ const NOTICES: Readonly<Record<string, string>> = {
 const ERRORS: Readonly<Record<string, string>> = {
   identifiant: 'Cette réponse est introuvable.',
   suppression: 'La suppression a été refusée.',
+  'aucune-selection': 'Aucune réponse n’était cochée : rien n’a été supprimé.',
 };
+
+/**
+ * Compte rendu d'une suppression groupée.
+ *
+ * Le nombre vient du SERVEUR, qui a compté les lignes réellement écrites : il
+ * peut être inférieur à la sélection — une réponse déjà supprimée dans un autre
+ * onglet, par exemple. Annoncer la sélection plutôt que le résultat donnerait
+ * un chiffre faux que rien ne signalerait.
+ */
+function bulkNotice(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const count = Number.parseInt(raw, 10);
+  if (!Number.isInteger(count) || count < 0) return null;
+  if (count === 0) {
+    return 'Aucune réponse n’a été supprimée : la sélection ne correspondait à rien de vivant.';
+  }
+  return count === 1
+    ? 'Une réponse supprimée. Elle sort de tous les comptages et des exports.'
+    : `${count} réponses supprimées. Elles sortent de tous les comptages et des exports.`;
+}
 
 /** Fenêtre du delta affiché à côté de l'effectif. */
 const DELTA_DAYS = 7;
@@ -174,6 +195,7 @@ export default async function SurveyStatisticsPage({
   const publicUrl = `${siteUrl}/s/${session.organisationSlug}/${survey.value.slug}`;
   const okCode = typeof query['ok'] === 'string' ? query['ok'] : undefined;
   const errorCode = typeof query['erreur'] === 'string' ? query['erreur'] : undefined;
+  const bulkMessage = bulkNotice(query['supprimees']);
 
   const settingsHref = `/admin/sondages/${survey.value.id}/evenement`;
   const exportCsvHref = `/api/admin/surveys/${survey.value.id}/export?format=csv`;
@@ -220,6 +242,7 @@ export default async function SurveyStatisticsPage({
       />
 
       {okCode && NOTICES[okCode] ? <Alert tone="success">{NOTICES[okCode]}</Alert> : null}
+      {bulkMessage ? <Alert tone="success">{bulkMessage}</Alert> : null}
       {errorCode ? (
         <Alert tone="error">{ERRORS[errorCode] ?? fr.errors.unexpected}</Alert>
       ) : null}
@@ -289,7 +312,7 @@ export default async function SurveyStatisticsPage({
                 </p>
                 <GuestList
                   counting={counting}
-                  deleteAction={deleteResponseAction}
+                  deleteSelectionAction={deleteResponsesAction}
                   list={list}
                   named={Boolean(fieldById(schema.value, attendance.identityField))}
                   rows={rows}

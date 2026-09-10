@@ -4123,6 +4123,47 @@ summary.sp-btn::-webkit-details-marker {
   background: var(--sp-surface);
 }
 
+/* Rangée sélectionnable : une colonne de plus, en tête. La case précède
+   l'initiale, donc l'ordre de tabulation suit l'ordre de lecture. */
+.sp-guest:has(.sp-guest__pick) {
+  grid-template-columns: 1.5rem 2.5rem minmax(0, 1fr) auto;
+}
+
+/* La case garde la taille que le système lui donne — la redessiner priverait
+   du dessin natif de l'état coché — mais sa zone cliquable atteint la cible
+   tactile de la charte par un pseudo-élément, comme le déclencheur d'aide. */
+.sp-guest__pick {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--sp-marine);
+}
+
+.sp-guest__pick::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+/* Le bouton et sa mise en garde, sous la liste : on choisit, puis on agit. */
+.sp-guests__bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-space-3);
+  margin: var(--sp-space-4) 0 0;
+}
+
+.sp-guests__bulk .sp-hint {
+  flex: 1 1 18rem;
+  margin: 0;
+}
+
 /* Rangée à vérifier : repérée, jamais masquée. */
 .sp-guest--check {
   border-color: var(--sp-warning-text);

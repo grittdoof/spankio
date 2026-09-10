@@ -9,7 +9,9 @@ import {
   type ApiError,
   type RouteHarness,
 } from '../helpers/route';
-import { seedTwoTenants, type Tenant } from '../helpers/seed';
+import { insertResponse, seedTwoTenants, type Tenant } from '../helpers/seed';
+import { resolveRequestContext } from '@/lib/data/context';
+import { softDeleteResponses } from '@/lib/services/surveys';
 
 /**
  * Isolation multi-tenant AU NIVEAU DES ROUTES.
@@ -135,6 +137,115 @@ describe("routes d'administration", () => {
         }),
       );
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe('suppression groupée de réponses', () => {
+    /**
+     * Le geste demandé par le client : cocher plusieurs invités, un seul
+     * bouton. Ce qui se vérifie ici, ce sont les deux garde-fous — le RLS,
+     * et la PORTÉE au sondage affiché — plus le chiffre annoncé.
+     */
+    let une: string;
+    let deux: string;
+    let autreSondage: string;
+    let chezB: string;
+
+    beforeAll(async () => {
+      une = await insertResponse(db, a.survey, { q1: 'première' });
+      deux = await insertResponse(db, a.survey, { q1: 'deuxième' });
+      autreSondage = await insertResponse(db, a.eventSurvey, { q1: 'ailleurs' });
+      chezB = await insertResponse(db, b.survey, { q1: 'chez B' });
+    }, 120_000);
+
+    const vivante = async (id: string): Promise<boolean> => {
+      const row = await db.queryOne<{ deleted_at: string | null }>(
+        OWNER,
+        'select deleted_at from public.survey_responses where id = $1',
+        [id],
+      );
+      return row?.deleted_at === null;
+    };
+
+    it('supprime la sélection en une fois, et ne compte que ce qu’elle a écrit', async () => {
+      api.actAs(a.editor);
+      const context = await resolveRequestContext();
+
+      // La sélection comporte volontairement une réponse d'un AUTRE sondage de
+      // la même organisation, et une réponse de l'organisation B : le RLS
+      // écarte la seconde, la portée au sondage écarte la première.
+      const result = await softDeleteResponses(context, a.survey, [
+        une,
+        deux,
+        autreSondage,
+        chezB,
+      ]);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.ids.sort()).toEqual([une, deux].sort());
+
+      expect(await vivante(une)).toBe(false);
+      expect(await vivante(deux)).toBe(false);
+      // Les deux réponses hors portée sont intactes.
+      expect(await vivante(autreSondage)).toBe(true);
+      expect(await vivante(chezB)).toBe(true);
+    });
+
+    it('ne re-date pas une réponse déjà supprimée', async () => {
+      // Sinon le délai de grâce avant la purge repartirait de zéro, et le
+      // compte rendu annoncerait une suppression qui n'a pas eu lieu.
+      api.actAs(a.editor);
+      const context = await resolveRequestContext();
+
+      const before = await db.queryOne<{ deleted_at: string }>(
+        OWNER,
+        'select deleted_at from public.survey_responses where id = $1',
+        [une],
+      );
+
+      const result = await softDeleteResponses(context, a.survey, [une]);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.ids).toEqual([]);
+
+      const after = await db.queryOne<{ deleted_at: string }>(
+        OWNER,
+        'select deleted_at from public.survey_responses where id = $1',
+        [une],
+      );
+      // PGlite renvoie un `Date`, pas une chaîne : la comparaison est donc
+      // structurelle, sinon deux instants identiques échoueraient sur
+      // l'identité de l'objet.
+      expect(after?.deleted_at).toEqual(before?.deleted_at);
+    });
+
+    it('n’écrit rien pour une sélection vide, sans appeler la base', async () => {
+      api.actAs(a.editor);
+      const context = await resolveRequestContext();
+      const result = await softDeleteResponses(context, a.survey, []);
+      expect(result).toEqual({ ok: true, value: { ids: [] } });
+    });
+
+    it('refuse à un lecteur ce qu’il accorde à un éditeur', async () => {
+      const troisieme = await insertResponse(db, a.survey, { q1: 'troisième' });
+
+      api.actAs(a.viewer);
+      const refused = await softDeleteResponses(await resolveRequestContext(), a.survey, [
+        troisieme,
+      ]);
+      // Le RLS ne refuse pas l'écriture : il ne voit simplement aucune ligne à
+      // écrire. Le résultat est donc vide, et la réponse reste vivante.
+      expect(refused.ok).toBe(true);
+      expect(await vivante(troisieme)).toBe(true);
+
+      api.actAs(a.editor);
+      const allowed = await softDeleteResponses(await resolveRequestContext(), a.survey, [
+        troisieme,
+      ]);
+      expect(allowed.ok).toBe(true);
+      if (!allowed.ok) return;
+      expect(allowed.value.ids).toEqual([troisieme]);
     });
   });
 
