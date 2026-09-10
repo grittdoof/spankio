@@ -434,6 +434,19 @@ describe('courriel de confirmation', () => {
     });
     await createSurvey(db, {
       organisationId,
+      slug: 'titre-agenda',
+      title: 'Une invitation au titre beaucoup trop long pour une case d’agenda',
+      kind: 'event',
+      moduleKey: 'event',
+      schema: SCHEMA,
+      eventStartsAt: '2027-06-01T17:00:00.000Z',
+      settings: {
+        confirmation: { enabled: true, emailField: 'email' },
+        calendar: { title: 'Soirée des 180 ans' },
+      },
+    });
+    await createSurvey(db, {
+      organisationId,
       slug: 'sans-heure-de-fin',
       kind: 'event',
       moduleKey: 'event',
@@ -494,6 +507,43 @@ describe('courriel de confirmation', () => {
     // que le code fait. L'adresse sert aussi à écrire au répondant, la preuve
     // le dit.
     expect(row?.consent_text).toContain('Courriel de confirmation');
+  });
+
+  /**
+   * Le titre du rendez-vous ne se vérifie qu'ICI : la fonction pure est testée
+   * ailleurs, mais rien ne prouverait qu'elle est appelée sur le chemin du
+   * courriel. Et c'est le même titre que celui du fichier `.ics` et des liens
+   * de la page — trois compositions donneraient trois rendez-vous.
+   */
+  it('reprend le titre de rendez-vous réglé dans les liens d’agenda', async () => {
+    const captured: EmailMessage[] = [];
+    const fake = (message: EmailMessage): Promise<EmailResult> => {
+      captured.push(message);
+      return Promise.resolve({ sent: true });
+    };
+
+    const context = await resolveRequestContext();
+    const result = await submitPublicResponse(
+      context,
+      {
+        organisationSlug: 'org-conf',
+        surveySlug: 'titre-agenda',
+        data: { nom: 'Salomé Diaz', email: 'salome@exemple.test' },
+        consentGiven: true,
+      },
+      { sendEmail: fake, siteUrl: 'https://spankio.test' },
+    );
+
+    expect(result.ok).toBe(true);
+    const message = captured[0]!;
+    // Le titre réglé part dans les liens Google et Outlook. L'encodage est
+    // celui de `URLSearchParams` — espaces en `+` — donc il est reproduit ici
+    // au lieu d'être supposé.
+    const encoded = new URLSearchParams({ text: 'Soirée des 180 ans' }).toString();
+    expect(message.html).toContain(encoded);
+    expect(message.html).not.toContain(
+      new URLSearchParams({ text: 'Une invitation au titre beaucoup trop long' }).toString(),
+    );
   });
 
   /**

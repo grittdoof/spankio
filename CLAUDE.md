@@ -282,6 +282,12 @@ changer.
   compte à rebours collant à droite, barre d'inscription collante en bas — et
   non l'empilement d'un écran d'administration. Le moteur de questions reste
   intact derrière : `Invitation` est un objet distinct de `SurveyRenderer`.
+- **L'heure de fin est un bloc À PART de la date, sur la page comme dans le
+  courriel.** Demande du client : « Fin prévue à 23:59 » ne doit pas être
+  imposée. Une heure de fin n'est souvent qu'indicative, et un invité la lit
+  comme un engagement — la fermer ne doit donc pas emporter le jour de
+  l'événement. Le bloc suit immédiatement `practical` dans `PUBLIC_BLOCKS`,
+  parce que c'est là qu'il s'affiche.
 - **Chaque bloc de la page publique s'ouvre ou se ferme, et la liste
   enregistrée est celle des blocs MASQUÉS.** Avec une liste d'autorisation, un
   bloc ajouté plus tard naîtrait invisible sur tous les formulaires existants
@@ -608,6 +614,17 @@ changer.
   pour l'application ENTIÈRE — un verrou `SET NX EX` partagé, distinct du
   rate-limit par appelant. Relayer évite en outre de livrer à un tiers l'IP de
   chaque personne qui tape une adresse.
+- **Le titre du rendez-vous d'agenda est RÉGLABLE, et suit le contrat de la
+  note.** Demande du client. Un titre d'invitation est fait pour être lu SUR
+  une page — « Spie batignolles célèbre ses 180 ans et vous convie à une soirée
+  d'exception » — pas pour tenir dans la case d'un lundi. `eventTitle` remplace
+  donc par ce qui est écrit, ne compte pas un champ vide ou fait d'espaces, et
+  retombe toujours sur le titre du formulaire : un rendez-vous sans titre serait
+  pire qu'un titre trop long. Rangé dans `settings.calendar.title`, donc sans
+  migration. La MÊME fonction sert aux liens de la page, au fichier `.ics` —
+  dont elle nomme aussi le FICHIER, sans quoi un `.ics` nommé d'après
+  l'invitation et un rendez-vous nommé autrement laisseraient croire à deux
+  événements — et au courriel de confirmation.
 - **Une note d'agenda écrite par l'organisation REMPLACE le texte
   automatique**, elle ne s'y ajoute pas (`eventNote`). C'est le contrat le plus
   prévisible — ce qu'on écrit est ce que le répondant lit, sans mention

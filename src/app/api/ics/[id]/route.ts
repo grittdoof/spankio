@@ -1,5 +1,5 @@
 import { resolveRequestContext } from '@/lib/data/context';
-import { eventLocation, eventNote } from '@/lib/event/calendar-content';
+import { eventLocation, eventNote, eventTitle } from '@/lib/event/calendar-content';
 import { buildIcs, icsFileName, IcsError } from '@/lib/event/ics';
 import { logger } from '@/lib/logger';
 import { publicEnv } from '@/lib/config/env';
@@ -29,6 +29,15 @@ export async function GET(
     return new Response('Introuvable', { status: 404 });
   }
 
+  // Le titre du rendez-vous, réglable et composé par la MÊME fonction que les
+  // liens d'agenda et le courriel. Il titre aussi le FICHIER : un `.ics` nommé
+  // d'après l'invitation et un rendez-vous nommé autrement laisseraient croire
+  // à deux événements.
+  const agendaTitle = eventTitle({
+    custom: survey.value.settings.calendar?.title,
+    title: survey.value.title,
+  });
+
   const site = publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
   const url = `${site}/s/${survey.value.organisationSlug}/${survey.value.slug}`;
 
@@ -37,7 +46,7 @@ export async function GET(
       // UID stable : réimporter le fichier met à jour l'événement au lieu
       // d'en créer un second.
       uid: `${survey.value.id}@${new URL(site).host}`,
-      title: survey.value.title,
+      title: agendaTitle,
       start: new Date(survey.value.event.startsAt),
       end: survey.value.event.endsAt ? new Date(survey.value.event.endsAt) : null,
       allDay: survey.value.event.allDay,
@@ -66,7 +75,7 @@ export async function GET(
       status: 200,
       headers: {
         'content-type': 'text/calendar; charset=utf-8',
-        'content-disposition': `attachment; filename="${icsFileName(survey.value.title)}"`,
+        'content-disposition': `attachment; filename="${icsFileName(agendaTitle)}"`,
         'cache-control': 'public, max-age=300',
       },
     });

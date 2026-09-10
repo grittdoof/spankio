@@ -78,6 +78,21 @@ export const surveySettingsSchema = z.object({
    * pour la page publique : voir `src/lib/survey/confirmation.ts`.
    */
   confirmation: confirmationSchema.optional(),
+
+  /**
+   * Agenda : ce que le répondant retrouvera dans son rendez-vous.
+   *
+   * Rangé ici plutôt qu'en colonne, comme le reste des réglages d'affichage.
+   * Le titre du formulaire est fait pour une page d'invitation, pas pour la
+   * case d'un lundi : l'organisation peut donc en écrire un plus court, qui
+   * REMPLACE le titre — même contrat que la note d'agenda
+   * (`src/lib/event/calendar-content.ts`).
+   */
+  calendar: z
+    .object({
+      title: text(200).optional(),
+    })
+    .optional(),
 });
 
 export type SurveySettings = z.infer<typeof surveySettingsSchema>;

@@ -10,7 +10,7 @@ import { publicEnv } from '@/lib/config/env';
 import { bannerPublicUrl } from '@/lib/event/banner';
 import { resolveRequestContext } from '@/lib/data/context';
 import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
-import { eventLocation, eventNote } from '@/lib/event/calendar-content';
+import { eventLocation, eventNote, eventTitle } from '@/lib/event/calendar-content';
 import { ctaPalette } from '@/lib/design/cta';
 import { countdownParts } from '@/lib/event/countdown';
 import {
@@ -175,7 +175,9 @@ function invitationContent(
     ...(allowed('practical') && options.isEvent
       ? {
           when: whenOf(survey),
-          whenNote: whenNoteOf(survey),
+          // L'heure de fin a son propre interrupteur : elle se ferme SANS
+          // emporter la date, comme dans le courriel de confirmation.
+          whenNote: allowed('endTime') ? whenNoteOf(survey) : null,
           place,
           details,
         }
@@ -255,7 +257,13 @@ export default async function PublicSurveyPage({ params }: PageProps) {
       ? {
           calendar: calendarLinks(
             {
-              title: survey.title,
+              // Le titre du rendez-vous peut être plus court que celui du
+              // formulaire : une même fonction pour les liens, le fichier
+              // `.ics` et le courriel.
+              title: eventTitle({
+                custom: survey.settings.calendar?.title,
+                title: survey.title,
+              }),
               start,
               end: survey.event.endsAt ? new Date(survey.event.endsAt) : null,
               allDay: survey.event.allDay,

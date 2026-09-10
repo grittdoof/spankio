@@ -44,6 +44,9 @@ export const PUBLIC_BLOCKS = [
   'responseCount',
   'deadline',
   'practical',
+  // L'heure de fin est un bloc À PART de la date, comme dans le courriel : une
+  // fin souvent indicative, qu'un invité prendrait pour un engagement.
+  'endTime',
   'organiserWord',
   'programme',
   'calendar',
@@ -189,6 +192,12 @@ export const PUBLIC_BLOCK_META: readonly PublicBlockMeta[] = [
     key: 'practical',
     label: 'Les informations pratiques',
     help: 'Date, lieu, adresse, et les précisions que vous ajoutez ci-dessous.',
+    eventOnly: true,
+  },
+  {
+    key: 'endTime',
+    label: 'L’heure de fin',
+    help: 'Affichée sous la date, « Fin prévue à … ». À fermer quand la fin n’est qu’indicative — un invité la lirait comme un engagement.',
     eventOnly: true,
   },
   {

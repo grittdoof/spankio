@@ -105,6 +105,7 @@ const schema = (() => {
 
 const draft: EventDraft = {
   attendance: {},
+  calendarTitle: null,
   bannerPath: null,
   eventStartsAt: '2027-06-01T08:00:00.000Z',
   eventEndsAt: null,
@@ -129,6 +130,7 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -146,6 +148,7 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -165,6 +168,7 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -190,6 +194,7 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -208,6 +213,7 @@ describe('accessibilité du panneau événement', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -232,6 +238,7 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -262,6 +269,7 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -289,6 +297,7 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -325,6 +334,7 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -353,6 +363,7 @@ describe('comptage des présents', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -386,6 +397,7 @@ describe('note ajoutée à l’agenda', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription={context.surveyDescription}
         organisationName={context.organisationName}
         publicUrl={context.publicUrl}
@@ -458,6 +470,7 @@ describe('note ajoutée à l’agenda', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription={null}
         organisationName=""
         publicUrl=""
@@ -568,6 +581,7 @@ describe('lecture en oui/non', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"
@@ -618,6 +632,7 @@ describe('lecture en oui/non', () => {
       <EventSettings
         organisationId={ORG}
         schema={schema}
+        surveyTitle="Une soirée d’exception pour nos 180 ans"
         surveyDescription="Une soirée d’exception."
         organisationName="Organisation Témoin"
         publicUrl="https://exemple.test/s/org/invitation"

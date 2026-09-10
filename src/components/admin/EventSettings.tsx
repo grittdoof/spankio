@@ -5,7 +5,7 @@ import { Alert } from '@/components/ui/Alert';
 import { Callout } from '@/components/ui/Callout';
 import { Field } from '@/components/ui/Field';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { composeEventNote, eventNote } from '@/lib/event/calendar-content';
+import { composeEventNote, eventNote, eventTitle } from '@/lib/event/calendar-content';
 import { availableTimeZones, isoToWallClock, wallClockToIso } from '@/lib/event/time';
 import {
   detailCandidates,
@@ -37,6 +37,11 @@ import { LocationPicker, type LatLng } from './LocationPicker';
 export interface EventDraft {
   /** Comptage des présents. Rangé dans `settings`, jamais en colonne. */
   attendance: AttendanceSettings;
+  /**
+   * Titre du rendez-vous d'agenda. Rangé dans `settings` lui aussi, et vide
+   * par défaut : le titre du formulaire fait alors office.
+   */
+  calendarTitle: string | null;
   bannerPath: string | null;
   eventStartsAt: string | null;
   eventEndsAt: string | null;
@@ -56,6 +61,8 @@ export interface EventSettingsProps {
   initial: EventDraft;
   /** Schéma du formulaire : il fournit les questions à désigner. */
   schema: SurveySchema;
+  /** Titre du formulaire : repli du titre d'agenda, et repère à l'écran. */
+  surveyTitle: string;
   /** Description du formulaire, reprise par la note automatique. */
   surveyDescription: string | null;
   organisationName: string;
@@ -86,6 +93,7 @@ export function EventSettings({
   surveyId,
   initial,
   schema,
+  surveyTitle,
   surveyDescription,
   organisationName,
   publicUrl,
@@ -113,6 +121,13 @@ export function EventSettings({
     organiser: draft.eventOrganiser ?? organisationName,
     url: publicUrl,
   });
+  /**
+   * Titre réellement déposé dans l'agenda, calculé par la MÊME fonction que
+   * les liens, le fichier `.ics` et le courriel — un aperçu qui recomposerait
+   * de son côté finirait par annoncer autre chose.
+   */
+  const agendaTitle = eventTitle({ custom: draft.calendarTitle, title: surveyTitle });
+
   const custom = (draft.eventDetails ?? '').trim() !== '';
   const preview = eventNote({
     custom: draft.eventDetails,
@@ -749,6 +764,24 @@ export function EventSettings({
               type="text"
               value={draft.eventOrganiser ?? ''}
               onChange={(event) => patch({ eventOrganiser: event.target.value || null })}
+            />
+          )}
+        </Field>
+
+        <Field
+          hint={`Facultatif. Vide, c’est le titre du formulaire qui sert : « ${agendaTitle} ». Un titre d’invitation se lit sur une page ; dans un agenda, il doit tenir dans la case d’un jour.`}
+          id="evt-titre-agenda"
+          label="Titre du rendez-vous dans l’agenda"
+        >
+          {(attributes) => (
+            <input
+              {...attributes}
+              className="sp-input"
+              maxLength={200}
+              onChange={(event) => patch({ calendarTitle: event.target.value || null })}
+              placeholder={surveyTitle}
+              type="text"
+              value={draft.calendarTitle ?? ''}
             />
           )}
         </Field>

@@ -343,6 +343,36 @@ describe('écran de fin', () => {
   });
 });
 
+describe('heure de fin', () => {
+  /**
+   * Demande du client : ne pas imposer « Fin prévue à … » sur la page
+   * publique. L'interrupteur doit donc être VISIBLE et actionnable ici —
+   * l'ajouter au registre des blocs ne suffit pas si l'écran ne le propose
+   * pas.
+   */
+  it('propose l’interrupteur, et ferme sans toucher aux informations pratiques', async () => {
+    const user = userEvent.setup();
+    render(<Harness initial={{}} />);
+
+    const endTime = screen.getByRole('checkbox', { name: /L’heure de fin/ });
+    const practical = screen.getByRole('checkbox', { name: /Les informations pratiques/ });
+    expect(endTime).toBeChecked();
+
+    await user.click(endTime);
+    expect(endTime).not.toBeChecked();
+    expect(practical).toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    const saved = JSON.parse(
+      screen.getByTestId('enregistre').textContent ?? '',
+    ) as { hidden?: string[] };
+    // Le premier clic FIGE la liste entière : les deux blocs fermés par défaut
+    // — le nombre d'inscriptions et le partage du lien — y entrent aussi,
+    // sinon fermer l'heure de fin les rouvrirait au passage.
+    expect(saved.hidden).toEqual(['responseCount', 'endTime', 'share']);
+  });
+});
+
 describe('courriel de confirmation', () => {
   it('reste fermé par défaut, et rien ne se règle avant', () => {
     render(<Harness initial={{}} />);

@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PATCH as patchSurvey } from '@/app/api/admin/surveys/[id]/route';
 import { GET as geocode } from '@/app/api/admin/geocode/route';
+import { GET as ics } from '@/app/api/ics/[id]/route';
 import { resetGlobalSlots } from '@/lib/security/global-throttle';
 import { createTestDb, type TestDb } from '../helpers/db';
 import {
@@ -10,7 +11,7 @@ import {
   type ApiError,
   type RouteHarness,
 } from '../helpers/route';
-import { seedTwoTenants, type Tenant } from '../helpers/seed';
+import { createSurvey, seedTwoTenants, type Tenant } from '../helpers/seed';
 
 /**
  * Module événement : réglages du sondage et relais de géocodage.
@@ -294,6 +295,52 @@ describe('module événement', () => {
 
       expect(status).toBe(500);
       expect(body.error.message).toContain('momentanément indisponible');
+    });
+  });
+
+  describe('titre du rendez-vous', () => {
+    /**
+     * Demande du client : un titre d'agenda distinct du titre du formulaire.
+     * Ce qui ne se vérifie qu'ICI, c'est que le RÉGLAGE atteint le fichier —
+     * la fonction pure est testée ailleurs, mais rien ne prouverait qu'elle
+     * est appelée. Le nom du fichier en dépend aussi : un `.ics` nommé d'après
+     * l'invitation et un rendez-vous nommé autrement laisseraient croire à
+     * deux événements.
+     */
+    let evenement: string;
+
+    beforeAll(async () => {
+      stubPublicEnv();
+      evenement = await createSurvey(db, {
+        organisationId: a.organisationId,
+        slug: 'soiree-au-titre-long',
+        title: 'Une invitation au titre beaucoup trop long pour une case d’agenda',
+        kind: 'event',
+        moduleKey: 'event',
+        eventStartsAt: '2027-06-01T17:00:00.000Z',
+        // Un schéma sans étape n'est pas un schéma valide : la vue publique le
+        // servirait, mais le chargement le refuserait — et la route
+        // répondrait 404 pour une raison qui n'a rien à voir.
+        schema: {
+          version: 1,
+          steps: [{ id: 'etape_1', fields: [{ id: 'nom', type: 'text', label: 'Nom' }] }],
+        },
+        settings: { calendar: { title: 'Soirée des 180 ans' } },
+      });
+    }, 120_000);
+
+    it('reprend le titre réglé, dans le rendez-vous ET dans le nom du fichier', async () => {
+      api.actAsAnonymous();
+      const response = await ics(
+        jsonRequest('GET', `/api/ics/${evenement}`),
+        params(evenement),
+      );
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain('SUMMARY:Soirée des 180 ans');
+      expect(body).not.toContain('beaucoup trop long');
+      expect(response.headers.get('content-disposition')).toContain('soiree-des-180-ans');
     });
   });
 });

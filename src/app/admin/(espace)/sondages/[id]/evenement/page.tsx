@@ -72,6 +72,7 @@ export default async function EventSettingsPage({
 
   const initial: EventDraft = {
     attendance: settings.settings.attendance ?? {},
+    calendarTitle: settings.settings.calendar?.title ?? null,
     bannerPath: survey.value.banner_path,
     eventStartsAt: survey.value.event_starts_at,
     eventEndsAt: survey.value.event_ends_at,
@@ -111,6 +112,7 @@ export default async function EventSettingsPage({
         initial={initial}
         schema={schema.value}
         settings={settings.settings}
+        surveyTitle={survey.value.title}
         surveyDescription={survey.value.description}
         organisationName={session.organisationName ?? ''}
         publicUrl={`${publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/s/${session.organisationSlug}/${survey.value.slug}`}

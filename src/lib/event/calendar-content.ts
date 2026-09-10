@@ -107,3 +107,37 @@ export function eventNote(input: EventNoteInput): string | null {
   if (custom) return clamp(custom);
   return composeEventNote(input);
 }
+
+/** Longueur maximale d'un titre de rendez-vous. Un `SUMMARY` iCalendar n'a pas
+ *  de plafond normatif, mais un titre qui déborde de la case d'un agenda est
+ *  tronqué par le client — autant le faire proprement, et une fois. */
+const MAX_TITLE = 200;
+
+export interface EventTitleInput {
+  /**
+   * Titre écrit par l'organisation. Quand il existe, il REMPLACE le titre du
+   * formulaire — même contrat que la note d'agenda.
+   */
+  readonly custom?: string | null;
+  /** Titre du formulaire, seul repli. */
+  readonly title: string;
+}
+
+/**
+ * Titre du rendez-vous déposé dans l'agenda du répondant.
+ *
+ * Le titre du formulaire est fait pour être lu SUR une page d'invitation —
+ * « Spie batignolles célèbre ses 180 ans et vous convie à une soirée
+ * d'exception » — pas pour tenir dans la case d'un lundi. D'où ce réglage,
+ * demandé par le client.
+ *
+ * Le contrat est celui de `eventNote`, volontairement : ce qui est écrit
+ * remplace, un champ vide ou fait d'espaces ne compte pas, et le titre du
+ * formulaire reste le repli. Un rendez-vous sans titre serait pire qu'un titre
+ * trop long.
+ */
+export function eventTitle(input: EventTitleInput): string {
+  const custom = input.custom?.trim();
+  const chosen = custom || input.title.trim();
+  return chosen.length <= MAX_TITLE ? chosen : `${chosen.slice(0, MAX_TITLE).trimEnd()}…`;
+}

@@ -158,3 +158,41 @@ describe('compteur de blocs fermés', () => {
     expect(hiddenCount(settings)).toBe(3);
   });
 });
+
+describe('heure de fin', () => {
+  /**
+   * Demande du client : « Fin prévue à 23:59 » ne doit pas être imposée. Une
+   * heure de fin n'est souvent qu'indicative, et un invité la lit comme un
+   * engagement.
+   *
+   * C'est un bloc À PART de la date — comme dans le courriel de confirmation,
+   * et pour la même raison : fermer l'heure de fin ne doit pas emporter le
+   * jour de l'événement.
+   */
+  it('est un bloc distinct des informations pratiques', () => {
+    expect(PUBLIC_BLOCKS).toContain('endTime');
+    expect(PUBLIC_BLOCKS.indexOf('endTime')).toBe(PUBLIC_BLOCKS.indexOf('practical') + 1);
+  });
+
+  it('est montrée par défaut', () => {
+    // Liste de MASQUAGE : le défaut reste « montrer ce qui a du contenu », et
+    // une organisation qui n'a jamais ouvert cet écran garde sa page complète.
+    expect(isBlockAllowed(undefined, 'endTime')).toBe(true);
+    expect(isBlockAllowed({}, 'endTime')).toBe(true);
+  });
+
+  it('se ferme sans emporter la date', () => {
+    const settings: PublicPageSettings = { hidden: toggleBlock({}, 'endTime', false) };
+    expect(isBlockAllowed(settings, 'endTime')).toBe(false);
+    expect(isBlockAllowed(settings, 'practical')).toBe(true);
+  });
+
+  it('ne concerne que les événements, et porte son coût dans l’aide', () => {
+    const meta = PUBLIC_BLOCK_META.find((entry) => entry.key === 'endTime');
+    if (!meta) throw new Error('Bloc « endTime » absent du registre');
+    // Un sondage sans date n'a pas d'heure de fin à montrer.
+    expect(meta.eventOnly).toBe(true);
+    // L'aide dit POURQUOI on la fermerait, pas ce qu'elle est.
+    expect(meta.help).toContain('indicative');
+  });
+});

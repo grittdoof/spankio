@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { composeEventNote, eventLocation, eventNote } from '@/lib/event/calendar-content';
+import {
+  composeEventNote,
+  eventLocation,
+  eventNote,
+  eventTitle,
+} from '@/lib/event/calendar-content';
 
 /**
  * Ce que le répondant retrouvera dans son agenda.
@@ -112,5 +117,41 @@ describe('note de l’organisation', () => {
 
   it('rend une note nulle quand il n’y a ni note ni contexte', () => {
     expect(eventNote({})).toBeNull();
+  });
+});
+
+describe('titre du rendez-vous', () => {
+  /**
+   * Demande du client. Un titre d'invitation est fait pour être lu SUR une
+   * page — « Spie batignolles célèbre ses 180 ans et vous convie à une soirée
+   * d'exception » — pas pour tenir dans la case d'un lundi.
+   *
+   * Le contrat est celui de la note d'agenda, volontairement : ce qui est
+   * écrit REMPLACE, et le titre du formulaire reste le seul repli.
+   */
+  const title = 'Spie batignolles célèbre ses 180 ans et vous convie à une soirée d’exception';
+
+  it('reprend le titre du formulaire à défaut', () => {
+    expect(eventTitle({ title })).toBe(title);
+    expect(eventTitle({ custom: null, title })).toBe(title);
+  });
+
+  it('remplace par le titre écrit, sans rien y ajouter', () => {
+    expect(eventTitle({ custom: 'Soirée des 180 ans', title })).toBe('Soirée des 180 ans');
+  });
+
+  it('ne compte pas un titre vide ou fait d’espaces', () => {
+    // Sans cette précaution, un champ effacé produirait un rendez-vous sans
+    // titre — pire qu'un titre trop long.
+    for (const custom of ['', '   ', '\n\t']) {
+      expect(eventTitle({ custom, title })).toBe(title);
+    }
+  });
+
+  it('rogne proprement un titre démesuré', () => {
+    const long = 'a'.repeat(260);
+    const result = eventTitle({ custom: long, title });
+    expect(result.length).toBeLessThanOrEqual(201);
+    expect(result.endsWith('…')).toBe(true);
   });
 });

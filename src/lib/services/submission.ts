@@ -3,7 +3,7 @@ import type { RequestContext } from '@/lib/data/context';
 import { isPlausibleEmail, sendEmail } from '@/lib/email/resend';
 import { registrationConfirmationEmail } from '@/lib/email/templates/confirmation';
 import { bannerPublicUrl } from '@/lib/event/banner';
-import { eventLocation, eventNote } from '@/lib/event/calendar-content';
+import { eventLocation, eventNote, eventTitle } from '@/lib/event/calendar-content';
 import { calendarLinks, directionsLinks } from '@/lib/event/calendar-links';
 import { eventWhen, eventWhenNote } from '@/lib/event/display';
 import { submittedRecap } from '@/lib/survey/recap';
@@ -427,7 +427,10 @@ async function sendConfirmation(
     calendar: shows('calendar') && start
       ? calendarLinks(
           {
-            title: survey.title,
+            title: eventTitle({
+              custom: survey.settings.calendar?.title,
+              title: survey.title,
+            }),
             start,
             end: survey.event.endsAt ? new Date(survey.event.endsAt) : null,
             allDay: survey.event.allDay,

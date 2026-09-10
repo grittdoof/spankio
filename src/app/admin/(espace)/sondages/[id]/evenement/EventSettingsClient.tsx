@@ -23,6 +23,7 @@ export function EventSettingsClient({
   initial,
   schema,
   settings,
+  surveyTitle,
   surveyDescription,
   organisationName,
   publicUrl,
@@ -31,6 +32,7 @@ export function EventSettingsClient({
   surveyId: string;
   initial: EventDraft;
   /** Contexte de la note automatique d'agenda. */
+  surveyTitle: string;
   surveyDescription: string | null;
   organisationName: string;
   publicUrl: string;
@@ -64,7 +66,15 @@ export function EventSettingsClient({
             eventDetails: draft.eventDetails,
             // Réglages complets : `updateSurvey` remplace `settings` en
             // entier, un envoi partiel effacerait le reste.
-            settings: { ...settings, attendance: draft.attendance },
+            settings: {
+              ...settings,
+              attendance: draft.attendance,
+              // Un titre effacé retire la clé plutôt que d'enregistrer une
+              // chaîne vide : le repli est alors le titre du formulaire.
+              calendar: draft.calendarTitle
+                ? { ...settings.calendar, title: draft.calendarTitle }
+                : undefined,
+            },
           }),
         });
 
@@ -95,6 +105,7 @@ export function EventSettingsClient({
       surveyId={surveyId}
       initial={initial}
       schema={schema}
+      surveyTitle={surveyTitle}
       surveyDescription={surveyDescription}
       organisationName={organisationName}
       publicUrl={publicUrl}
