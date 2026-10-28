@@ -182,7 +182,13 @@ describe('demandes de rattachement', () => {
         'select module_key, allowed from public.profile_module_overrides where profile_id = $1 order by module_key',
         [candidate],
       );
-      expect(overrides).toEqual([{ module_key: 'event', allowed: true }]);
+      // Un module non retenu est interdit NOMMÉMENT, y compris un module
+      // ajouté au catalogue après coup : c'est ce qui fait qu'un nouveau module
+      // ne naît pas autorisé chez tout le monde.
+      expect(overrides).toEqual([
+        { module_key: 'checkin', allowed: false },
+        { module_key: 'event', allowed: true },
+      ]);
 
       const request = await db.queryOne<{ status: string; decided_role: string; decided_modules: string[] }>(
         OWNER,
@@ -210,10 +216,13 @@ describe('demandes de rattachement', () => {
 
       const overrides = await db.query<{ module_key: string; allowed: boolean }>(
         OWNER,
-        'select module_key, allowed from public.profile_module_overrides where profile_id = $1',
+        'select module_key, allowed from public.profile_module_overrides where profile_id = $1 order by module_key',
         [candidate],
       );
-      expect(overrides).toEqual([{ module_key: 'event', allowed: false }]);
+      expect(overrides).toEqual([
+        { module_key: 'checkin', allowed: false },
+        { module_key: 'event', allowed: false },
+      ]);
 
       // Le core reste utilisable : il n'est jamais interdit.
       const core = await db.query<{ ok: boolean }>(

@@ -9,7 +9,7 @@ import { OWNER, type TestDb } from './db';
  * reviendrait à tester le RLS avec le RLS, donc à ne rien prouver.
  */
 
-export type Role = 'super_admin' | 'admin' | 'editor' | 'viewer';
+export type Role = 'super_admin' | 'admin' | 'editor' | 'viewer' | 'host';
 
 export async function createAccount(
   db: TestDb,
@@ -169,19 +169,47 @@ export async function insertResponse(
   return row.id;
 }
 
+/** Affecte un compte à la porte d'un événement. */
+export async function assignStaff(
+  db: TestDb,
+  surveyId: string,
+  profileId: string,
+  organisationId: string,
+  expiresAt: string | null = null,
+): Promise<void> {
+  await db.query(
+    OWNER,
+    `insert into public.checkin_staff (survey_id, profile_id, organisation_id, expires_at)
+     values ($1, $2, $3, $4)
+     on conflict (survey_id, profile_id) do update set expires_at = excluded.expires_at`,
+    [surveyId, profileId, organisationId, expiresAt],
+  );
+}
+
 export interface Tenant {
   organisationId: string;
   admin: string;
   editor: string;
   viewer: string;
+  /** Compte d'accueil, affecté à `eventSurvey` et à lui seul. */
+  host: string;
+  /** Compte d'accueil SANS aucune affectation : il ne doit rien voir. */
+  idleHost: string;
   survey: string;
   eventSurvey: string;
   response: string;
+  /** Réponse rattachée à `eventSurvey`, donc visible du host affecté. */
+  eventResponse: string;
 }
 
 /**
- * Deux organisations complètes et symétriques, chacune avec ses trois rôles,
+ * Deux organisations complètes et symétriques, chacune avec ses quatre rôles,
  * un sondage core, un sondage événement et une réponse. Plus un super_admin.
+ *
+ * Les deux comptes d'accueil ne sont pas un luxe : l'un prouve que
+ * l'affectation OUVRE, l'autre que le rôle seul n'ouvre RIEN. Sans le second,
+ * un test vert ne distinguerait pas « le droit vient de checkin_staff » de
+ * « le droit vient d'être `host` dans cette organisation ».
  */
 export async function seedTwoTenants(db: TestDb): Promise<{
   a: Tenant;
@@ -194,13 +222,18 @@ export async function seedTwoTenants(db: TestDb): Promise<{
   const build = async (key: string): Promise<Tenant> => {
     const organisationId = await createOrganisation(db, `org-${key}`, `Organisation ${key}`);
     await grantModule(db, organisationId, 'event');
+    await grantModule(db, organisationId, 'checkin');
 
     const admin = await createAccount(db, `admin@${key}.test`, `Admin ${key}`);
     const editor = await createAccount(db, `editor@${key}.test`, `Éditeur ${key}`);
     const viewer = await createAccount(db, `viewer@${key}.test`, `Lecteur ${key}`);
+    const host = await createAccount(db, `host@${key}.test`, `Hôte ${key}`);
+    const idleHost = await createAccount(db, `host-libre@${key}.test`, `Hôte sans poste ${key}`);
     await activateMember(db, admin, organisationId, 'admin');
     await activateMember(db, editor, organisationId, 'editor');
     await activateMember(db, viewer, organisationId, 'viewer');
+    await activateMember(db, host, organisationId, 'host');
+    await activateMember(db, idleHost, organisationId, 'host');
 
     const survey = await createSurvey(db, { organisationId, slug: `sondage-${key}` });
     const eventSurvey = await createSurvey(db, {
@@ -210,8 +243,22 @@ export async function seedTwoTenants(db: TestDb): Promise<{
       kind: 'event',
     });
     const response = await insertResponse(db, survey, { q1: `réponse ${key}` });
+    const eventResponse = await insertResponse(db, eventSurvey, { nom: `Invité ${key}` });
 
-    return { organisationId, admin, editor, viewer, survey, eventSurvey, response };
+    await assignStaff(db, eventSurvey, host, organisationId);
+
+    return {
+      organisationId,
+      admin,
+      editor,
+      viewer,
+      host,
+      idleHost,
+      survey,
+      eventSurvey,
+      response,
+      eventResponse,
+    };
   };
 
   return {

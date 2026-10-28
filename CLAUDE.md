@@ -56,7 +56,52 @@ options autorisées, plafond de taille du payload. Le client n'est jamais cru.
 
 `super_admin` (plateforme, validation des inscriptions, activation des modules)
 · `admin` (son organisation, ses membres, ses modules) · `editor` (sondages des
-modules autorisés) · `viewer` (lecture seule, pas d'accès admin).
+modules autorisés) · `viewer` (lecture seule, pas d'accès admin) · `host`
+(accueil : la liste des invités des seuls événements où il est affecté).
+
+**`host` ne fait que FERMER ; c'est l'affectation qui ouvre.** Une hôtesse
+engagée pour une soirée doit voir les invités d'UN événement. `viewer` lui
+aurait ouvert toutes les réponses de tous les sondages de l'organisation —
+noms, courriels, téléphones — sur un téléphone souvent personnel, pour un poste
+de trois heures. Le droit vient donc, ligne à ligne, de
+`public.checkin_staff` ; un `host` sans affectation ne voit absolument rien, et
+un test le vérifie en propre, parce qu'un vert ne distinguerait pas sinon « le
+droit vient de l'affectation » de « le droit vient du rattachement ».
+
+**La fermeture est faite à la SOURCE, pas policy par policy.**
+`app.is_active_member()` est devenue fausse pour un `host` : elle n'était
+appelée que par `surveys_select` et `survey_responses_select`, c'est-à-dire
+exactement les deux policies à ne pas lui laisser emprunter. Le faire dans
+chaque policy aurait marché une fois ; le faire à la source protège aussi
+celles qui seront écrites plus tard. Les policies permissives s'ADDITIONNENT —
+une policy oubliée n'est pas une restriction manquante, c'est une porte
+ouverte. Même raisonnement que les droits par défaut : un oubli doit devenir
+une absence d'accès, jamais une fuite. Le nom reste juste à condition de le
+lire « membre actif de plein exercice ».
+
+**La cohérence d'organisation d'une affectation est STRUCTURELLE.** Elle
+s'écrivait d'abord dans la policy d'insertion ; elle est désormais portée par
+deux clés étrangères composites vers `surveys (id, organisation_id)` et
+`profiles (id, organisation_id)`. Une policy ne protège que le chemin qu'elle
+garde — un `service role`, une fonction `SECURITY DEFINER` écrite plus tard ou
+une migration de données passaient à côté. Le moteur, lui, refuse quel que soit
+l'appelant, et un test le vérifie en tant que `postgres`. Effet second voulu :
+un profil non rattaché ne peut pas être affecté.
+
+**Affecter est un acte sur un COMPTE, pas sur un formulaire** : réservé à
+l'`admin` de l'organisation, pas à l'`editor` — c'est la frontière de
+`profiles_update`, et la seule cohérente, puisque l'éditeur ne peut même pas
+lire les profils dont il faudrait composer la liste.
+
+**Le module exigé d'un `host` est `checkin`, jamais celui du sondage.** Tenir
+une porte n'est pas éditer un événement : demander en plus `event` obligerait à
+concéder aux hôtesses un droit dont elles ne font rien, et tout droit superflu
+est un droit à retirer un jour.
+
+**Une affectation EXPIRE** (`expires_at`). Sans cela, une hôtesse d'un soir
+garderait indéfiniment l'accès à une liste nominative de plusieurs centaines de
+personnes. La ligne n'est pas supprimée pour autant : le rapport doit pouvoir
+dire qui tenait la porte.
 
 Une seule voie vers `admin`/`editor` : une **demande de rattachement** validée
 par le super_admin, qui choisit le rôle **et** les modules autorisés. La
@@ -701,10 +746,18 @@ changer.
   ont été révoqués (`alter default privileges ... revoke`) : une table, une vue
   ou une fonction ajoutée n'est accessible à personne tant qu'un `grant`
   explicite n'a pas été écrit. Plus verbeux, et volontairement : un oubli
-  devient une absence d'accès, pas une fuite.
+  devient une absence d'accès, pas une fuite. **La règle ne couvrait d'abord
+  que le schéma `public`** : le schéma `app` n'avait reçu qu'un
+  `revoke all on all functions`, qui ne vaut que pour les fonctions existant à
+  cet instant. `app.can_staff_survey`, créée au module « Accueil », est donc
+  née exécutable par un visiteur anonyme — attrapé par
+  `tests/rls/exposed-surface.test.ts`, qui existe exactement pour cela, et
+  troisième occurrence de la même cause après `write_audit`. Les *default
+  privileges* sont désormais révoqués sur `app` AUSSI : la prochaine fonction
+  interne naîtra sans droits, qu'on y pense ou non.
 - **Une policy RLS s'exécute avec les droits de l'appelant.** Conséquence
   vérifiée par l'expérience : les fonctions appelées dans une policy doivent
-  rester exécutables par `authenticated`. Ce sont les 9 fonctions de `app` qui
+  rester exécutables par `authenticated`. Ce sont les 10 fonctions de `app` qui
   reçoivent `EXECUTE` ; les autres (dont `write_audit` et `dedup_hash`) n'en
   ont pas besoin, car elles ne sont appelées que depuis une autre fonction
   `SECURITY DEFINER` ou depuis un trigger.
@@ -895,7 +948,7 @@ figure, avec sa raison et sa condition de lever.
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. La montée proposée par Dependabot vers `eslint-config-next@16` a été **refusée** : c'est le paquet de configuration de Next 16, et l'installer sans Next 16 fait diverger l'outil du framework qu'il est censé décrire. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16, où les deux montent ensemble. |
 | R7 | **`postcss` surchargé** en 8.5.26 via `overrides` : Next 15 épingle 8.4.31, vulnérable (GHSA sourceMappingURL / XSS de stringify). Correctif amont = Next 16 (majeure). | Conserver Next 15 tout en gardant `npm audit` à zéro. `postcss` n'est utilisé qu'au build. | À la migration Next 16. |
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
-| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 21 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
+| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 26 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
 | R11 | **9 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
@@ -936,6 +989,34 @@ npm run build       # build de production
       appelable anonymement (forge d'entrées d'audit) et annuaire des
       organisations lisible sans compte — les deux causées par les *default
       privileges* de Supabase.
+- [x] Réalignement de la base (28 octobre 2026) — **26 migrations appliquées**,
+      historique de nouveau identique aux fichiers du dépôt. Il ne l'était
+      plus, et le constater a demandé d'interroger la base : trois migrations
+      y portaient une version ou un nom différents du fichier qui les avait
+      produites, et surtout `20260908160500_dedup_sans_valeur` **n'avait jamais
+      été poussée**. Le correctif du défaut le plus grave de la série — toute
+      inscription refusée en 400 dès que la question désignée comme clé
+      anti-doublon disparaît du schéma — vivait donc dans le dépôt sans exister
+      dans le moteur. Rien ne le signalait : les trois sondages avaient
+      `dedup_field` à null, ce qui rendait la branche fautive inatteignable,
+      et le contournement ressemblait à une absence de problème. Pire, le
+      TypeScript avait déjà été corrigé en conséquence (`dedupDesignation`
+      suppose que le SQL tolère une clé absente), si bien que l'écran d'édition
+      aurait laissé réactiver une unicité que la base refusait. **Leçon retenue,
+      et c'est la troisième fois sous une autre forme** : un correctif committé
+      n'est pas un correctif déployé, et `CLAUDE.md` affirmait un alignement que
+      personne n'avait revérifié depuis le 4 septembre. L'état réel de la base
+      se lit dans la base, pas dans la documentation qui la décrit.
+- [x] Module « Accueil », lot 1 — droits (28 octobre 2026) : rôle `host`,
+      `public.checkin_staff` et ses clés étrangères composites,
+      `app.can_staff_survey`, module `checkin` au catalogue, fermeture de
+      `app.is_active_member()` aux comptes d'accueil, et deux policies
+      additives qui n'ouvrent QUE l'événement affecté. Aucun écran, aucun fait
+      d'arrivée : ce lot est le seul capable d'ouvrir une fuite, il devait
+      pouvoir se relire seul. 25 contrôles dédiés dans
+      `tests/rls/checkin-host.test.ts`, persona `host` ajoutée au balayage
+      d'isolation. Une lacune de droits par défaut corrigée au passage (voir
+      « Tout nouvel objet naît sans droits »). 1660 tests au vert.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

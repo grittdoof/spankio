@@ -40,6 +40,7 @@ describe('isolation multi-tenant', () => {
       ['admin', (t: Tenant) => t.admin],
       ['editor', (t: Tenant) => t.editor],
       ['viewer', (t: Tenant) => t.viewer],
+      ['host', (t: Tenant) => t.host],
     ])('le %s de A ne voit aucun sondage de B', async (_label, pick) => {
       const rows = await db.query<{ id: string; organisation_id: string }>(
         asUser(pick(a)),
@@ -62,9 +63,11 @@ describe('isolation multi-tenant', () => {
     it('les réponses de B sont invisibles depuis A', async () => {
       const rows = await db.query<{ id: string }>(
         asUser(a.admin),
-        'select id from public.survey_responses',
+        'select id from public.survey_responses order by id',
       );
-      expect(rows.map((r) => r.id)).toEqual([a.response]);
+      expect(rows.map((r) => r.id).sort()).toEqual([a.response, a.eventResponse].sort());
+      expect(rows.map((r) => r.id)).not.toContain(b.response);
+      expect(rows.map((r) => r.id)).not.toContain(b.eventResponse);
     });
 
     it('les statistiques ne fuient pas entre organisations', async () => {

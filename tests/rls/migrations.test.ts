@@ -19,6 +19,7 @@ describe('migrations', () => {
     );
     expect(rows.map((r) => r.tablename)).toEqual([
       'audit_log',
+      'checkin_staff',
       'erasure_requests',
       'membership_requests',
       'modules',
@@ -54,6 +55,7 @@ describe('migrations', () => {
     expect(rows).toEqual([
       { key: 'core', is_core: true },
       { key: 'event', is_core: false },
+      { key: 'checkin', is_core: false },
     ]);
   });
 
@@ -71,7 +73,7 @@ describe('migrations', () => {
       OWNER,
       'select count(*)::int as count from public.modules',
     );
-    expect(modules[0]?.count).toBe(2);
+    expect(modules[0]?.count).toBe(3);
     const settings = await db.query<{ count: number }>(
       OWNER,
       'select count(*)::int as count from public.platform_settings',
