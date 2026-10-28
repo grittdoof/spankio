@@ -21,6 +21,8 @@ describe('migrations', () => {
       'audit_log',
       'checkin_staff',
       'erasure_requests',
+      'event_checkin_log',
+      'event_checkins',
       'membership_requests',
       'modules',
       'organisation_modules',
