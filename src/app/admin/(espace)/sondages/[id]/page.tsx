@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { Alert } from '@/components/ui/Alert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { loadAdminSession } from '@/lib/admin/session';

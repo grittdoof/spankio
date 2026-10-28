@@ -45,6 +45,27 @@ export default tseslint.config(
     },
   },
   {
+    // `z.config(z.locales.fr())` n'est appelé qu'une fois, dans ce module : un
+    // schéma qui importerait zod directement rendrait ses messages d'erreur en
+    // anglais, et l'incohérence ne se verrait que sur l'écran concerné.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/config/zod.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message:
+                "Importe `z` depuis '@/lib/config/zod' : c'est là que la langue des messages d'erreur est réglée.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],
   },

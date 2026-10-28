@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 
 /**
  * Accès typé aux variables d'environnement.
@@ -10,7 +10,7 @@ import { z } from 'zod';
  *     bloquent jamais le démarrage : leur absence est signalée, pas fatale.
  */
 
-const url = z.string().url();
+const url = z.url();
 const nonEmpty = z.string().min(1);
 
 const publicSchema = z.object({

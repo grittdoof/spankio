@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { eq, inList, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
 import { logger } from '@/lib/logger';

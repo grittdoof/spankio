@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import type { SurveyField, SurveySchema } from './schema';
 
 /**

@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { authErrorCodeFor, classifyAuthFailure } from '@/lib/auth/failures';
 import { CALLBACK_KEYS, callbackUrl } from '@/lib/auth/callback';
 import { checkNewPassword, checkSubmittedPassword } from '@/lib/auth/password';

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { guard } from '@/lib/api/guard';
 import { jsonError, mapDbError } from '@/lib/api/respond';
 import { parseWith } from '@/lib/api/validate';

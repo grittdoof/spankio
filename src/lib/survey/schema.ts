@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { MAX_LENGTHS, SCALE_BOUNDS, SCHEMA_LIMITS } from './limits';
 
 /**
@@ -89,6 +89,11 @@ const comparisonCondition = z.union([
 /**
  * Le schéma de condition est récursif ET borné en profondeur : sans borne, un
  * schéma hostile de quelques kilooctets ferait exploser la pile à l'évaluation.
+ *
+ * L'annotation `z.ZodType<Condition>` reste nécessaire — un `z.lazy` n'a pas
+ * de type de retour calculable sans elle. L'ASSERTION qui la suivait, elle, a
+ * disparu : zod 3 ne savait pas réconcilier le type inféré de l'union avec
+ * l'annotation, zod 4 le fait.
  */
 export const conditionSchema: z.ZodType<Condition> = z.lazy(() =>
   z.union([
@@ -100,7 +105,7 @@ export const conditionSchema: z.ZodType<Condition> = z.lazy(() =>
       any: z.array(conditionSchema).min(1).max(SCHEMA_LIMITS.maxConditionBranches),
     }),
   ]),
-) as z.ZodType<Condition>;
+);
 
 /** Profondeur d'imbrication d'une condition, vérifiée après l'analyse. */
 export function conditionDepth(condition: Condition): number {

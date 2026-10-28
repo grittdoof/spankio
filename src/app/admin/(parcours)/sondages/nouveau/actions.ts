@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { creationUrl, guideUrl } from '@/lib/admin/wizard';
 import { wallClockToIso } from '@/lib/event/time';
 import { MAX_LENGTHS } from '@/lib/survey/limits';
