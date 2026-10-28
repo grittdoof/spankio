@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import Link from 'next/link';
 import { EventOverview, type PartySummary } from '@/components/admin/EventOverview';
 import { GuestList } from '@/components/admin/GuestList';

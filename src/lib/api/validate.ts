@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from '@/lib/config/zod';
 import { jsonError } from './respond';
 
 /**
@@ -22,7 +22,7 @@ export type ParsedBody<T> = { ok: true; value: T } | { ok: false; response: Resp
  * sans cela, les valeurs par défaut (`.default([])`) resteraient optionnelles
  * pour l'appelant alors que zod les a déjà remplies.
  */
-export function parseWith<S extends z.ZodTypeAny>(
+export function parseWith<S extends z.ZodType>(
   schema: S,
   input: unknown,
 ): ParsedBody<z.output<S>> {
@@ -30,5 +30,5 @@ export function parseWith<S extends z.ZodTypeAny>(
   if (!result.success) {
     return { ok: false, response: validationErrorResponse(result.error) };
   }
-  return { ok: true, value: result.data as z.output<S> };
+  return { ok: true, value: result.data };
 }

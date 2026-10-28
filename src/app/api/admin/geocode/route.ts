@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { guard } from '@/lib/api/guard';
 import { jsonError, jsonOk } from '@/lib/api/respond';
 import { publicEnv, serverSetting } from '@/lib/config/env';

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { attendanceSettingsSchema } from './attendance';
 import { confirmationSchema } from './confirmation';
 import { MAX_LENGTHS } from './limits';

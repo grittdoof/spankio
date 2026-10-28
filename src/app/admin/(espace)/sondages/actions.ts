@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { eq } from '@/lib/data/port';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textFieldOrEmpty, trimmedField } from '@/lib/api/form';

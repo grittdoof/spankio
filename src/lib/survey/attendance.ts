@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { isVisibleField } from './conditions';
 import { MAX_LENGTHS } from './limits';
 import {
