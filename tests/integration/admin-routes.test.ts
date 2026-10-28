@@ -50,7 +50,7 @@ describe("routes d'administration", () => {
       }>(await listModules(jsonRequest('GET', '/api/admin/modules')));
 
       expect(status).toBe(200);
-      expect(body.catalogue.map((m) => m.key)).toEqual(['core', 'event']);
+      expect(body.catalogue.map((m) => m.key)).toEqual(['core', 'event', 'checkin']);
       expect(body.granted.every((m) => m.organisation_id === a.organisationId)).toBe(true);
     });
 

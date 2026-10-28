@@ -1,0 +1,28 @@
+-- ============================================================================
+-- Le rôle `host` : un compte d'accueil, et rien d'autre.
+--
+-- Pourquoi un rôle de plus plutôt que `viewer`. Une hôtesse engagée pour une
+-- soirée doit voir la liste des invités d'UN événement. `viewer` lui ouvrirait
+-- `survey_responses_select`, c'est-à-dire TOUTES les réponses de TOUS les
+-- sondages de l'organisation — noms, courriels, téléphones — sur un téléphone
+-- souvent personnel, pour un poste qui dure trois heures. Il n'existe
+-- aujourd'hui aucun rôle assez étroit pour ce besoin.
+--
+-- Le rôle ne fait que FERMER. Ce qui ouvre, c'est l'affectation
+-- (`public.checkin_staff`), posée dans la migration suivante : le droit est
+-- donné événement par événement, jamais par le rôle. Un `host` sans
+-- affectation ne voit rien du tout.
+--
+-- POURQUOI CETTE MIGRATION EST SEULE. `alter type ... add value` est permis
+-- dans une transaction depuis PostgreSQL 12, mais la valeur ajoutée ne peut
+-- pas être UTILISÉE avant que cette transaction soit validée. Comme le CLI
+-- Supabase enveloppe chaque fichier dans une transaction, tout ce qui compare
+-- un rôle à 'host' doit vivre dans un fichier SUIVANT. Les mettre ensemble
+-- échoue avec « unsafe use of new value of enum type », ce qui ne dit pas
+-- grand-chose de la cause.
+--
+-- La valeur est ajoutée APRÈS `viewer` : l'ordre d'une énumération est celui
+-- de ses comparaisons et de ses tris, et `host` est le moins doté de tous.
+-- ============================================================================
+
+alter type public.user_role add value if not exists 'host' after 'viewer';

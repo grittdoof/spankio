@@ -117,6 +117,9 @@ describe('surface exposée par PostgREST', () => {
     // doivent rester exécutables. Toutes les autres (write_audit, dedup_hash,
     // fonctions de trigger…) n'ont aucune raison de l'être.
     expect(rows.map((r) => r.nom)).toEqual([
+      // Appelée par surveys_select et survey_responses_select pour ouvrir à un
+      // compte d'accueil le seul événement où il est affecté.
+      'can_staff_survey',
       'can_use_module',
       'can_write_surveys',
       'is_active_member',
