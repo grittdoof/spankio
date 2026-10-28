@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { WizardShell } from '@/components/admin/WizardShell';
 import { Callout } from '@/components/ui/Callout';
 import { previousCreationUrl } from '@/lib/admin/wizard';

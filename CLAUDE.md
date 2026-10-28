@@ -190,6 +190,17 @@ changer.
 - **Aucun caractère de contrôle littéral dans les sources.** Les plages
   interdites sont exprimées en points de code numériques : un source contenant
   de vrais caractères invisibles est illisible et se corrompt au copier-coller.
+- **zod s'importe depuis `@/lib/config/zod`, jamais depuis `zod`.** Les
+  messages d'erreur par défaut de la bibliothèque sont rendus TELS QUELS à
+  l'utilisateur — l'éditeur énumère les refus du serveur sous le formulaire, et
+  la route de géocodage renvoie `issues[0].message`. Ce module appelle
+  `z.config(z.locales.fr())` et réexporte `z` : tout schéma de l'application
+  charge donc la configuration avant d'exister, et une règle ESLint interdit
+  l'import direct. Sans elle, un seul fichier qui l'oublierait rendrait ses
+  messages en anglais, et l'incohérence ne se verrait que sur l'écran concerné.
+  Corollaire de la migration : zod 3 écrivait « Required », zod 4 écrit
+  « Invalid input: expected string, received undefined » — la montée a réécrit
+  ces phrases de toute façon, les laisser en anglais aurait été un choix.
 - Accès aux secrets exclusivement via `serverEnv()` (`src/lib/config/env.ts`),
   qui lève une erreur s'il est appelé côté client.
 - `dangerouslySetInnerHTML` est **interdit par ESLint** (anti-XSS stocké) :
@@ -942,7 +953,7 @@ figure, avec sa raison et sa condition de lever.
 | R11 | **9 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
-| R14 | **`zod` reste en 3.25.76** alors que la 4 existe. La 4 change la forme des erreurs (`issues`), le comportement de `z.string().datetime()` et celui des unions discriminées — or ce sont exactement les trois points sur lesquels repose la validation des schémas de sondage, des réponses publiques et des entrées d'API. La montée est une migration à conduire, pas une mise à jour à accepter. **La raison de ce report a changé le 28 octobre 2026** : il existe désormais un avis de sécurité `high` couvrant toute la branche 3 (GHSA-mrhx-c7xc-m3w5, épuisement mémoire sur des collections contraintes surdimensionnées), sans correctif en 3.x — le seul est `zod@4`. **La CI est donc rouge sur `npm audit --audit-level=high` tant que la migration n'est pas faite**, et c'est voulu : ce blocage est le rappel, pas un faux positif à contourner. Exposition réelle limitée mais non nulle : les soumissions publiques sont plafonnées (65 536 octets vérifiés en SQL, plafonds de `limits.ts`), ce qui borne la taille des collections atteignables, et la validation des entrées d'API n'est accessible qu'avec une session. | Prendre la 4 sans relire les 49 tests de validation des réponses reviendrait à changer les règles sans les vérifier — et la validation serveur est la seule barrière entre une soumission publique et la base. Un avis `high` ne rend pas cet arbitrage moins vrai ; il lui donne une échéance. | **Maintenant, et en premier** : c'est le seul risque accepté du tableau qui soit devenu une vulnérabilité réelle. Chantier propre, avec relecture des tests de validation — à ne pas glisser dans une PR qui parle d'autre chose. |
+| R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
 
 ## 7. Commandes
 
@@ -1070,5 +1081,27 @@ npm run build       # build de production
       déclarée par l'organisation était recopiée au milieu d'une phrase.
       1486 tests dont 37 d'accessibilité sur l'invitation et son écran de
       réglages.
+- [x] Migration zod 4 (28 octobre 2026) — `zod@3.25.76` → `zod@4.6.7`, imposée
+      par GHSA-mrhx-c7xc-m3w5, sans correctif en 3.x. Vérifiée en rejouant
+      **269 formes d'entrée à travers les deux moteurs** — schémas de sondage,
+      réglages, entrées d'API, variables d'environnement, soumissions — et en
+      comparant les verdicts, pas seulement en relançant la suite. Quatre
+      divergences de verdict, toutes vers le refus : `z.number().int()` borne
+      désormais à l'entier sûr (seuls `minSelected` et `maxSelected` étaient
+      écrits sans `.max()`), et `z.iso.datetime({ offset: true })` exige le
+      deux-points du décalage (`+02:00` oui, `+0200` non) sur les quatre dates
+      de `updateSurveySchema` — l'application n'y touche pas, elle n'écrit que
+      des instants en `Z`. **Aucun changement de verdict sur
+      `validateSurveySettings`** (45 formes, les 4 modèles compris) : la page
+      publique ne peut pas perdre ses réglages. **Aucune divergence sur
+      `validateResponse`**, qui n'utilise pas zod — la barrière entre une
+      soumission anonyme et la base est inchangée. Le reste est cosmétique :
+      105 renommages de code (`invalid_string` → `invalid_format`,
+      `invalid_enum_value` et `invalid_literal` → `invalid_value`,
+      `invalid_union_discriminator` → `invalid_union`), qui ne commandent rien
+      — aucun test ni aucune branche ne lit un code de zod. Deux assertions de
+      type sont tombées, dont celle du schéma récursif de conditions, que zod 4
+      infère seul. Messages passés au français (`z.config(z.locales.fr())`),
+      puisqu'ils s'affichent sous le formulaire de l'éditeur. 1643 tests.
 - [ ] Étape 8 — RGPD : `platform_settings`, pages légales, purges, effacement.
 - [ ] Étape 9 — durcissement : CSP à nonce, Sentry, axe en CI, README final.

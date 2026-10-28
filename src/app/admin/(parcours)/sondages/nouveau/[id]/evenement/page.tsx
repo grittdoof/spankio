@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { WizardShell } from '@/components/admin/WizardShell';
 import { Alert } from '@/components/ui/Alert';
 import { Callout, Example } from '@/components/ui/Callout';

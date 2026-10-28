@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { eq } from '@/lib/data/port';
 import { guard } from '@/lib/api/guard';
 import { readJsonBody } from '@/lib/api/read-json';

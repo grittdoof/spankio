@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { guard } from '@/lib/api/guard';
 import { readJsonBody, SUBMISSION_MAX_BODY_BYTES } from '@/lib/api/read-json';
 import { jsonError, jsonOk, mapDbError } from '@/lib/api/respond';

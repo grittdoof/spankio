@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { toIsoString } from '@/lib/export/csv';
 import { eq, inList, isNull, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
@@ -119,7 +119,7 @@ export const createSurveySchema = z.object({
 
 export type CreateSurveyInput = z.infer<typeof createSurveySchema>;
 
-const isoDate = z.string().datetime({ offset: true });
+const isoDate = z.iso.datetime({ offset: true });
 
 export const updateSurveySchema = z.object({
   title: z.string().trim().min(2).max(200).optional(),

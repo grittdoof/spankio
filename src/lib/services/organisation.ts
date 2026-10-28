@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/lib/config/zod';
 import { eq, type DbError } from '@/lib/data/port';
 import { isLogoUrlOf } from '@/lib/organisation/logo';
 import type { RequestContext } from '@/lib/data/context';
