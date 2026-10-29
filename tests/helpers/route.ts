@@ -44,7 +44,12 @@ export function createRouteHarness(db: TestDb): RouteHarness {
 
   return {
     actAs(id: string, address = 'compte@test.local') {
-      actor = asUser(id);
+      // L'adresse part AUSSI dans les claims du jeton, et pas seulement dans
+      // le contexte applicatif : `claim_checkin_invitation` la lit depuis
+      // `auth.jwt()`, précisément parce que `profiles.email` est modifiable
+      // par son propriétaire. Sans cela, le harnais simulait un jeton sans
+      // courriel — ce qu'un vrai jeton Supabase n'est jamais.
+      actor = asUser(id, address);
       userId = id;
       email = address;
     },

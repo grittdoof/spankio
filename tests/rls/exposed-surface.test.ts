@@ -43,6 +43,11 @@ const SURFACE_ATTENDUE: Readonly<Record<string, { anon: boolean; authenticated: 
   // `checkin_staff` au lot 1 porte sur la TABLE, et le RLS ne voit pas les
   // colonnes — une policy aurait laissé prolonger son propre `expires_at`.
   touch_checkin_staff: { anon: false, authenticated: true },
+  // Consomme une invitation à usage unique. Elle rattache un profil NON
+  // RATTACHÉ en rôle `host` et l'affecte à un événement : trois écritures
+  // qu'aucune policy ne peut tenir ensemble, et dont l'autorité est
+  // l'invitation elle-même, pas l'appelant.
+  claim_checkin_invitation: { anon: false, authenticated: true },
   purge_expired_responses: { anon: false, authenticated: true },
   purge_deleted_surveys: { anon: false, authenticated: true },
   my_modules: { anon: false, authenticated: true },

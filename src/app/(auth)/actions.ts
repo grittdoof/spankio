@@ -9,6 +9,7 @@ import { checkNewPassword, checkSubmittedPassword } from '@/lib/auth/password';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textField, textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { logger } from '@/lib/logger';
+import { safeAfterSignIn } from '@/lib/auth/after-sign-in';
 import { checkRateLimit, clientIdentifier } from '@/lib/security/rate-limit';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
@@ -64,7 +65,9 @@ export async function signIn(formData: FormData): Promise<void> {
     redirect(`/connexion?erreur=${authErrorCodeFor(kind) ?? 'invalidCredentials'}`);
   }
 
-  redirect('/admin');
+  // Liste fermée d'une seule forme : voir `safeAfterSignIn`. Un paramètre de
+  // retour non borné est le mécanisme classique de la redirection ouverte.
+  redirect(safeAfterSignIn(textField(formData, 'suite')));
 }
 
 export async function signUp(formData: FormData): Promise<void> {

@@ -3,14 +3,20 @@ import { notFound, redirect } from 'next/navigation';
 import { Alert } from '@/components/ui/Alert';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { CheckinReadiness } from '@/components/admin/CheckinReadiness';
+import { CheckinInvitations } from '@/components/admin/CheckinInvitations';
 import { CheckinStaff } from '@/components/admin/CheckinStaff';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { checkinReadiness } from '@/lib/checkin/readiness';
-import { listAssignableMembers, listStaff } from '@/lib/services/checkin';
+import { listAssignableMembers, listInvitations, listStaff } from '@/lib/services/checkin';
 import { getSurvey, listResponses } from '@/lib/services/surveys';
 import { surveySettingsSchema } from '@/lib/survey/settings';
-import { assignStaffAction, revokeStaffAction } from './actions';
+import {
+  assignStaffAction,
+  inviteStaffAction,
+  revokeInvitationAction,
+  revokeStaffAction,
+} from './actions';
 
 /**
  * Préparer la porte — la veille, pas à 19 h 50.
@@ -30,12 +36,23 @@ const MESSAGES: Readonly<Record<string, string>> = {
     'Cette personne n’appartient pas à l’organisation du formulaire. L’affectation a été refusée par la base, et c’est voulu.',
   refus:
     'L’affectation a été refusée. Vérifiez que le module Accueil est autorisé pour votre organisation.',
+  adresse: 'Cette adresse électronique n’a pas été comprise.',
 };
 
 const FAITS: Readonly<Record<string, string>> = {
   affectation: 'Affectation enregistrée.',
   retrait: 'Affectation retirée.',
+  invitation: 'Invitation envoyée.',
+  'invitation-retiree': 'Invitation retirée.',
 };
+
+/**
+ * Un envoi raté n'est PAS un simple « pour information » ici : le lien
+ * n'existe nulle part en clair, donc l'invitation ne sert à rien tant qu'elle
+ * n'est pas refaite. C'est donc une alerte, pas une confirmation.
+ */
+const ENVOI_RATE =
+  'invitation-sans-courriel';
 
 export default async function CheckinPreparationPage({
   params,
@@ -59,12 +76,13 @@ export default async function CheckinPreparationPage({
     session?.modules.find((module) => module.key === 'checkin')?.allowed,
   );
 
-  const [staff, members, responses] = await Promise.all([
+  const [staff, members, responses, invitations] = await Promise.all([
     listStaff(context, id),
     listAssignableMembers(context),
     listResponses(context, id, 1000),
+    listInvitations(context, id),
   ]);
-  if (!staff.ok || !members.ok || !responses.ok) notFound();
+  if (!staff.ok || !members.ok || !responses.ok || !invitations.ok) notFound();
 
   const parsed = surveySettingsSchema.safeParse(survey.value.settings ?? {});
   const attendance = parsed.success ? (parsed.data.attendance ?? {}) : {};
@@ -77,7 +95,12 @@ export default async function CheckinPreparationPage({
     startsAt: survey.value.event_starts_at ?? null,
   });
 
-  const erreur = typeof query['erreur'] === 'string' ? MESSAGES[query['erreur']] : undefined;
+  const erreur =
+    query['fait'] === ENVOI_RATE
+      ? 'L’invitation a été créée mais le courriel n’est pas parti. Le lien n’existe nulle part en clair : retirez l’invitation et recommencez.'
+      : typeof query['erreur'] === 'string'
+        ? MESSAGES[query['erreur']]
+        : undefined;
   const fait = typeof query['fait'] === 'string' ? FAITS[query['fait']] : undefined;
 
   const assigned = new Set(staff.value.map((member) => member.profileId));
@@ -114,6 +137,14 @@ export default async function CheckinPreparationPage({
         assignable={assignable}
         revokeAction={revokeStaffAction}
         staff={staff.value}
+        surveyId={id}
+      />
+
+      <CheckinInvitations
+        invitations={invitations.value}
+        inviteAction={inviteStaffAction}
+        now={new Date().toISOString()}
+        revokeAction={revokeInvitationAction}
         surveyId={id}
       />
     </div>

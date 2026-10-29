@@ -3,6 +3,11 @@ import { eq, gte, inList, isNull, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
 import type { CheckinState } from '@/lib/checkin/reducer';
 import type { StaffMember } from '@/lib/checkin/readiness';
+import { generateInvitationToken, invitationLink, normaliseEmail } from '@/lib/checkin/invitation';
+import { sendEmail } from '@/lib/email/resend';
+import { checkinInvitationEmail } from '@/lib/email/templates/checkin';
+import type { EmailBranding } from '@/lib/email/templates/layout';
+import { sha256Hex } from '@/lib/utils/hash';
 import { getSurvey, listResponses, parseSurveySchema, EXPORT_LIMIT } from './surveys';
 import type { SurveyRow, SurveyOutcome, ResponseRow } from './surveys';
 import { surveySettingsSchema } from '@/lib/survey/settings';
@@ -414,6 +419,205 @@ export async function touchStaff(
     p_survey_id: surveyId,
   });
   return result.error ? false : result.data === true;
+}
+
+
+// ---------------------------------------------------------------------------
+// Invitations à usage unique
+// ---------------------------------------------------------------------------
+
+interface RawInvitation {
+  id: string;
+  email: string;
+  expires_at: string | Date;
+  staff_expires_at: string | Date | null;
+  created_at: string | Date;
+  claimed_at: string | Date | null;
+}
+
+export interface InvitationRow {
+  readonly id: string;
+  readonly email: string;
+  readonly expiresAt: string;
+  readonly staffExpiresAt: string | null;
+  readonly createdAt: string;
+  readonly claimedAt: string | null;
+}
+
+export async function listInvitations(
+  context: RequestContext,
+  surveyId: string,
+): Promise<SurveyOutcome<InvitationRow[]>> {
+  const rows = await context.port.select<RawInvitation>({
+    table: 'checkin_invitations',
+    columns: 'id, email, expires_at, staff_expires_at, created_at, claimed_at',
+    where: [eq('survey_id', surveyId)],
+    order: { column: 'created_at', ascending: false },
+    limit: 100,
+  });
+  if (rows.error) return { ok: false, error: rows.error };
+
+  return {
+    ok: true,
+    value: rows.data.map((row) => ({
+      id: row.id,
+      email: row.email,
+      expiresAt: toIsoString(row.expires_at),
+      staffExpiresAt: row.staff_expires_at === null ? null : toIsoString(row.staff_expires_at),
+      createdAt: toIsoString(row.created_at),
+      claimedAt: row.claimed_at === null ? null : toIsoString(row.claimed_at),
+    })),
+  };
+}
+
+export interface CreateInvitationInput {
+  readonly surveyId: string;
+  readonly organisationId: string;
+  readonly email: string;
+  readonly expiresAt: string;
+  readonly staffExpiresAt: string | null;
+}
+
+/**
+ * Crée l'invitation et rend le jeton EN CLAIR — la seule et dernière fois.
+ *
+ * L'empreinte part en base, le jeton revient à l'appelant pour être affiché.
+ * Le relire plus tard est impossible par construction : c'est le prix de ne
+ * pas stocker un secret exerçable, et c'est le bon prix.
+ */
+export async function createInvitation(
+  context: RequestContext,
+  input: CreateInvitationInput,
+): Promise<SurveyOutcome<{ id: string; token: string }>> {
+  const token = generateInvitationToken();
+  const hash = await sha256Hex(token);
+
+  const result = await context.port.insert<{ id: string }>(
+    'checkin_invitations',
+    {
+      survey_id: input.surveyId,
+      organisation_id: input.organisationId,
+      email: normaliseEmail(input.email),
+      token_hash: hash,
+      expires_at: input.expiresAt,
+      staff_expires_at: input.staffExpiresAt,
+      created_by: context.userId,
+    },
+    'id',
+  );
+  if (result.error) return { ok: false, error: result.error };
+
+  return { ok: true, value: { id: result.data.id, token } };
+}
+
+
+interface OrganisationBrandRow {
+  name: string;
+  logo_url: string | null;
+  brand: Record<string, unknown> | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+}
+
+const LIMITE = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
+
+/**
+ * Crée l'invitation ET l'envoie.
+ *
+ * L'envoi n'est pas un confort : c'est ce qui permet de ne JAMAIS afficher le
+ * jeton. Le faire transiter par l'écran de l'administrateur le mettrait dans
+ * une URL, donc dans un historique de navigateur et dans des journaux — pour
+ * un secret qui ouvre une liste nominative.
+ *
+ * Un échec d'envoi ne défait pas l'invitation, comme un courriel de
+ * confirmation ne défait pas une inscription. Mais il est DIT, parce qu'ici la
+ * conséquence n'est pas cosmétique : sans courriel, personne n'a le lien, et
+ * il n'existe aucun moyen de le réafficher. L'écran propose alors de retirer
+ * l'invitation et de recommencer.
+ */
+export async function inviteStaff(
+  context: RequestContext,
+  input: CreateInvitationInput & { readonly siteUrl: string; readonly eventTitle: string },
+  deps: { readonly send?: typeof sendEmail } = {},
+): Promise<SurveyOutcome<{ id: string; emailSent: boolean }>> {
+  const created = await createInvitation(context, input);
+  if (!created.ok) return created;
+
+  const organisation = await context.port.selectOne<OrganisationBrandRow>({
+    table: 'organisations',
+    columns: 'name, logo_url, brand, contact_email, contact_phone',
+    where: [eq('id', input.organisationId)],
+  });
+
+  const accent = organisation.data?.brand?.['accent'];
+  const branding: EmailBranding = {
+    organisationName: organisation.data?.name ?? 'Organisation',
+    logoUrl: organisation.data?.logo_url ?? null,
+    accentColor: typeof accent === 'string' ? accent : null,
+    contactEmail: organisation.data?.contact_email ?? null,
+    contactPhone: organisation.data?.contact_phone ?? null,
+  };
+
+  const site = input.siteUrl.replace(/\/$/, '');
+  const message = checkinInvitationEmail(
+    {
+      organisationName: branding.organisationName,
+      eventTitle: input.eventTitle,
+      link: invitationLink(site, created.value.token),
+      expiresOn: LIMITE.format(new Date(input.expiresAt)),
+      invitedBy: null,
+    },
+    {
+      branding,
+      siteUrl: site,
+      legalLinks: [
+        { label: 'Mentions légales', url: `${site}/mentions-legales` },
+        { label: 'Confidentialité', url: `${site}/confidentialite` },
+      ],
+    },
+  );
+
+  const result = await (deps.send ?? sendEmail)({
+    to: normaliseEmail(input.email),
+    subject: message.subject,
+    html: message.html,
+    text: message.text,
+  });
+
+  return { ok: true, value: { id: created.value.id, emailSent: result.sent } };
+}
+
+export async function revokeInvitation(
+  context: RequestContext,
+  surveyId: string,
+  invitationId: string,
+): Promise<SurveyOutcome<{ removed: number }>> {
+  const result = await context.port.remove<{ id: string }>(
+    'checkin_invitations',
+    // Bornée au SONDAGE affiché en plus du RLS : même raisonnement que la
+    // suppression groupée des réponses, un formulaire forgé ne doit pas
+    // atteindre les invitations d'un autre événement de l'organisation.
+    [eq('survey_id', surveyId), eq('id', invitationId)],
+    'id',
+  );
+  if (result.error) return { ok: false, error: result.error };
+  return { ok: true, value: { removed: result.data.length } };
+}
+
+/**
+ * Consomme l'invitation. Le jeton part EN CLAIR vers la fonction SQL, qui en
+ * calcule l'empreinte : lui transmettre une empreinte déjà calculée rendrait
+ * le contenu de la table directement exerçable.
+ */
+export async function claimInvitation(
+  context: RequestContext,
+  token: string,
+): Promise<SurveyOutcome<{ surveyId: string }>> {
+  const result = await context.port.rpc<{ survey_id: string }>('claim_checkin_invitation', {
+    p_token: token,
+  });
+  if (result.error) return { ok: false, error: result.error };
+  return { ok: true, value: { surveyId: result.data.survey_id } };
 }
 
 /** Réexporté pour que les routes n'aient pas à connaître deux modules. */
