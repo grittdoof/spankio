@@ -666,6 +666,65 @@ changer.
   sur la copie — après l'insertion, la clé étrangère l'exige. Le JOURNAL, lui,
   garde l'ancien identifiant : c'est bien sous l'ancienne réponse que les
   transitions ont eu lieu.
+- **Une liste périmée qui a l'air vivante est la pire panne d'une porte.** Le
+  rafraîchissement du poste d'accueil est une interrogation par DELTA
+  (`updated_at >= curseur`) toutes les cinq secondes, et c'est le contrat :
+  si tout se fige, la liste converge quand même dès que le réseau revient. Un
+  websocket aurait gelé l'écran SANS LE DIRE — une hôtesse aurait fait entrer
+  deux fois la même personne, ou refusé quelqu'un que le poste d'à côté venait
+  de pointer, sans qu'aucun signe ne l'avertisse. La fraîcheur est donc ÉCRITE
+  en toutes lettres (« à jour il y a 3 s », « liste figée depuis 40 s ») :
+  c'est « aucune jauge sans dénominateur » appliqué au temps. La borne du delta
+  est INCLUSE, sans quoi deux écritures tombées dans la même milliseconde —
+  précisément ce que produisent deux postes qui pointent ensemble — se
+  perdraient.
+- **Le geste part en local d'abord, et la décision de ce qui s'affiche est une
+  fonction PURE.** `src/lib/checkin/reducer.ts` dit comment l'état change,
+  `rows.ts` ce qu'on en montre. Un geste en vol l'emporte sur l'état serveur —
+  la rangée verdit au doigt, pas au retour du réseau ; un geste REFUSÉ rend la
+  main à l'état serveur, avec son message, parce qu'une rangée restée verte
+  après un refus afficherait un présent qui n'en est pas un ; et un refus ne
+  s'efface pas tout seul, puisqu'une erreur qui disparaît au bout de trois
+  secondes est une erreur que personne n'a vue.
+- **La file part sérialisée, et la version se lit à l'ENVOI.** Une seule
+  opération en vol à la fois : deux pointages concurrents sur la même rangée
+  annonceraient tous deux une version que le premier vient de périmer. Et
+  `expected_version` est relu au moment d'envoyer, jamais figé à la saisie —
+  sans quoi un simple « présent puis absent » échouerait en `PT409`.
+- **Un `200` ne prouve pas qu'une écriture a eu lieu.** Le portail captif d'une
+  salle de réception répond `200` à tout, avec sa page de connexion. Le poste
+  vérifie donc que la réponse parle bien de LA rangée envoyée, et réessaie
+  sinon : sans ce contrôle, l'opération quitterait la file sur une réponse qui
+  ne dit rien, et l'arrivée serait perdue en silence — exactement la panne que
+  la file existe pour couvrir.
+- **Le seau de rate-limit du pointage compte par UTILISATEUR, pas par IP.**
+  Défaut latent qui ne se serait vu qu'un soir d'événement : six hôtesses
+  derrière le wifi d'une salle n'ont qu'une adresse, auraient partagé le même
+  seau et se seraient étranglées mutuellement au moment précis où elles
+  servent. `guard` accepte donc `rateLimitBy: 'user'`, ce qui inverse l'ordre
+  des deux étapes — la session se résout AVANT la limitation. Sans perte : les
+  routes d'administration résolvent déjà le contexte sans aucune limitation.
+- **Ce qui est stocké sur le téléphone : la file, et rien d'autre.** Les
+  pointages non confirmés survivent à un verrouillage d'écran — c'est la panne
+  que la file couvre — et ne contiennent que des identifiants et des booléens.
+  L'instantané de la LISTE, prévu à la conception, n'a pas été repris : c'est
+  une liste nominative déposée sur un appareil souvent personnel, pour couvrir
+  le seul cas où l'écran s'ouvre sans réseau — cas qui a déjà une réponse
+  meilleure et sans donnée sur l'appareil, la liste imprimée de la veille. Ce
+  qui sort du stockage est reconstruit champ par champ, comme une soumission
+  publique : un autre onglet ou une version précédente a pu y écrire.
+- **À l'accueil, la cible de pointage est la RANGÉE ENTIÈRE.** R13 tolère 38px
+  pour une action secondaire de rangée ; ici l'action de rangée EST l'action
+  principale, et elle se fait debout, d'une main. Viser un bouton perdu au bout
+  d'une ligne est une source d'erreur ; viser la ligne, non.
+- **Le statut d'arrivée est ÉCRIT, la couleur ne fait que le redire.** Le
+  besoin était formulé en vert et rouge : tel quel, c'est inutilisable pour une
+  partie des gens et muet pour un lecteur d'écran. Même règle que « un
+  graphique est un renfort ». Et UNE seule zone d'annonce pour tout l'écran.
+- **Un compte d'accueil n'atteint pas `/admin`.** `isCheckinOnly` l'envoie à
+  son poste : il n'y verrait qu'un espace vide, puisque
+  `app.is_active_member()` est déjà fausse pour lui. La barrière reste le RLS ;
+  la redirection évite l'écran incompréhensible.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -983,7 +1042,7 @@ figure, avec sa raison et sa condition de lever.
 | # | Risque accepté | Raison | Lever quand |
 | - | -------------- | ------ | ----------- |
 | R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. **`img-src` restera ouvert aux origines `https:`** tant que le logo d'organisation pourra être désigné par un lien externe : le restreindre casserait les logos déjà en place. Conséquence assumée et dite dans l'interface — le site qui héberge un logo externe voit passer l'IP de chaque répondant. | Le HMR de Next exige `eval`. Pour `img-src`, l'alternative serait de n'accepter que le dépôt de fichier, ce qui obligerait chaque organisation à dupliquer une image déjà publiée. | N/A pour `unsafe-eval` (limite du framework). Pour `img-src` : si un client exige une CSP stricte, retirer le mode « lien » et rapatrier les logos existants. |
-| R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. |
+| R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. **Pour le pointage, c'est le bon arbitrage et il est assumé** : un hoquet de KV ne doit pas arrêter une file d'attente à l'entrée d'une salle. Le seau `checkin` compte d'ailleurs par UTILISATEUR et non par IP, sans quoi six hôtesses derrière le NAT d'une salle se seraient bloquées entre elles. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques — et, pour l'accueil, en soirée faite sur papier. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. Jamais sur `/api/checkin`. |
 | R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. Un audit programmatique dans un vrai navigateur (contraste calculé par rasterisation canvas, tailles de cibles, débordement horizontal à 375px) a été rejoué à la main lors de la refonte, mais **il n'est pas en CI**. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation, panneau événement), pas les composants serveur qui les assemblent — et **Leaflet y est remplacé par un double**, jsdom n'ayant ni moteur de rendu ni dimensions : la carte elle-même n'est pas couverte, seul l'est le chemin clavier qui la contourne — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
 | R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
 | R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
@@ -996,6 +1055,7 @@ figure, avec sa raison et sa condition de lever.
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
+| R15 | **Pas de *service worker*.** Le module d'accueil est installable (manifeste, icônes, plein écran, `scope` limité à `/accueil`), mais sans service worker : la coquille ne se charge donc pas hors ligne, et l'install sur Android peut être refusée par Chrome, qui l'exige encore. « Ajouter à l'écran d'accueil » fonctionne sur iOS avec le seul manifeste. | Un service worker s'installe à la racine et SURVIT aux déploiements : un défaut y est global et collant, sur toute la plateforme, pages publiques comprises. Pour un bénéfice modeste — un écran « hors ligne » au lieu du dinosaure — c'est le plus mauvais rapport de la série, et la protection qui compte vraiment (la file locale) n'en a pas besoin. | Si l'install Android devient un besoin réel : un worker strictement *network-only*, à portée `/accueil/`, sans aucune mise en cache de donnée d'invité. |
 
 ## 7. Commandes
 
@@ -1079,6 +1139,19 @@ npm run build       # build de production
       rejeu du même `op_id` rendant l'état courant sans erreur et sans
       appliquer la nouvelle valeur, version périmée refusée en `PT409`, et
       UNE seule ligne de journal pour trois appels.
+- [x] Module « Accueil », lot 3 — le poste (29 octobre 2026) : `/accueil` qui
+      redirige quand il n'y a rien à choisir, `/accueil/[id]` — l'écran unique,
+      premier rendu SERVEUR et complet — et `/accueil/[id]/impression`, la
+      liste de secours à imprimer la veille. Réducteur pur
+      (`src/lib/checkin/`), rafraîchissement par delta toutes les cinq
+      secondes avec la fraîcheur écrite, file locale idempotente qui survit à
+      un verrouillage d'écran, seau de rate-limit par UTILISATEUR, et
+      installation en PWA sans service worker (R15). Deux défauts attrapés en
+      écrivant : une réponse `200` sans rapport avec la rangée envoyée — ce que
+      renvoie un portail captif de salle — faisait disparaître le pointage en
+      silence ; et un compte d'accueil franchissait le garde de `/admin` pour
+      tomber sur un espace vide. 1765 tests, dont 11 d'accessibilité sur le
+      poste et 12 d'intégration sur la route de pointage.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

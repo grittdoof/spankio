@@ -31,6 +31,14 @@ export const RATE_LIMITS = {
   membershipRequest: { limit: 3, windowSeconds: 3600 },
   erasureRequest: { limit: 3, windowSeconds: 3600 },
   geocode: { limit: 30, windowSeconds: 60 },
+  /**
+   * Pointage des arrivées. Généreux, et indexé sur l'UTILISATEUR et non sur
+   * l'IP — voir `clientIdentifier` : six hôtesses derrière le NAT d'une salle
+   * partagent une seule adresse, et se bloqueraient mutuellement en plein
+   * service. Le plafond couvre le rafraîchissement périodique (douze par
+   * minute) plus les pointages d'un poste très sollicité, avec de la marge.
+   */
+  checkin: { limit: 240, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitBucket = keyof typeof RATE_LIMITS;
@@ -72,6 +80,19 @@ export async function hashIdentifier(identifier: string): Promise<string> {
  * Extrait l'IP de l'appelant depuis les en-têtes du proxy.
  * Le premier saut de `x-forwarded-for` est celui posé par Vercel.
  */
+/**
+ * Identifiant de seau d'un appelant AUTHENTIFIÉ.
+ *
+ * Défaut latent qui ne se serait vu qu'un soir d'événement : `clientIdentifier`
+ * ne connaît que l'IP, et six téléphones derrière le wifi d'une salle de
+ * réception n'en ont qu'une. Ils auraient consommé le même seau et se seraient
+ * étranglés les uns les autres au moment précis où ils servent. Un compte est
+ * la bonne granularité dès qu'il y en a un.
+ */
+export function userIdentifier(userId: string): string {
+  return `u:${userId}`;
+}
+
 export function clientIdentifier(headers: Headers): string {
   const forwarded = headers.get('x-forwarded-for');
   if (forwarded) {
