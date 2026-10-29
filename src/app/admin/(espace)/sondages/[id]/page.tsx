@@ -114,6 +114,12 @@ export default async function SurveyEditorPage({
               >
                 Page publique
               </Link>
+              <Link
+                className="sp-btn sp-btn--outline"
+                href={`/admin/sondages/${survey.value.id}/accueil`}
+              >
+                Accueil
+              </Link>
             </>
           ) : null
         }

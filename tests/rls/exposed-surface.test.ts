@@ -37,6 +37,12 @@ const SURFACE_ATTENDUE: Readonly<Record<string, { anon: boolean; authenticated: 
   // rendrait l'idempotence contournable, puisqu'un UPDATE direct n'écrit pas
   // le journal.
   set_checkin: { anon: false, authenticated: true },
+  // Marque qu'un compte d'accueil a ouvert son poste. Elle n'existe pas pour
+  // remplacer un `service role` mais pour remplacer une écriture directe
+  // qu'aucune policy ne peut borner : le droit d'UPDATE accordé sur
+  // `checkin_staff` au lot 1 porte sur la TABLE, et le RLS ne voit pas les
+  // colonnes — une policy aurait laissé prolonger son propre `expires_at`.
+  touch_checkin_staff: { anon: false, authenticated: true },
   purge_expired_responses: { anon: false, authenticated: true },
   purge_deleted_surveys: { anon: false, authenticated: true },
   my_modules: { anon: false, authenticated: true },

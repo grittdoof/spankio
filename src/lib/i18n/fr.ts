@@ -91,6 +91,13 @@ export const fr = {
       admin: 'Administrateur de l’organisation',
       editor: 'Éditeur',
       viewer: 'Lecteur',
+      /*
+       * Le mot affiché pour `host`. Il nomme la FONCTION, pas la personne :
+       * « hôte » et « hôtesse » obligeraient à choisir un genre, et la
+       * plateforme est générique — une organisation peut confier sa porte à
+       * un agent de sécurité ou à un bénévole.
+       */
+      host: 'Accueil',
     },
     status: {
       pendingTitle: 'Compte en attente de rattachement',

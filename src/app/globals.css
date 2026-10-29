@@ -4629,3 +4629,160 @@ summary.sp-btn::-webkit-details-marker {
     display: table-header-group;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Préparation de la porte
+   ---------------------------------------------------------------------------
+   Trois états, et le mot est écrit sur chaque ligne : confondre « impossible »
+   et « pénible » ferait refuser une soirée qui aurait eu lieu, ou laisser
+   passer en silence ce qui la gâchera. La couleur ne fait que redire le mot.
+   --------------------------------------------------------------------------- */
+
+.sp-ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-2);
+  margin: var(--sp-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-ready__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-space-3);
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface-muted);
+}
+
+.sp-ready__item--ok {
+  background: var(--sp-success-light);
+}
+
+.sp-ready__item--warn {
+  background: var(--sp-warning-light);
+}
+
+.sp-ready__item--stop {
+  background: var(--sp-danger-light);
+}
+
+.sp-ready__state {
+  flex: none;
+  min-width: 6rem;
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+}
+
+.sp-ready__item--ok .sp-ready__state {
+  color: var(--sp-success-text);
+}
+
+.sp-ready__item--warn .sp-ready__state {
+  color: var(--sp-warning-text);
+}
+
+.sp-ready__item--stop .sp-ready__state {
+  color: var(--sp-danger-text);
+}
+
+.sp-ready__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-1);
+}
+
+.sp-ready__label {
+  font-weight: 600;
+}
+
+/* La conséquence, sans laquelle la ligne n'est qu'une corvée de plus. */
+.sp-ready__why {
+  font-size: var(--sp-text-sm);
+}
+
+.sp-ready__fix {
+  align-self: flex-start;
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+}
+
+@media (max-width: 40rem) {
+  .sp-ready__item {
+    flex-direction: column;
+    gap: var(--sp-space-2);
+  }
+}
+
+.sp-staff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-2);
+  margin: var(--sp-space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-staff__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-4);
+  flex-wrap: wrap;
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
+}
+
+.sp-staff__who {
+  display: flex;
+  flex: 1;
+  min-width: 12rem;
+  flex-direction: column;
+  gap: var(--sp-space-1);
+}
+
+.sp-staff__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sp-staff__meta {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+/* Le fait qui vaut l'écran entier : « s'est-elle déjà connectée ? ». */
+.sp-staff__seen {
+  flex: none;
+  padding: var(--sp-space-1) var(--sp-space-3);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-success-light);
+  color: var(--sp-success-text);
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+}
+
+.sp-staff__seen--never {
+  background: var(--sp-warning-light);
+  color: var(--sp-warning-text);
+}
+
+.sp-staff__add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-3);
+  padding-top: var(--sp-space-4);
+  border-top: 1px solid var(--sp-border);
+}
+
+/* L'essai à blanc se voit, sinon on croit pointer pour de vrai. */
+.sp-desk__rehearsal {
+  margin: 0;
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border-radius: var(--sp-radius);
+  background: var(--sp-warning-light);
+  color: var(--sp-warning-text);
+  font-size: var(--sp-text-sm);
+}

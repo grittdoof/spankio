@@ -44,6 +44,13 @@ export interface DeskProps {
   /** Le comptage est-il désigné ? Sans lui, pas de statut annoncé. */
   readonly counting: boolean;
   readonly printHref: string;
+  /**
+   * Essai à blanc : les hôtesses s'entraînent, RIEN n'est envoyé ni compté, et
+   * un rechargement remet à zéro. Le classique « on a découvert à 19 h 50 que
+   * le compte ne marchait pas » disparaît, puisqu'ouvrir cet écran prouve déjà
+   * que le compte fonctionne.
+   */
+  readonly rehearsal?: boolean;
 }
 
 type Filter = 'all' | 'awaited' | 'arrived';
@@ -65,7 +72,7 @@ function initial(props: DeskProps): DeskState {
 }
 
 export function Desk(props: DeskProps) {
-  const { surveyId, guests, counting, printHref, title } = props;
+  const { surveyId, guests, counting, printHref, title, rehearsal = false } = props;
   const [state, dispatch] = useReducer(deskReducer, props, initial);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -93,6 +100,14 @@ export function Desk(props: DeskProps) {
   useEffect(() => {
     if (restored.current) return;
     restored.current = true;
+    /*
+     * Pendant une répétition on ne RESTAURE rien, et c'est le point le plus
+     * dangereux de ce mode. Une file réelle laissée par une session
+     * précédente serait reprise ici, appliquée en local — puisque rien ne
+     * part — puis effacée : des arrivées réelles disparaîtraient sans que
+     * personne ne le sache.
+     */
+    if (rehearsal) return;
     for (const op of loadQueue(surveyId)) {
       dispatch({
         type: 'tap',
@@ -102,11 +117,12 @@ export function Desk(props: DeskProps) {
         peopleIn: op.peopleIn,
       });
     }
-  }, [surveyId]);
+  }, [surveyId, rehearsal]);
 
   useEffect(() => {
+    if (rehearsal) return;
     saveQueue(surveyId, state.queue);
-  }, [surveyId, state.queue]);
+  }, [surveyId, state.queue, rehearsal]);
 
   // --- Le temps qui passe, et le réseau qui va et vient ----------------------
   useEffect(() => {
@@ -146,17 +162,23 @@ export function Desk(props: DeskProps) {
       }
     }
 
+    // En répétition l'écran est entièrement local : un delta réécrirait les
+    // pointages d'entraînement avec l'état réel, et l'exercice n'aurait plus
+    // de sens.
+    if (rehearsal) return;
+
     void pull();
     const timer = window.setInterval(() => void pull(), POLL_INTERVAL_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [surveyId, cursor]);
+  }, [surveyId, cursor, rehearsal]);
 
   // --- Vidage de la file, une opération à la fois ----------------------------
   const sending = useRef(false);
   useEffect(() => {
+    if (rehearsal) return;
     const op = nextOp(state);
     if (!op || sending.current) return;
 
@@ -238,32 +260,58 @@ export function Desk(props: DeskProps) {
     return () => {
       if (timer !== null) window.clearTimeout(timer);
     };
-  }, [state, surveyId]);
+  }, [state, surveyId, rehearsal]);
 
   const toggle = useCallback(
     (row: DeskRow) => {
       const arrived = !row.arrived;
+      const opId = crypto.randomUUID();
       dispatch({
         type: 'tap',
-        opId: crypto.randomUUID(),
+        opId,
         responseId: row.id,
         arrived,
         // On n'invente aucun effectif : non précisé reste non précisé, et le
         // compteur de salle retient l'effectif ANNONCÉ en le disant.
         peopleIn: null,
       });
+
+      if (rehearsal) {
+        // Appliqué sur-le-champ, en local. Laisser l'opération en file
+        // afficherait « envoi en cours » pour toujours, sur un envoi qui
+        // n'aura jamais lieu.
+        dispatch({
+          type: 'applied',
+          opId,
+          state: {
+            responseId: row.id,
+            arrivedAt: arrived ? new Date().toISOString() : null,
+            peopleIn: null,
+            version: (row.pending ? 0 : 1) + 1,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      }
       setAnnouncement(
         `${row.name ?? 'Réponse'} — ${arrived ? 'arrivé' : 'retiré des arrivées'}`,
       );
     },
-    [],
+    [rehearsal],
   );
 
   const fresh = freshness(state.syncedAt, tick, online);
   const { totals } = list;
 
   return (
-    <div className="sp-desk">
+    <div className={`sp-desk${rehearsal ? ' sp-desk--rehearsal' : ''}`}>
+      {rehearsal ? (
+        <p className="sp-desk__rehearsal">
+          <strong>Essai à blanc.</strong> Rien n’est enregistré ni compté :
+          entraînez-vous librement, rechargez la page pour tout remettre à zéro.
+          Le fait d’avoir ouvert cet écran prouve déjà que votre compte
+          fonctionne.
+        </p>
+      ) : null}
       <header className="sp-desk__head">
         <p className="sp-desk__title">{title}</p>
         <p className="sp-desk__count">
@@ -273,7 +321,9 @@ export function Desk(props: DeskProps) {
             {counting ? ` sur ${totals.expectedPeople} attendues` : ''}
           </span>
         </p>
-        <p className={`sp-desk__fresh sp-desk__fresh--${fresh.tone}`}>{fresh.text}</p>
+        {rehearsal ? null : (
+          <p className={`sp-desk__fresh sp-desk__fresh--${fresh.tone}`}>{fresh.text}</p>
+        )}
         {totals.pending > 0 ? (
           <p className="sp-desk__pending">
             {totals.pending} pointage{totals.pending > 1 ? 's' : ''} en attente d’envoi
