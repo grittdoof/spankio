@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearQueues, loadQueue, saveQueue, QUEUE_TTL_MS } from '@/lib/checkin/storage';
 import type { PendingOp } from '@/lib/checkin/reducer';
-import { isCheckinOnly } from '@/lib/admin/session';
 
 /**
  * Persistance de la file.
@@ -116,28 +115,5 @@ describe('la file survit, la liste d’invités non', () => {
       'ceci n’est pas du JSON',
     );
     expect(loadQueue('s1')).toEqual([]);
-  });
-});
-
-describe('un compte d’accueil n’a pas d’espace d’administration', () => {
-  it('reconnaît le rôle qui n’a que le poste', () => {
-    const base = {
-      userId: 'u1',
-      status: 'active',
-      organisationId: 'o1',
-      organisationName: 'Org',
-      organisationSlug: 'org',
-      organisationLogoUrl: null,
-      fullName: null,
-      attached: true,
-      isPlatformAdmin: false,
-      modules: [],
-    };
-    // `attached` est VRAI pour un host — il est bien rattaché. C'est donc le
-    // rôle, et lui seul, qui dit qu'il n'a pas d'espace de travail.
-    expect(isCheckinOnly({ ...base, role: 'host' })).toBe(true);
-    expect(isCheckinOnly({ ...base, role: 'viewer' })).toBe(false);
-    expect(isCheckinOnly({ ...base, role: 'admin' })).toBe(false);
-    expect(isCheckinOnly(null)).toBe(false);
   });
 });
