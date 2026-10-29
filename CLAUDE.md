@@ -831,6 +831,31 @@ changer.
   administrateur de la même organisation qui essaie son propre lien n'est pas
   rétrogradé — un test le vérifie, parce que ce serait la manière la plus
   bête de se priver de son propre espace.
+- **« Arrivées » ferme la marche des quatre vues, et pas par hasard.** Les
+  trois premières se lisent AVANT la soirée — combien serons-nous, qu'ont
+  répondu les gens, untel a-t-il confirmé. Celle-ci ne se lit qu'APRÈS. La
+  placer en tête ferait croire qu'elle manque de données pendant les trois
+  semaines où elle est légitimement vide ; elle dit donc elle-même pourquoi
+  elle est vide, et renvoie à l'écran de préparation.
+- **Une tranche d'arrivées s'ÉLARGIT, elle ne se tronque jamais.** Dix minutes
+  disent où a eu lieu l'affluence d'une soirée ordinaire, mais une arrivée
+  tardive isolée étirerait la fenêtre sur des heures, et trente-six colonnes
+  de plus ne se lisent pas. On passe donc à trente puis soixante minutes.
+  Couper la fenêtre ferait DISPARAÎTRE des arrivées réelles — c'est le même
+  raisonnement que l'échelle qui part toujours de zéro. Et la première tranche
+  commence sur un multiple de sa largeur : « 19:07 » en étiquette de colonne
+  ne dit rien, « 19:00 » si.
+- **Le rapport se compose sur la liste ENTIÈRE, jamais sur la page affichée.**
+  Un agrégat calculé sur les trente rangées visibles serait faux et rien ne le
+  signalerait.
+- **Les colonnes d'arrivée de l'export dépendent du SONDAGE, jamais des
+  réponses.** Sans arrivée pointée, le fichier garde exactement la forme qu'il
+  avait avant le module : un traitement en aval ne doit pas voir apparaître
+  deux colonnes parce qu'un module a été installé. Dès qu'une arrivée existe,
+  en revanche, elles sont là pour TOUTES les lignes — des colonnes qui
+  apparaîtraient réponse par réponse casseraient ce traitement bien plus
+  sûrement. Et un effectif non précisé reste VIDE, jamais « 0 » : un tableur
+  additionnerait les zéros.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -1299,6 +1324,15 @@ npm run build       # build de production
       jamais, si bien que toute réclamation échouait. 1848 tests, dont 14 de
       RLS sur la réclamation et 5 d'intégration dont la concordance des
       empreintes TypeScript / SQL.
+- [x] Module « Accueil », lot 5 — le rapport (29 octobre 2026) : quatrième vue
+      « Arrivées » dans les statistiques existantes — effectif entré contre
+      annoncé, annoncés non venus, venus sans l'avoir annoncé, effectifs
+      corrigés, courbe par tranches et faits à retenir — plus deux colonnes
+      d'arrivée dans l'export CSV. Aucune migration : tout se calcule depuis
+      `event_checkins` et la liste d'invités. Module pur
+      (`src/lib/checkin/report.ts`), comme `responsePace` et pour la même
+      raison. 1874 tests, dont 18 unitaires sur le rapport et 6
+      d'accessibilité sur la vue.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

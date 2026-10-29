@@ -516,7 +516,7 @@ l'application dans un état intermédiaire déployable à moitié.
 | ~~**2. Faits**~~ ✅ | `event_checkins`, `event_checkin_log`, `set_checkin`, idempotence, concurrence, surface exposée 9 → 10 | Le cœur, testable sans aucun écran. **Déployé le 29 octobre 2026.** |
 | ~~**3. Poste d'accueil**~~ ✅ | `/accueil`, réducteur pur, delta, file hors-ligne, PWA, impression de secours | L'écran, une fois que ce qu'il manipule est sûr. **Deux écarts à la note, assumés et écrits** : le delta et le pointage passent par nos ROUTES et non en direct vers Supabase (sans quoi la correction du seau par utilisateur n'aurait plus d'objet, et le chemin ne serait pas couvert par le harnais d'intégration) ; et pas de service worker (R15), ni d'instantané de la liste sur l'appareil. |
 | ~~**4. Préparation**~~ ✅ | Écran d'affectation, invitation à usage unique, essai à blanc, « qui s'est connecté » | Ce qui évite l'échec du soir même. Livré en deux temps : 4a (affectation, essai à blanc, « qui s'est connecté ») puis 4b (invitation). **L'invitation ne crée pas de compte** — le `service role` serait sorti de ses trois usages admis : la personne s'inscrit elle-même, et le lien remplace la demande de rattachement. |
-| **5. Rapport** | Vue « Arrivées », export, courbe, écarts annoncé/constaté | Ce qui sert le lendemain. |
+| ~~**5. Rapport**~~ ✅ | Vue « Arrivées », export, courbe, écarts annoncé/constaté | Ce qui sert le lendemain. **Aucune migration** : tout se calcule depuis les faits déjà enregistrés au lot 2. |
 
 Les lots 1 et 2 sont le vrai travail de sécurité ; les lots 3 à 5 sont du
 produit. Si le temps manque, **1 + 2 + 3 est un module utilisable** ; 4 et 5

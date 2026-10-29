@@ -4786,3 +4786,45 @@ summary.sp-btn::-webkit-details-marker {
   color: var(--sp-warning-text);
   font-size: var(--sp-text-sm);
 }
+
+/* ---------------------------------------------------------------------------
+   Rapport d'après-soirée
+   ---------------------------------------------------------------------------
+   Des chiffres qu'on lit une fois, posément, le lendemain — pas debout à une
+   porte. D'où une grille calme plutôt que le compteur géant du poste.
+   --------------------------------------------------------------------------- */
+
+.sp-figures {
+  display: grid;
+  gap: var(--sp-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  margin: var(--sp-space-5) 0 0;
+}
+
+.sp-figures > div {
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface-muted);
+}
+
+.sp-figures dt {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-figures dd {
+  margin: var(--sp-space-1) 0 0;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-lg);
+  font-weight: 700;
+}
+
+/* Des faits, pas des conseils : une liste nue, sans pictogramme d'alerte qui
+   suggérerait qu'il y a quelque chose à corriger. */
+.sp-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-2);
+  margin: var(--sp-space-4) 0 0;
+  padding-left: var(--sp-space-5);
+}
