@@ -23,7 +23,17 @@ import { isValidSlug, slugify } from '@/lib/utils/slug';
  * renvoyé au client comme information (`emailSent: false`), jamais comme erreur.
  */
 
-export const ASSIGNABLE_ROLES = ['admin', 'editor', 'viewer'] as const;
+/**
+ * Rôles qu'une demande peut porter et qu'un super administrateur peut accorder.
+ *
+ * `host` y figure depuis le module « Accueil », et c'est le seul rôle qui ne
+ * donne rien par lui-même : il FERME — `app.is_active_member()` est fausse
+ * pour lui — et l'accès vient ensuite, événement par événement, d'une
+ * affectation posée par l'administrateur de l'organisation. Une personne
+ * engagée pour une soirée demande donc ce rôle, et n'obtient la liste d'aucun
+ * invité tant que personne ne l'a affectée.
+ */
+export const ASSIGNABLE_ROLES = ['admin', 'editor', 'viewer', 'host'] as const;
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 
 export const membershipRequestSchema = z

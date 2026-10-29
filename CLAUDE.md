@@ -725,6 +725,61 @@ changer.
   son poste : il n'y verrait qu'un espace vide, puisque
   `app.is_active_member()` est déjà fausse pour lui. La barrière reste le RLS ;
   la redirection évite l'écran incompréhensible.
+- **Un `grant` de colonne ne RETIRE rien, et le RLS ne voit pas les colonnes.**
+  Défaut que j'étais en train d'écrire au lot 4, et il était silencieux : pour
+  qu'un compte d'accueil marque « j'ai ouvert mon poste », une policy d'UPDATE
+  bornée à `profile_id = auth.uid()` plus un
+  `grant update (first_seen_at, last_seen_at)` semblaient suffire. Or le lot 1
+  avait déjà écrit `grant ... update ... on checkin_staff to authenticated` —
+  un droit de TABLE. Un `grant` de colonne s'AJOUTE, il ne restreint pas ; et
+  une policy borne les LIGNES, jamais les colonnes. Une hôtesse aurait donc pu
+  écrire n'importe quelle colonne de sa propre ligne, à commencer par
+  `expires_at` : prolonger seule son accès à une liste nominative, exactement
+  ce que le lot 1 ferme. Retirer le droit de table n'était pas une issue —
+  l'administrateur et l'hôtesse sont tous deux `authenticated`, et un `grant`
+  ne sait pas les distinguer. D'où `touch_checkin_staff`, onzième fonction
+  exposée (R11), qui écrit `now()` côté serveur et ne touche que ces deux
+  colonnes.
+- **« S'est-elle déjà connectée ? » est un FAIT, écrit la veille.** C'est le
+  plus gros risque du module, et il n'est pas technique : l'hôtesse qui
+  découvre sur le parvis que son compte ne marche pas. On ne le supprime pas en
+  écrivant du code plus solide, on le supprime en le rendant visible pendant
+  qu'on peut encore appeler la personne. `auth.users.last_sign_in_at` ne
+  répondrait pas à la question — il dit qu'un compte sert, pas qu'il ouvre CET
+  événement — et n'est pas lisible sous RLS. La marque est donc posée au RENDU
+  de l'écran, donc sans JavaScript : ouvrir la page PROUVE que le compte
+  fonctionne.
+- **L'essai à blanc est entièrement LOCAL, et ne restaure jamais la file.**
+  C'est le point dangereux de ce mode : une file réelle laissée par une
+  session précédente serait reprise, appliquée en local — puisque rien ne part
+  — puis effacée. Des arrivées réelles disparaîtraient sans que personne ne le
+  sache. En répétition, on ne restaure rien, on ne persiste rien, on
+  n'interroge pas le delta, et chaque geste est appliqué sur-le-champ : laisser
+  l'opération en file afficherait « envoi en cours » pour toujours, sur un
+  envoi qui n'aura jamais lieu.
+- **Ce qui manque avant la soirée a TROIS états, pas deux.** `checkinReadiness`
+  distingue « bloquant » de « à savoir » : une organisation peut parfaitement
+  tenir sa porte sans avoir désigné la question du nom — la liste sera titrée
+  par des horodatages, ce qui est pénible, pas fatal. Confondre les deux ferait
+  l'un de deux défauts : refuser une soirée qui aurait eu lieu, ou laisser
+  passer en silence ce qui la gâchera. Chaque ligne non satisfaite énonce sa
+  CONSÉQUENCE, comme le profil d'organisation : « la présence n'est pas
+  désignée » n'engage personne, « le compteur de salle sera sans dénominateur »
+  engage. Et la liste montre AUSSI les lignes satisfaites — un écran vide
+  laisserait croire qu'il n'a rien vérifié.
+- **Une affectation qui expire avant l'événement est BLOQUANTE**, pas
+  dégradée : elle marche à l'ouverture des portes puis cesse de marcher en
+  plein service, sans prévenir, et la liste disparaît de l'écran. Corollaire de
+  saisie : une date de fin saisie au jour vaut la FIN de ce jour-là — saisir le
+  jour de l'événement et voir l'accès tomber à minuit pile serait le piège le
+  plus sûr de cet écran.
+- **`host` est demandable comme les autres rôles.** Il est entré dans
+  `ASSIGNABLE_ROLES` : une personne engagée pour une soirée s'inscrit, demande
+  « Accueil », et n'obtient la liste d'aucun invité tant que l'administrateur de
+  l'organisation ne l'a pas affectée à un événement. Le mot affiché nomme la
+  FONCTION et non la personne — « hôte » et « hôtesse » obligeraient à choisir
+  un genre, alors qu'une organisation peut confier sa porte à un agent de
+  sécurité ou à un bénévole.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -840,8 +895,8 @@ changer.
   exécuter, et Supabase accorde `EXECUTE` à `anon`/`authenticated` sur toute
   nouvelle fonction via ses *default privileges* — un `revoke ... from public`
   ne suffit pas. Les fonctions internes vivent donc dans le schéma **`app`**,
-  hors de la liste exposée par l'API. `public` ne contient que les 10 fonctions
-  réellement appelées par le réseau, et un test échoue si une dixième
+  hors de la liste exposée par l'API. `public` ne contient que les 11 fonctions
+  réellement appelées par le réseau, et un test échoue si une douzième
   apparaît (`tests/rls/exposed-surface.test.ts`).
 - **Tout nouvel objet naît sans droits.** Les *default privileges* de Supabase
   ont été révoqués (`alter default privileges ... revoke`) : une table, une vue
@@ -1049,9 +1104,9 @@ figure, avec sa raison et sa condition de lever.
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. La montée proposée par Dependabot vers `eslint-config-next@16` a été **refusée** : c'est le paquet de configuration de Next 16, et l'installer sans Next 16 fait diverger l'outil du framework qu'il est censé décrire. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16, où les deux montent ensemble. |
 | R7 | **`postcss` surchargé** en 8.5.26 via `overrides` : Next 15 épingle 8.4.31, vulnérable (GHSA sourceMappingURL / XSS de stringify). Correctif amont = Next 16 (majeure). | Conserver Next 15 tout en gardant `npm audit` à zéro. `postcss` n'est utilisé qu'au build. | À la migration Next 16. |
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
-| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 29 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
+| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 29 migrations du lot 2 ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
-| R11 | **10 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
+| R11 | **11 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, marque d'ouverture d'un poste, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
@@ -1152,6 +1207,21 @@ npm run build       # build de production
       silence ; et un compte d'accueil franchissait le garde de `/admin` pour
       tomber sur un espace vide. 1765 tests, dont 11 d'accessibilité sur le
       poste et 12 d'intégration sur la route de pointage.
+- [x] Module « Accueil », lot 4a — la préparation (29 octobre 2026) : écran
+      `/admin/sondages/[id]/accueil` — qui tient la porte, qui s'est déjà
+      connecté, ce qui manque encore et ce que l'absence coûtera — plus
+      l'essai à blanc (`/accueil/[id]?essai=1`), entièrement local, et le rôle
+      `host` demandable comme les autres. Trentième migration :
+      `first_seen_at` / `last_seen_at` et `touch_checkin_staff`, onzième
+      fonction exposée. Un défaut attrapé en l'écrivant, et c'est celui qui a
+      déterminé la forme de la migration : un `grant` de colonne ne retire
+      rien et le RLS ne voit pas les colonnes, si bien que la première version
+      aurait laissé une hôtesse prolonger seule son `expires_at`. 1805 tests,
+      dont 9 de RLS sur les affectations et 8 d'accessibilité sur l'écran de
+      préparation. **Reste du lot 4** : l'invitation à usage unique, écartée
+      de ce lot — elle crée un compte, donc touche à l'authentification, la
+      seule surface où une erreur est irrattrapable, et le chemin actuel
+      (inscription puis rattachement validé) fonctionne.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre
