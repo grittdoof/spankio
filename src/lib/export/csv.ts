@@ -99,6 +99,30 @@ const SCREEN_META_COLUMNS: readonly ExportColumn[] = [
   { key: '__submitted_at', header: 'Date de réponse' },
 ];
 
+/**
+ * Colonnes d'arrivée, ajoutées à la FIN de l'export quand le pointage est en
+ * jeu.
+ *
+ * Elles ferment la marche plutôt que de rejoindre les métadonnées de tête :
+ * un tableur ouvert par quelqu'un qui n'a pas tenu la porte doit continuer de
+ * commencer par la date et le consentement, là où il les a toujours trouvés.
+ *
+ * Leur présence dépend de l'APPELANT — donc du sondage — et jamais des
+ * réponses : deux exports du même événement ont toujours les mêmes colonnes,
+ * même si personne n'est encore arrivé.
+ */
+const ARRIVAL_COLUMNS: readonly ExportColumn[] = [
+  { key: '__arrived_at', header: 'Arrivée' },
+  { key: '__people_in', header: 'Personnes entrées' },
+];
+
+/** État d'arrivée d'une réponse, tel que l'export le reçoit. */
+export interface ArrivalExport {
+  readonly arrivedAt: string | null;
+  /** `null` : non précisé à l'entrée. Jamais zéro par défaut. */
+  readonly peopleIn: number | null;
+}
+
 /** Jeu de métadonnées : complet pour un fichier, réduit pour un écran. */
 export type MetaScope = 'export' | 'screen';
 
@@ -113,6 +137,7 @@ export type MetaScope = 'export' | 'screen';
 export function exportColumns(
   schema: SurveySchema,
   meta: MetaScope = 'export',
+  withArrivals = false,
 ): ExportColumn[] {
   const columns: ExportColumn[] = [
     ...(meta === 'export' ? META_COLUMNS : SCREEN_META_COLUMNS),
@@ -140,6 +165,8 @@ export function exportColumns(
       }
     }
   }
+
+  if (withArrivals) columns.push(...ARRIVAL_COLUMNS);
 
   return columns;
 }
@@ -175,6 +202,14 @@ export interface ExportableResponse {
   readonly consent_given: boolean;
   readonly consent_text: string | null;
   readonly data: Readonly<Record<string, unknown>>;
+  /**
+   * Identifiant de la réponse. FACULTATIF, et seulement parce que le rendre
+   * obligatoire casserait tous les appelants historiques, dont aucun n'en a
+   * besoin : il ne sert qu'à rapprocher une réponse de son état d'arrivée.
+   * Sans lui, les colonnes d'arrivée restent vides — ce qui est exact, à
+   * défaut d'être utile.
+   */
+  readonly id?: string;
 }
 
 /** Horodatage normalisé en ISO 8601, quelle que soit sa forme d'origine. */
@@ -213,10 +248,19 @@ function renderValue(
 export function responseRows(
   schema: SurveySchema,
   responses: readonly ExportableResponse[],
-  options: CsvOptions & { meta?: MetaScope } = {},
+  options: CsvOptions & {
+    meta?: MetaScope;
+    /**
+     * État d'arrivée par identifiant de réponse. Fourni, même vide, il ajoute
+     * les colonnes d'arrivée ; omis, l'export garde exactement la forme qu'il
+     * avait avant le module « Accueil ».
+     */
+    arrivals?: ReadonlyMap<string, ArrivalExport>;
+  } = {},
 ): string[][] {
   const multiValueSeparator = options.multiValueSeparator ?? ' | ';
-  const columns = exportColumns(schema, options.meta ?? 'export');
+  const arrivals = options.arrivals;
+  const columns = exportColumns(schema, options.meta ?? 'export', arrivals !== undefined);
   const labels = optionLabels(schema);
 
   const rows: string[][] = [columns.map((column) => column.header)];
@@ -231,6 +275,14 @@ export function responseRows(
             return response.consent_given ? 'Oui' : 'Non';
           case '__consent_text':
             return response.consent_text ?? '';
+          case '__arrived_at':
+            return (response.id ? arrivals?.get(response.id)?.arrivedAt : null) ?? '';
+          case '__people_in': {
+            const entered = response.id ? arrivals?.get(response.id)?.peopleIn : undefined;
+            // `null` reste VIDE, jamais « 0 » : un effectif non précisé n'est
+            // pas un effectif nul, et un tableur additionnerait les zéros.
+            return entered === null || entered === undefined ? '' : String(entered);
+          }
           default:
             break;
         }

@@ -16,14 +16,27 @@ import { parsePaceWindow, type PaceWindow } from '@/lib/survey/pace';
  * des lignes déjà lues.
  */
 
-export type StatisticsTab = 'apercu' | 'questions' | 'invites';
+export type StatisticsTab = 'apercu' | 'questions' | 'invites' | 'arrivees';
 
-export const STATISTICS_TABS: readonly StatisticsTab[] = ['apercu', 'questions', 'invites'];
+/**
+ * « Arrivées » ferme la marche, et pas par hasard : les trois premières vues
+ * se lisent AVANT la soirée — combien serons-nous, qu'ont répondu les gens,
+ * untel a-t-il confirmé. Celle-ci ne se lit qu'APRÈS, une fois les portes
+ * fermées. La placer en tête ferait croire qu'elle manque de données pendant
+ * les trois semaines où elle est légitimement vide.
+ */
+export const STATISTICS_TABS: readonly StatisticsTab[] = [
+  'apercu',
+  'questions',
+  'invites',
+  'arrivees',
+];
 
 export const STATISTICS_TAB_LABELS: Readonly<Record<StatisticsTab, string>> = {
   apercu: "Vue d'ensemble",
   questions: 'Questions',
   invites: 'Invités',
+  arrivees: 'Arrivées',
 };
 
 export function parseStatisticsTab(raw: string | undefined): StatisticsTab {

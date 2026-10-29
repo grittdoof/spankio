@@ -4,6 +4,9 @@ import { z } from '@/lib/config/zod';
 import Link from 'next/link';
 import { EventOverview, type PartySummary } from '@/components/admin/EventOverview';
 import { GuestList } from '@/components/admin/GuestList';
+import { arrivalFacts, arrivalReport, arrivalRows } from '@/lib/checkin/report';
+import { readCheckins } from '@/lib/services/checkin';
+import { ArrivalsPanel } from '@/components/admin/ArrivalsPanel';
 import { StatisticsPanel } from '@/components/admin/StatisticsPanel';
 import { StatisticsTabs } from '@/components/admin/StatisticsTabs';
 import { Alert } from '@/components/ui/Alert';
@@ -143,6 +146,17 @@ export default async function SurveyStatisticsPage({
   // minuit, et le compte à rebours contredirait alors le graphique.
   const now = new Date();
   const timeZone = survey.value.event_timezone;
+
+  /*
+   * Les arrivées ne sont lues que pour la vue qui les affiche. Charger l'état
+   * de pointage pour l'onglet « Questions » serait une requête de plus sur un
+   * écran que l'on ouvre souvent, pour une donnée qu'il ne montre pas.
+   *
+   * Le RLS fait le reste : sans le module « Accueil », la lecture rend une
+   * liste vide, et la vue dit simplement que rien n'a été pointé.
+   */
+  const checkins =
+    view.tab === 'arrivees' ? await readCheckins(context, survey.value.id) : null;
   const clock =
     survey.value.kind === 'event'
       ? countdown(survey.value.event_starts_at, { now, timeZone })
@@ -190,6 +204,15 @@ export default async function SurveyStatisticsPage({
     search: view.search,
   });
   const rows = list.rows.slice(0, view.shown);
+
+  // Le rapport se compose sur la liste ENTIÈRE, jamais sur la page affichée :
+  // un agrégat calculé sur trente rangées visibles serait faux et rien ne le
+  // signalerait.
+  const report = arrivalReport(
+    arrivalRows(list.rows, checkins?.ok ? checkins.value : []),
+    timeZone,
+  );
+  const facts = arrivalFacts(report, timeZone);
 
   const siteUrl = publicEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
   const publicUrl = `${siteUrl}/s/${session.organisationSlug}/${survey.value.slug}`;
@@ -296,6 +319,15 @@ export default async function SurveyStatisticsPage({
               <StatisticsPanel
                 guestsHref={statisticsUrl(survey.value.id, { tab: 'invites' })}
                 statistics={statistics}
+              />
+            ) : null}
+
+            {view.tab === 'arrivees' ? (
+              <ArrivalsPanel
+                counting={counting}
+                facts={facts}
+                preparationHref={`/admin/sondages/${survey.value.id}/accueil`}
+                report={report}
               />
             ) : null}
 

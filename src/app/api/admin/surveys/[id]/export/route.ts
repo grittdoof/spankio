@@ -2,7 +2,8 @@ import { z } from '@/lib/config/zod';
 import { guard } from '@/lib/api/guard';
 import { jsonError, mapDbError } from '@/lib/api/respond';
 import { parseWith } from '@/lib/api/validate';
-import { csvFileName, responseRows, toCsv } from '@/lib/export/csv';
+import { csvFileName, responseRows, toCsv, type ArrivalExport } from '@/lib/export/csv';
+import { readCheckins } from '@/lib/services/checkin';
 import { jsonFileName, responsesToJsonExport, serialiseJsonExport } from '@/lib/export/json';
 import { eq } from '@/lib/data/port';
 import {
@@ -64,11 +65,33 @@ export async function GET(
 
   const now = new Date();
   const rows = responses.value.map((response) => ({
+    id: response.id,
     submitted_at: response.submitted_at,
     consent_given: response.consent_given,
     consent_text: response.consent_text,
     data: response.data,
   }));
+
+  /*
+   * Les arrivées ne sont lues que si l'appelant peut les lire. Sans le module
+   * « Accueil », le RLS rend une liste vide et l'export garde EXACTEMENT la
+   * forme qu'il avait avant ce module — pas deux colonnes vides que personne
+   * n'attendait dans un fichier qu'un traitement en aval relit peut-être.
+   *
+   * Dès qu'une arrivée existe, en revanche, elles sont là même pour les
+   * réponses non pointées : des colonnes qui apparaîtraient réponse par
+   * réponse casseraient ce traitement bien plus sûrement.
+   */
+  const checkins = await readCheckins(guarded.context, parsedParams.value.id);
+  const arrivals =
+    checkins.ok && checkins.value.length > 0
+      ? new Map<string, ArrivalExport>(
+          checkins.value.map((state) => [
+            state.responseId,
+            { arrivedAt: state.arrivedAt, peopleIn: state.peopleIn },
+          ]),
+        )
+      : undefined;
 
   if (format === 'json') {
     const body = serialiseJsonExport(
@@ -97,7 +120,9 @@ export async function GET(
   const attendance = settings.ok ? (settings.settings.attendance ?? {}) : {};
   const counting = survey.value.kind === 'event' && isAttendanceConfigured(attendance);
 
-  const csvRows = responseRows(schema.value, rows);
+  const csvRows = arrivals
+    ? responseRows(schema.value, rows, { arrivals })
+    : responseRows(schema.value, rows);
   if (counting) {
     const lines = attendanceRows(schema.value, attendance, rows);
     const header = csvRows[0] ?? [];
