@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { isCheckinOnly, loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 
 /**
@@ -26,5 +27,11 @@ export default async function AdminRootLayout({
 }) {
   const context = await resolveRequestContext();
   if (!context.userId) redirect('/connexion');
+
+  // Un compte d'accueil n'a rien à faire ici : il n'y verrait qu'un espace
+  // vide. On l'envoie à son poste plutôt que de le laisser chercher.
+  const session = await loadAdminSession(context, context.userId);
+  if (isCheckinOnly(session)) redirect('/accueil');
+
   return children;
 }

@@ -1,0 +1,27 @@
+{
+  "name": "Spankio — Accueil",
+  "short_name": "Accueil",
+  "description": "Pointage des arrivées à l'entrée d'un événement.",
+  "start_url": "/accueil",
+  "scope": "/accueil",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F3F7",
+  "theme_color": "#042F64",
+  "lang": "fr",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icone-accueil.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone-accueil-masquable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

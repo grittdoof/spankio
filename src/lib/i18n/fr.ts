@@ -209,6 +209,28 @@ export const fr = {
     },
   },
 
+  /** Poste d'accueil. */
+  checkin: {
+    /** Libellé du rôle à l'écran. Le code dit `host`, l'interface dit ceci. */
+    role: 'Accueil',
+    roleHint:
+      'Voit la liste des invités des seuls événements où il est affecté, et y pointe les arrivées. Aucun autre accès.',
+    errors: {
+      /*
+       * Trois refus, trois phrases qui disent QUOI FAIRE. « Une erreur
+       * inattendue s'est produite » devant une file d'attente ne dit rien :
+       * la personne doit savoir si elle retape, si elle attend, ou si elle
+       * appelle l'organisateur.
+       */
+      conflict:
+        'Un autre poste vient de modifier cette rangée. La liste est à jour : vérifiez le statut avant de retaper.',
+      forbidden:
+        'Vous n’êtes plus autorisé à pointer cet événement. Votre affectation a peut-être expiré.',
+      not_found: 'Cette inscription n’existe plus : elle a été supprimée.',
+      unexpected: 'Pointage non enregistré. Il repartira tout seul au retour du réseau.',
+    },
+  },
+
   common: {
     required: 'obligatoire',
     optional: 'facultatif',
@@ -246,6 +268,12 @@ export function responseErrorMessage(
   }
 
   return base;
+}
+
+/** Message d'un refus de pointage, par code d'API. */
+export function checkinErrorMessage(code: string | undefined): string {
+  const messages: Readonly<Record<string, string>> = fr.checkin.errors;
+  return (code && messages[code]) || fr.checkin.errors.unexpected;
 }
 
 /** Message d'un échec d'envoi, par code d'API. */

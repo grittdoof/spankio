@@ -4296,3 +4296,336 @@ summary.sp-btn::-webkit-details-marker {
 .sp-summary strong {
   color: var(--sp-marine);
 }
+
+/* ---------------------------------------------------------------------------
+   Poste d'accueil
+   ---------------------------------------------------------------------------
+   Un outil tenu d'une main, debout, dans une lumière de soirée. Trois
+   conséquences qui ne sont pas des préférences :
+
+   - la cible de pointage occupe TOUTE la rangée et dépasse largement 44px,
+     y compris sur pointeur fin. R13 autorise 38px pour une action secondaire
+     de rangée ; ici l'action de rangée EST l'action principale ;
+   - le statut est écrit, et la couleur ne fait que le redire. Les paires
+     employées sont celles que `CONTRAST_REQUIREMENTS` vérifie déjà ;
+   - les barres fixes respectent les encoches, comme partout ailleurs.
+   --------------------------------------------------------------------------- */
+
+.sp-deskshell {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  background: var(--sp-bg);
+}
+
+.sp-deskshell__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-4);
+  padding: var(--sp-space-3) var(--sp-space-4);
+  padding-top: max(var(--sp-space-3), env(safe-area-inset-top));
+  border-bottom: 1px solid var(--sp-border);
+  background: var(--sp-surface);
+}
+
+.sp-deskshell__brand {
+  color: var(--sp-marine);
+  font-weight: 700;
+}
+
+.sp-deskshell__main {
+  flex: 1;
+  padding: var(--sp-space-4);
+  padding-bottom: max(var(--sp-space-5), env(safe-area-inset-bottom));
+}
+
+.sp-desk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-4);
+  margin: 0 auto;
+  max-width: 46rem;
+}
+
+.sp-desk__head {
+  padding: var(--sp-space-4);
+  border-radius: var(--sp-radius-lg);
+  background: var(--sp-accent-light);
+}
+
+.sp-desk__title {
+  margin: 0 0 var(--sp-space-2);
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+}
+
+/* Le compteur de salle : le seul chiffre qu'on lit de loin. */
+.sp-desk__count {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-space-3);
+  margin: 0;
+  color: var(--sp-marine);
+}
+
+.sp-desk__count strong {
+  font-size: var(--sp-text-xl);
+  line-height: 1;
+}
+
+.sp-desk__count span {
+  font-size: var(--sp-text-sm);
+}
+
+/* La fraîcheur, écrite. Une liste périmée qui le dit est une information. */
+.sp-desk__fresh {
+  margin: var(--sp-space-3) 0 0;
+  font-size: var(--sp-text-sm);
+}
+
+.sp-desk__fresh--fresh {
+  color: var(--sp-success-text);
+}
+
+.sp-desk__fresh--never {
+  color: var(--sp-text-muted);
+}
+
+.sp-desk__fresh--stale,
+.sp-desk__fresh--offline {
+  padding: var(--sp-space-2) var(--sp-space-3);
+  border-radius: var(--sp-radius);
+  background: var(--sp-warning-light);
+  color: var(--sp-warning-text);
+  font-weight: 600;
+}
+
+.sp-desk__pending {
+  margin: var(--sp-space-2) 0 0;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+}
+
+.sp-desk__tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-3);
+}
+
+/* Les filtres du poste sont des BOUTONS — l'état vit en mémoire et doit
+   survivre hors ligne, là où un lien rechargerait la page. */
+.sp-chip--btn {
+  cursor: pointer;
+}
+
+.sp-chip[aria-pressed='true'] {
+  border-color: transparent;
+  background: var(--sp-marine);
+  color: var(--sp-on-accent);
+}
+
+.sp-desk__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-desk__row {
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius-lg);
+  background: var(--sp-surface);
+  overflow: hidden;
+}
+
+.sp-desk__row--in {
+  border-color: var(--sp-success-text);
+  background: var(--sp-success-light);
+}
+
+.sp-desk__row--sending {
+  opacity: 0.85;
+}
+
+/* Toute la rangée est la cible. Debout, d'une main, viser un bouton de 44px
+   perdu au bout d'une ligne est une source d'erreur ; viser la ligne, non. */
+.sp-desk__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-3);
+  width: 100%;
+  min-height: calc(var(--sp-tap) + var(--sp-space-4));
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border: 0;
+  background: transparent;
+  color: var(--sp-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--sp-motion) var(--sp-ease);
+}
+
+.sp-desk__toggle:hover {
+  background: var(--sp-accent-light);
+}
+
+.sp-desk__avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface-muted);
+  color: var(--sp-marine);
+  font-size: var(--sp-text-sm);
+  font-weight: 700;
+}
+
+.sp-desk__who {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-space-1);
+}
+
+.sp-desk__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sp-desk__meta {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+/* Le statut ÉCRIT. La couleur de la rangée le renforce, elle ne le porte pas. */
+.sp-desk__status {
+  flex: none;
+  padding: var(--sp-space-1) var(--sp-space-3);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface);
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+}
+
+.sp-desk__row--in .sp-desk__status {
+  color: var(--sp-success-text);
+}
+
+.sp-desk__refused {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-3);
+  margin: 0;
+  padding: var(--sp-space-3) var(--sp-space-4);
+  background: var(--sp-danger-light);
+  color: var(--sp-danger-text);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-desk__empty {
+  padding: var(--sp-space-6) var(--sp-space-4);
+  border-radius: var(--sp-radius-lg);
+  background: var(--sp-surface);
+  color: var(--sp-text-muted);
+  text-align: center;
+}
+
+.sp-desk__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-3);
+  flex-wrap: wrap;
+}
+
+.sp-desk__picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Liste de secours imprimée
+   ---------------------------------------------------------------------------
+   Le dernier rempart : elle doit tenir quand Vercel, Supabase et la 4G sont
+   tombés ensemble. Aucun script, aucune couleur indispensable, et des cases
+   assez grandes pour un stylo.
+   --------------------------------------------------------------------------- */
+
+.sp-print {
+  margin: 0 auto;
+  max-width: 50rem;
+  color: var(--sp-text);
+}
+
+.sp-print__head h1 {
+  margin: 0 0 var(--sp-space-2);
+}
+
+.sp-print__when {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-print__howto {
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-print__table {
+  width: 100%;
+  margin-top: var(--sp-space-5);
+  border-collapse: collapse;
+  font-size: var(--sp-text-sm);
+}
+
+.sp-print__table th,
+.sp-print__table td {
+  padding: var(--sp-space-2) var(--sp-space-3);
+  border-bottom: 1px solid var(--sp-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.sp-print__box {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--sp-text);
+  border-radius: var(--sp-radius-sm);
+}
+
+@media print {
+  .sp-deskshell__bar,
+  .sp-print__howto {
+    display: none;
+  }
+
+  .sp-print__table {
+    font-size: 10pt;
+  }
+
+  /* Une rangée coupée entre deux pages se coche deux fois, ou pas du tout. */
+  .sp-print__table tr {
+    break-inside: avoid;
+  }
+
+  .sp-print__table thead {
+    display: table-header-group;
+  }
+}

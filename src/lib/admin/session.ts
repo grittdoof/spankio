@@ -86,6 +86,19 @@ export async function loadAdminSession(
   };
 }
 
+/**
+ * Un compte qui n'a QUE l'accueil.
+ *
+ * Le rôle `host` ne ferme pas seulement des données : il ferme un espace.
+ * `app.is_active_member()` est déjà fausse pour lui, donc `/admin` ne lui
+ * montrerait aucun formulaire, aucune réponse et aucun module — un écran vide
+ * et incompréhensible, précisément ce que les redirections de ce projet
+ * existent pour éviter. La barrière, elle, reste le RLS.
+ */
+export function isCheckinOnly(session: AdminSession | null): boolean {
+  return session?.role === 'host';
+}
+
 /** Un rôle qui peut écrire des sondages. Le RLS reste seul juge à l'écriture. */
 export function canWriteSurveys(session: AdminSession): boolean {
   return session.attached && ['admin', 'editor', 'super_admin'].includes(session.role);
