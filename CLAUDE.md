@@ -1104,7 +1104,7 @@ figure, avec sa raison et sa condition de lever.
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. La montée proposée par Dependabot vers `eslint-config-next@16` a été **refusée** : c'est le paquet de configuration de Next 16, et l'installer sans Next 16 fait diverger l'outil du framework qu'il est censé décrire. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16, où les deux montent ensemble. |
 | R7 | **`postcss` surchargé** en 8.5.26 via `overrides` : Next 15 épingle 8.4.31, vulnérable (GHSA sourceMappingURL / XSS de stringify). Correctif amont = Next 16 (majeure). | Conserver Next 15 tout en gardant `npm audit` à zéro. `postcss` n'est utilisé qu'au build. | À la migration Next 16. |
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
-| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 29 migrations du lot 2 ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
+| R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 30 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
 | R11 | **11 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, marque d'ouverture d'un poste, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
@@ -1218,7 +1218,22 @@ npm run build       # build de production
       rien et le RLS ne voit pas les colonnes, si bien que la première version
       aurait laissé une hôtesse prolonger seule son `expires_at`. 1805 tests,
       dont 9 de RLS sur les affectations et 8 d'accessibilité sur l'écran de
-      préparation. **Reste du lot 4** : l'invitation à usage unique, écartée
+      préparation. **Déployé le 29 octobre 2026**, en version
+      `20261029120000` — posée à la main comme les précédentes. Rejoué sur le
+      vrai moteur dans une transaction annulée : première ouverture marquée,
+      seconde laissant `first_seen_at` intact, et affectation expirée qui ne
+      marque plus rien. La preuve a aussi rappelé une évidence qu'il valait
+      mieux revérifier que supposer : `now()` est figé sur toute la
+      transaction, si bien que deux appels enchaînés dans un seul bloc
+      écrivent le MÊME `last_seen_at`. Ce n'est pas un défaut — en production
+      chaque ouverture est sa propre transaction — mais c'est exactement le
+      genre d'écart qu'on prendrait pour un bogue en relisant un test.
+      **Non rejoué en production** : le refus d'escalade (une hôtesse qui
+      prolongerait son `expires_at`), faute de compte d'accueil réel, et parce
+      que le fabriquer supposerait de créer un vrai compte. Il reste prouvé
+      structurellement — les quatre policies de `checkin_staff` ont été
+      relues en base, aucune ne vise la personne affectée — et
+      comportementalement sous PGlite. **Reste du lot 4** : l'invitation à usage unique, écartée
       de ce lot — elle crée un compte, donc touche à l'authentification, la
       seule surface où une erreur est irrattrapable, et le chemin actuel
       (inscription puis rattachement validé) fonctionne.
