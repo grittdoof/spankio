@@ -85,6 +85,8 @@ export type ActorRole = 'anon' | 'authenticated' | 'service_role' | 'postgres';
 export interface Actor {
   readonly role: ActorRole;
   readonly userId?: string;
+  /** Adresse portée par le jeton, comme sur un vrai jeton Supabase. */
+  readonly email?: string;
 }
 
 /** Visiteur non authentifié (clé anonyme Supabase). */
@@ -97,8 +99,14 @@ export const SERVICE: Actor = { role: 'service_role' };
 export const OWNER: Actor = { role: 'postgres' };
 
 /** Utilisateur authentifié porteur d'un JWT dont `sub` vaut `id`. */
-export function asUser(id: string): Actor {
-  return { role: 'authenticated', userId: id };
+/**
+ * `email` est facultatif mais PAS décoratif : le jeton d'authentification de
+ * Supabase porte l'adresse, et `claim_checkin_invitation` la compare à celle
+ * de l'invitation. Elle ne se lit surtout pas dans `profiles.email`, que la
+ * policy `profiles_update` autorise chacun à modifier sur sa propre ligne.
+ */
+export function asUser(id: string, email?: string): Actor {
+  return { role: 'authenticated', userId: id, ...(email ? { email } : {}) };
 }
 
 const ALLOWED_ROLES: readonly ActorRole[] = ['anon', 'authenticated', 'service_role', 'postgres'];
@@ -153,7 +161,13 @@ export async function createTestDb(): Promise<TestDb> {
       await tx.exec(`set local role ${actor.role}`);
       await tx.query('select set_config($1, $2, true)', [
         'request.jwt.claims',
-        actor.userId ? JSON.stringify({ sub: actor.userId, role: actor.role }) : '',
+        actor.userId
+          ? JSON.stringify({
+              sub: actor.userId,
+              role: actor.role,
+              ...(actor.email ? { email: actor.email } : {}),
+            })
+          : '',
       ]);
       const result = await tx.query<R>(sql, params as unknown[]);
       return result.rows;

@@ -780,6 +780,57 @@ changer.
   FONCTION et non la personne — « hôte » et « hôtesse » obligeraient à choisir
   un genre, alors qu'une organisation peut confier sa porte à un agent de
   sécurité ou à un bénévole.
+- **Une invitation ne crée PAS de compte, et c'est une conséquence, pas une
+  limite.** Créer un utilisateur exige le `service role`, dont les trois usages
+  admis sont le setup initial, le cron et les tâches de super-administration.
+  L'y ajouter pour un écran d'organisation aurait placé le `service role` dans
+  un chemin déclenché par un administrateur de tenant — ce que l'architecture
+  RLS-first existe pour éviter. La personne s'inscrit donc elle-même, et
+  l'invitation remplace la SUITE : rattachement, rôle `host` et affectation,
+  qui exigeaient jusqu'ici une demande validée par le super-administrateur. Le
+  courriel le dit en toutes lettres, sans quoi le premier clic passerait pour
+  un lien cassé.
+- **Le jeton seul ne suffit jamais : l'adresse doit concorder.** Un lien se
+  transfère, s'oublie dans une boîte partagée, se retrouve dans l'historique
+  d'un navigateur prêté. `claim_checkin_invitation` compare donc l'adresse de
+  l'invitation à celle portée par le JETON d'authentification
+  (`auth.jwt() ->> 'email'`) — surtout pas à `profiles.email`, que la policy
+  `profiles_update` autorise chacun à réécrire sur sa propre ligne. Un test
+  fait exactement cette manœuvre et vérifie qu'elle échoue. Corollaire
+  fail-closed assumé : un jeton sans courriel ne peut rien réclamer.
+- **Le jeton n'existe en clair qu'une fois, donc il s'ENVOIE au lieu de
+  s'afficher.** La base n'en garde qu'une empreinte SHA-256, comme la clé
+  anti-doublon : ce qui est stocké ne doit pas suffire à exercer le droit qu'il
+  protège. Le faire transiter par l'écran de l'administrateur le mettrait dans
+  une URL, donc dans un historique et des journaux. Conséquence assumée et
+  DITE à l'écran : un envoi raté rend l'invitation inutilisable, puisque le
+  lien n'existe nulle part — on la retire et on recommence. C'est pourquoi
+  l'échec d'envoi est ici une ALERTE et non la simple information qu'il est
+  ailleurs.
+- **L'empreinte est calculée en TypeScript à la création et en SQL à la
+  consommation** : un test d'intégration compare les deux sur la même entrée.
+  Si elles divergeaient d'un octet, rien ne planterait — tous les liens
+  seraient refusés, pour toujours, sans explication. C'est exactement la forme
+  du défaut `dedup_field` qui a fait perdre neuf inscriptions.
+- **Un paramètre de retour après connexion est une LISTE FERMÉE d'une forme,
+  pas une URL validée.** `safeAfterSignIn` n'accepte que
+  `/accueil/invitation?jeton=<forme attendue>` et renvoie `/admin` pour tout le
+  reste. Vérifier qu'une destination « a l'air interne » est le mécanisme
+  classique de la redirection ouverte : un attaquant envoie un lien vers NOTRE
+  écran de connexion, la victime s'y connecte pour de bon, et atterrit sur une
+  page qui imite la nôtre. La valeur est bornée dès la lecture de l'URL, donc
+  le champ caché porte déjà celle que l'action acceptera.
+- **L'autorité d'une réclamation est l'INVITATION, pas l'appelant.**
+  `guard_profile_privileges` refuse tout changement de rôle qui ne vient ni
+  d'un super-administrateur, ni d'un administrateur de l'organisation, ni d'un
+  contexte serveur sans jeton. Or l'appelant est ici l'invité lui-même. La
+  fonction neutralise donc le jeton le temps de CETTE écriture — exactement le
+  cas que l'échappement du trigger décrit. Trois bornes la rendent
+  acceptable : elle ne s'applique qu'à un profil NON RATTACHÉ, elle n'accorde
+  que `host` qui ne donne rien par lui-même, et elle est tracée à l'audit. Un
+  administrateur de la même organisation qui essaie son propre lien n'est pas
+  rétrogradé — un test le vérifie, parce que ce serait la manière la plus
+  bête de se priver de son propre espace.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -895,8 +946,8 @@ changer.
   exécuter, et Supabase accorde `EXECUTE` à `anon`/`authenticated` sur toute
   nouvelle fonction via ses *default privileges* — un `revoke ... from public`
   ne suffit pas. Les fonctions internes vivent donc dans le schéma **`app`**,
-  hors de la liste exposée par l'API. `public` ne contient que les 11 fonctions
-  réellement appelées par le réseau, et un test échoue si une douzième
+  hors de la liste exposée par l'API. `public` ne contient que les 12 fonctions
+  réellement appelées par le réseau, et un test échoue si une treizième
   apparaît (`tests/rls/exposed-surface.test.ts`).
 - **Tout nouvel objet naît sans droits.** Les *default privileges* de Supabase
   ont été révoqués (`alter default privileges ... revoke`) : une table, une vue
@@ -1106,7 +1157,7 @@ figure, avec sa raison et sa condition de lever.
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
 | R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 30 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
-| R11 | **11 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, marque d'ouverture d'un poste, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
+| R11 | **12 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, marque d'ouverture d'un poste, réclamation d'une invitation, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
@@ -1237,6 +1288,17 @@ npm run build       # build de production
       de ce lot — elle crée un compte, donc touche à l'authentification, la
       seule surface où une erreur est irrattrapable, et le chemin actuel
       (inscription puis rattachement validé) fonctionne.
+- [x] Module « Accueil », lot 4b — l'invitation à usage unique (29 octobre
+      2026) : `checkin_invitations`, `claim_checkin_invitation` (douzième
+      fonction exposée), l'écran `/accueil/invitation`, le courriel d'invitation
+      et un retour borné après connexion. Trente-et-unième migration. Elle ne
+      crée PAS de compte — le `service role` serait sorti de ses trois usages
+      admis — et remplace la demande de rattachement pour un rôle qui ne donne
+      rien par lui-même. Un défaut attrapé par les tests : le harnais de routes
+      forgeait un jeton SANS courriel, ce qu'un vrai jeton Supabase n'est
+      jamais, si bien que toute réclamation échouait. 1848 tests, dont 14 de
+      RLS sur la réclamation et 5 d'intégration dont la concordance des
+      empreintes TypeScript / SQL.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

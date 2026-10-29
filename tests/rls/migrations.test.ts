@@ -19,6 +19,7 @@ describe('migrations', () => {
     );
     expect(rows.map((r) => r.tablename)).toEqual([
       'audit_log',
+      'checkin_invitations',
       'checkin_staff',
       'erasure_requests',
       'event_checkin_log',

@@ -16,10 +16,18 @@ export function SignInForm({
   action,
   error,
   notice,
+  suite,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   error?: string | null;
   notice?: string | null;
+  /**
+   * Destination après connexion, déjà bornée par `safeAfterSignIn`. Elle
+   * voyage dans un champ caché plutôt que dans l'URL de l'action : l'écran
+   * fonctionne sans JavaScript, et un jeton d'invitation n'a pas à se
+   * retrouver dans la barre d'adresse après la soumission.
+   */
+  suite?: string | null;
 }) {
   const t = fr.auth.signIn;
 
@@ -50,6 +58,7 @@ export function SignInForm({
       ) : null}
 
       <form action={action} noValidate>
+        {suite ? <input name="suite" type="hidden" value={suite} /> : null}
         <Field id="email" label={t.emailLabel} required>
           {(attributes) => (
             <input

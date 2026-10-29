@@ -28,6 +28,7 @@ const ROLE_LABELS: Readonly<Record<string, string>> = {
   admin: 'administrateur de l’organisation',
   editor: 'éditeur',
   viewer: 'lecteur',
+  host: 'accueil',
   super_admin: 'super administrateur',
 };
 

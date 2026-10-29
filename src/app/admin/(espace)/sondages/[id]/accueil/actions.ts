@@ -7,7 +7,10 @@ import { eq } from '@/lib/data/port';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { logger } from '@/lib/logger';
-import { assignStaff, revokeStaff } from '@/lib/services/checkin';
+import { assignStaff, inviteStaff, revokeInvitation, revokeStaff } from '@/lib/services/checkin';
+import { getSurvey } from '@/lib/services/surveys';
+import { defaultInvitationExpiry, isEmailShape } from '@/lib/checkin/invitation';
+import { publicEnv } from '@/lib/config/env';
 
 /**
  * Affectations du poste d'accueil.
@@ -112,4 +115,86 @@ export async function revokeStaffAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
   redirect(`/admin/sondages/${surveyId.data}/accueil?fait=retrait`);
+}
+
+/**
+ * Invite quelqu'un qui n'a pas encore de compte — ou qui en a un sans être
+ * rattaché.
+ *
+ * L'invitation est créée ET envoyée dans le même geste, et le jeton n'apparaît
+ * jamais à l'écran : le faire transiter par une redirection le mettrait dans
+ * l'historique du navigateur et dans les journaux, pour un secret qui ouvre
+ * une liste nominative.
+ *
+ * Conséquence assumée, et dite à l'écran : si le courriel ne part pas, le lien
+ * est perdu — il n'existe nulle part en clair. On retire l'invitation et on
+ * recommence.
+ */
+export async function inviteStaffAction(formData: FormData): Promise<void> {
+  const surveyId = idSchema.safeParse(trimmedField(formData, 'surveyId'));
+  if (!surveyId.success) redirect('/admin/sondages');
+
+  const email = textFieldOrEmpty(formData, 'email').trim();
+  if (!isEmailShape(email)) {
+    redirect(`/admin/sondages/${surveyId.data}/accueil?erreur=adresse`);
+  }
+
+  const { organisationId } = await requireOrganisation();
+  const context = await resolveRequestContext();
+
+  const survey = await getSurvey(context, surveyId.data);
+  if (!survey.ok) redirect('/admin/sondages');
+
+  const raw = textFieldOrEmpty(formData, 'expiresOn');
+  const staffExpiresAt = raw === '' ? null : endOfDay(raw);
+  if (raw !== '' && staffExpiresAt === null) {
+    redirect(`/admin/sondages/${surveyId.data}/accueil?erreur=date`);
+  }
+
+  const invited = await inviteStaff(context, {
+    surveyId: surveyId.data,
+    organisationId,
+    email,
+    expiresAt: defaultInvitationExpiry().toISOString(),
+    staffExpiresAt,
+    siteUrl: publicEnv().NEXT_PUBLIC_SITE_URL,
+    eventTitle: survey.value.title,
+  });
+
+  if (!invited.ok) {
+    logger.warn('checkin.invite_refused', 'Invitation refusée.', {
+      code: invited.error.code,
+    });
+    redirect(`/admin/sondages/${surveyId.data}/accueil?erreur=refus`);
+  }
+
+  revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
+  redirect(
+    `/admin/sondages/${surveyId.data}/accueil?fait=${
+      invited.value.emailSent ? 'invitation' : 'invitation-sans-courriel'
+    }`,
+  );
+}
+
+export async function revokeInvitationAction(formData: FormData): Promise<void> {
+  const surveyId = idSchema.safeParse(trimmedField(formData, 'surveyId'));
+  const invitationId = idSchema.safeParse(trimmedField(formData, 'invitationId'));
+  if (!surveyId.success) redirect('/admin/sondages');
+  if (!invitationId.success) {
+    redirect(`/admin/sondages/${surveyId.data}/accueil?erreur=refus`);
+  }
+
+  await requireOrganisation();
+  const context = await resolveRequestContext();
+
+  const removed = await revokeInvitation(context, surveyId.data, invitationId.data);
+  if (!removed.ok) {
+    logger.warn('checkin.invite_revoke_refused', 'Retrait d’invitation refusé.', {
+      code: removed.error.code,
+    });
+    redirect(`/admin/sondages/${surveyId.data}/accueil?erreur=refus`);
+  }
+
+  revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
+  redirect(`/admin/sondages/${surveyId.data}/accueil?fait=invitation-retiree`);
 }

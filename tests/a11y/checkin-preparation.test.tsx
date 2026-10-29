@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CheckinReadiness } from '@/components/admin/CheckinReadiness';
+import { CheckinInvitations } from '@/components/admin/CheckinInvitations';
 import { CheckinStaff } from '@/components/admin/CheckinStaff';
 import { Desk } from '@/components/checkin/Desk';
 import { checkinReadiness, type StaffMember } from '@/lib/checkin/readiness';
@@ -165,5 +166,85 @@ describe('essai à blanc', () => {
     expect(screen.getByText('Arrivé')).toBeInTheDocument();
     expect(screen.queryByText(/en attente d’envoi/)).not.toBeInTheDocument();
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('invitations à usage unique', () => {
+  const NOW = '2026-11-18T10:00:00.000Z';
+
+  function renderInvitations() {
+    return render(
+      <CheckinInvitations
+        invitations={[
+          {
+            id: '55555555-5555-5555-5555-555555555555',
+            email: 'camille@traiteur.test',
+            expiresAt: '2026-11-25T10:00:00.000Z',
+            staffExpiresAt: null,
+            createdAt: '2026-11-17T09:00:00.000Z',
+            claimedAt: null,
+          },
+          {
+            id: '66666666-6666-6666-6666-666666666666',
+            email: 'sacha@traiteur.test',
+            expiresAt: '2026-11-25T10:00:00.000Z',
+            staffExpiresAt: null,
+            createdAt: '2026-11-16T09:00:00.000Z',
+            claimedAt: '2026-11-16T10:30:00.000Z',
+          },
+          {
+            id: '77777777-7777-7777-7777-777777777777',
+            email: 'perime@traiteur.test',
+            expiresAt: '2026-11-01T10:00:00.000Z',
+            staffExpiresAt: null,
+            createdAt: '2026-10-25T09:00:00.000Z',
+            claimedAt: null,
+          },
+        ]}
+        inviteAction={() => undefined}
+        now={NOW}
+        revokeAction={() => undefined}
+        surveyId="abc"
+      />,
+    );
+  }
+
+  it('ne présente aucune violation détectable', async () => {
+    const { container } = renderInvitations();
+    await expectNoA11yViolations(container);
+  });
+
+  it('écrit les trois états, sans dépendre de la couleur', () => {
+    renderInvitations();
+    expect(screen.getByText(/En attente — expire le/)).toBeInTheDocument();
+    expect(screen.getByText(/Utilisée le/)).toBeInTheDocument();
+    expect(screen.getByText(/Expirée le/)).toBeInTheDocument();
+  });
+
+  it('n’affiche AUCUN jeton', () => {
+    const { container } = renderInvitations();
+    // Le lien n'existe en clair qu'au moment de l'envoi. S'il réapparaissait
+    // ici, il se retrouverait dans un rendu serveur, donc potentiellement
+    // dans un cache ou un journal.
+    expect(container.textContent).not.toMatch(/jeton=/);
+  });
+
+  it('dit que le lien ne peut pas être réaffiché', () => {
+    renderInvitations();
+    // Un lien qu'on croit pouvoir retrouver plus tard est un lien qu'on ne
+    // renvoie pas à temps.
+    expect(screen.getByText(/ne peut pas être réaffiché/)).toBeInTheDocument();
+  });
+
+  it('dit pourquoi l’adresse compte', () => {
+    renderInvitations();
+    expect(screen.getByText(/lien transféré/)).toBeInTheDocument();
+  });
+
+  it('nomme la personne dans le bouton de retrait', () => {
+    renderInvitations();
+    expect(
+      screen.getByRole('button', { name: /Retirer l’invitation de camille@traiteur.test/ }),
+    ).toBeInTheDocument();
   });
 });
