@@ -32,6 +32,11 @@ const SURFACE_ATTENDUE: Readonly<Record<string, { anon: boolean; authenticated: 
   // Correction d'une réponse : elle remplace une écriture directe de `data`,
   // que l'immuabilité interdit et qu'aucune policy ne doit autoriser.
   correct_survey_response: { anon: false, authenticated: true },
+  // Pointage d'une arrivée : elle remplace une écriture directe sur
+  // `event_checkins`, qu'aucune policy n'autorise — une policy d'UPDATE
+  // rendrait l'idempotence contournable, puisqu'un UPDATE direct n'écrit pas
+  // le journal.
+  set_checkin: { anon: false, authenticated: true },
   purge_expired_responses: { anon: false, authenticated: true },
   purge_deleted_surveys: { anon: false, authenticated: true },
   my_modules: { anon: false, authenticated: true },

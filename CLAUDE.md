@@ -624,6 +624,48 @@ changer.
   public : onze types de champs déjà accessibles et déjà testés, et les
   questions conditionnelles suivent la saisie comme côté répondant. En écrire
   une version « admin » aurait donné deux comportements pour une même question.
+- **Une ARRIVÉE est un fait nouveau, jamais une réécriture de la réponse.**
+  Même raisonnement que la correction : `consent_text` prouve ce qui a été
+  affiché et `submitted_at` date l'acte du répondant. Ranger un pointage dans
+  `data` ferait d'un geste d'hôtesse une modification de preuve — et le
+  trigger d'immuabilité le refuserait. D'où `event_checkins` (l'ÉTAT, une
+  ligne par réponse touchée, relu d'un coup sur un téléphone) et
+  `event_checkin_log` (le JOURNAL, en ajout seul, qui dit qui a pointé qui).
+  Les deux sont écrites par la MÊME fonction dans la MÊME transaction : elles
+  ne peuvent pas diverger. **Absence de ligne = pas arrivé** ; pré-remplir une
+  ligne par invité obligerait à la maintenir à chaque inscription tardive,
+  pour une information que l'absence dit déjà.
+- **Le pointage est IDEMPOTENT sur un `op_id` fourni par le client.** Ce n'est
+  pas une précaution théorique : le téléphone envoie, perd le réseau avant la
+  réponse, et réessaie. Sans `op_id`, le second appel re-bascule l'invité et
+  l'efface — un présent qui redevient absent tout seul, à l'entrée d'une
+  salle, sans que personne comprenne. Une opération déjà journalisée rend
+  l'état courant SANS erreur : c'est un réessai, pas une faute, et le traiter
+  comme une faute ferait clignoter un refus sur un pointage réussi.
+- **Deux hôtesses sur la même rangée : la première gagne, la seconde
+  l'apprend.** `version` est contrôlée à chaque écriture. Un
+  dernier-arrivé-gagne laisserait un dé-pointage tardif effacer une arrivée
+  réelle. Une version nulle passe outre, délibérément, pour les écrans où
+  aucune concurrence n'est possible.
+- **La SOURCE d'un pointage est déduite, jamais transmise.** `desk` ou
+  `admin` se lit des droits de l'appelant : un paramètre serait forgeable, et
+  le journal ne vaudrait plus rien comme compte rendu. La signature de
+  `set_checkin` n'a donc aucun paramètre de source, et un test fige cette
+  absence.
+- **Un effectif entré non précisé vaut `null`, jamais zéro.** « Mme X annoncée
+  +2, arrive seule » : l'effectif RÉEL n'est pas l'effectif annoncé, et c'est
+  lui que demandent le traiteur et la sécurité. Mais un chiffre que personne
+  n'a donné ne s'invente pas — c'est la même règle que l'effectif « à
+  vérifier » du comptage.
+- **Une correction de réponse EMPORTE son arrivée.** Défaut qui serait apparu
+  au premier essai réel, et au pire endroit : une correction est une
+  suppression logique PLUS une copie portant un nouvel identifiant, et
+  l'arrivée est accrochée à l'identifiant. Corriger une faute dans un nom
+  aurait donc fait réapparaître comme ABSENT quelqu'un présent dans la salle
+  depuis une heure. `correct_survey_response` repointe donc la ligne d'état
+  sur la copie — après l'insertion, la clé étrangère l'exige. Le JOURNAL, lui,
+  garde l'ancien identifiant : c'est bien sous l'ancienne réponse que les
+  transitions ont eu lieu.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -739,7 +781,7 @@ changer.
   exécuter, et Supabase accorde `EXECUTE` à `anon`/`authenticated` sur toute
   nouvelle fonction via ses *default privileges* — un `revoke ... from public`
   ne suffit pas. Les fonctions internes vivent donc dans le schéma **`app`**,
-  hors de la liste exposée par l'API. `public` ne contient que les 9 fonctions
+  hors de la liste exposée par l'API. `public` ne contient que les 10 fonctions
   réellement appelées par le réseau, et un test échoue si une dixième
   apparaît (`tests/rls/exposed-surface.test.ts`).
 - **Tout nouvel objet naît sans droits.** Les *default privileges* de Supabase
@@ -950,7 +992,7 @@ figure, avec sa raison et sa condition de lever.
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
 | R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 26 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
-| R11 | **9 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
+| R11 | **10 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
@@ -1017,6 +1059,18 @@ npm run build       # build de production
       `tests/rls/checkin-host.test.ts`, persona `host` ajoutée au balayage
       d'isolation. Une lacune de droits par défaut corrigée au passage (voir
       « Tout nouvel objet naît sans droits »). 1660 tests au vert.
+- [x] Module « Accueil », lot 2 — les faits (28 octobre 2026) :
+      `event_checkins` (l'état), `event_checkin_log` (le journal, en ajout
+      seul) et `public.set_checkin`, dixième fonction exposée — idempotente
+      sur `op_id`, refusant une version périmée, écrivant l'état ET le journal
+      dans une seule transaction. Aucune policy d'écriture sur les deux
+      tables, pour personne : une policy d'UPDATE rendrait l'idempotence
+      contournable, puisqu'un UPDATE direct n'écrit pas le journal.
+      `correct_survey_response` a été reprise pour que l'arrivée suive la
+      copie corrigée. Toujours aucun écran. 31 contrôles dédiés dans
+      `tests/rls/checkin-pointage.test.ts` — idempotence, concurrence, source
+      non forgeable, écriture directe impossible, correction. 1702 tests au
+      vert.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre
