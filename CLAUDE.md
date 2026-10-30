@@ -1427,9 +1427,26 @@ npm run build       # build de production
       policies existantes — seule la création d'un utilisateur sort du RLS, et
       c’est R16. 1939 tests, dont 43 unitaires sur les deux modules purs
       (`account.ts`, `print.ts`) et 8 d’accessibilité sur les nouveaux écrans.
-      **Non déployé, et rien à déployer côté base.** Reste à vérifier en vrai :
-      la création d'un compte contre un vrai projet Supabase, qu'aucun harnais
-      ne peut simuler — `auth.admin.createUser` n'existe pas sous PGlite.
+      **Rien à déployer côté base.** La chaîne SQL a néanmoins été rejouée sur
+      le vrai moteur le 30 octobre 2026, dans un bloc se terminant par une
+      exception — la transaction est donc annulée par construction et non par
+      la discipline de l'appelant, et un contrôle d'après coup confirme qu'il
+      ne reste ni compte, ni profil, ni affectation. Six verdicts : le
+      déclencheur pose bien un profil `viewer`/`pending` ; le passage à
+      `host`/`active` franchit `guard_profile_privileges` sans jeton (la
+      branche « contexte serveur de confiance ») ; une organisation incohérente
+      avec celle du sondage est refusée en `23503`, un profil non rattaché
+      aussi ; un compte créé mais NON affecté donne `can_staff_survey = false`,
+      et le même compte affecté donne `true` avec `is_active_member = false` —
+      c'est-à-dire la porte sans l'espace d'administration. **Première
+      rédaction fautive, et c'est la leçon du jour** : le test d'organisation
+      incohérente réutilisait le couple `(sondage, profil)` déjà inséré, si
+      bien qu'il sortait en `23505` — une violation d'UNICITÉ. Il passait, mais
+      pour une raison qui n'était pas celle qu'il prétendait vérifier, et
+      n'aurait rien dit si la clé composite avait disparu. Un test vert qui ne
+      teste pas ce qu'il annonce est pire que pas de test. **Reste non
+      vérifié** : `auth.admin.createUser` lui-même, appel REST qu'aucun harnais
+      ni aucune requête SQL ne peut exercer.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre
