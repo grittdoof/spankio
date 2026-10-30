@@ -31,6 +31,11 @@ export default async function AdminWorkspaceLayout({ children }: { children: Rea
   const items: AdminNavItem[] = [{ href: '/admin', label: 'Mon espace', icon: 'home' }];
   if (session?.attached) {
     items.push({ href: '/admin/sondages', label: 'Formulaires', icon: 'forms' });
+    // Le pointage n'apparaît que si le module est concédé à l'organisation :
+    // une entrée qui mènerait à un refus vaut moins que pas d'entrée.
+    if (session.modules.find((module) => module.key === 'checkin')?.allowed) {
+      items.push({ href: '/admin/pointage', label: 'Pointage', icon: 'checkin' });
+    }
     items.push({ href: '/admin/organisation', label: 'Mon organisation', icon: 'organisation' });
   }
   if (session?.isPlatformAdmin) {
