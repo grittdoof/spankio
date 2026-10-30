@@ -4828,3 +4828,167 @@ summary.sp-btn::-webkit-details-marker {
   margin: var(--sp-space-4) 0 0;
   padding-left: var(--sp-space-5);
 }
+
+/* ---------------------------------------------------------------------------
+   Accès du poste : ce qu'on recopie, et ce qu'on transmet
+   ---------------------------------------------------------------------------
+   Le texte est TOUJOURS écrit, le bouton de copie n'est qu'un confort — c'est
+   la même discipline que le partage de l'invitation publique. Une adresse ou
+   un mot de passe qui n'existerait que derrière un bouton serait perdu dès que
+   le presse-papier manque, et c'est précisément là qu'on en a besoin.
+   --------------------------------------------------------------------------- */
+
+.sp-copybox {
+  margin: var(--sp-space-3) 0;
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface-muted);
+}
+
+.sp-copybox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-3);
+  flex-wrap: wrap;
+}
+
+.sp-copybox__label {
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+}
+
+/* Les accès se recopient caractère par caractère : une chasse fixe évite de
+   confondre un « l » et un « 1 », et `anywhere` empêche une longue adresse de
+   déborder sur un téléphone. */
+.sp-copybox__text {
+  margin: var(--sp-space-2) 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--sp-text-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sp-copybox__text--one {
+  white-space: normal;
+}
+
+.sp-access {
+  margin: var(--sp-space-4) 0;
+}
+
+/* L'identifiant d'un compte fabriqué : c'est ce qu'on dicte, il se lit donc
+   comme une donnée et non comme une mention secondaire. */
+.sp-staff__login {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--sp-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.sp-staff__tools {
+  flex-basis: 100%;
+}
+
+.sp-staff__reset > summary {
+  cursor: pointer;
+  font-size: var(--sp-text-sm);
+  color: var(--sp-text-muted);
+}
+
+.sp-staff__reset[open] > summary {
+  margin-bottom: var(--sp-space-3);
+  color: var(--sp-text);
+}
+
+/* Le sélecteur d'événements de l'espace d'administration : un titre, puis les
+   actions. Il réutilise la liste du poste, qui n'avait qu'un lien par rangée. */
+.sp-desk__picker-title {
+  flex: 1;
+  min-width: 12rem;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   En-tête du listing papier
+   ---------------------------------------------------------------------------
+   Une liste nominative circule entre plusieurs mains : elle doit dire de qui
+   elle vient. Le logo ouvre donc la page, et le pied la redit — une feuille
+   détachée du paquet reste identifiable.
+   --------------------------------------------------------------------------- */
+
+.sp-print__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--sp-space-4);
+  border-bottom: 2px solid var(--sp-text);
+}
+
+/* Seule la HAUTEUR est contrainte : un logo est presque toujours plus large
+   que haut, et l'enfermer dans un carré le réduirait à un timbre illisible. */
+.sp-print__logo {
+  height: 3rem;
+  width: auto;
+  max-width: 12rem;
+  object-fit: contain;
+}
+
+.sp-print__title {
+  flex: 1;
+  min-width: 14rem;
+}
+
+.sp-print__org {
+  margin: 0;
+  font-size: var(--sp-text-sm);
+  font-weight: 600;
+  color: var(--sp-text-muted);
+}
+
+.sp-print__facts {
+  display: flex;
+  gap: var(--sp-space-5);
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.sp-print__facts dt {
+  font-size: var(--sp-text-xs);
+  color: var(--sp-text-muted);
+  text-transform: uppercase;
+}
+
+.sp-print__facts dd {
+  margin: 0;
+  font-size: var(--sp-text-lg);
+  font-weight: 600;
+}
+
+/* À une porte on cherche un NOM : il porte donc plus que les autres colonnes. */
+.sp-print__name {
+  font-weight: 600;
+}
+
+.sp-print__foot {
+  margin-top: var(--sp-space-4);
+  padding-top: var(--sp-space-3);
+  border-top: 1px solid var(--sp-border);
+  font-size: var(--sp-text-xs);
+  color: var(--sp-text-muted);
+}
+
+@media print {
+  /* Le logo part en noir et blanc sur la plupart des imprimantes de bureau ;
+     on ne compte donc jamais sur lui pour distinguer quoi que ce soit. */
+  .sp-print__head {
+    border-bottom-width: 1pt;
+  }
+
+  /* Répété en bas de chaque page : une feuille détachée reste identifiable. */
+  .sp-print__foot {
+    position: fixed;
+    bottom: 0;
+  }
+}

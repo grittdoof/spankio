@@ -790,6 +790,80 @@ changer.
   qui exigeaient jusqu'ici une demande validée par le super-administrateur. Le
   courriel le dit en toutes lettres, sans quoi le premier clic passerait pour
   un lien cassé.
+- **Un compte de pointage est CRÉÉ par l'organisation, et c'est la seule
+  exception de ce genre.** Le lot 4b avait conçu l'invitation pour ne PAS créer
+  de compte, précisément pour garder le `service role` hors d'un chemin
+  déclenché par un administrateur de tenant. Le client a tranché autrement, et
+  son argument tient : pour une porte tenue trois heures par du personnel
+  engagé à la journée, faire créer un compte depuis un téléphone est une marche
+  trop haute, et le risque d'une liste d'invités d'un soir est limité. Or créer
+  un utilisateur n'existe QUE dans l'API d'administration de Supabase, qui
+  exige cette clé — il n'y a aucun chemin sous RLS. La décision ne se contourne
+  donc pas, elle se BORNE, et les bornes sont écrites en TypeScript dans
+  `src/lib/services/checkin-accounts.ts` puisque le moteur ne les appliquera
+  pas : rôle `host` imposé, organisation lue du PROFIL de l'appelant et jamais
+  du formulaire, audit systématique. Les deux premières tiennent aussi côté
+  moteur — `host` ne donne rien sans `checkin_staff`, et les clés étrangères
+  composites refusent une affectation qui croiserait deux organisations.
+  Voir R16.
+- **La reprise en main d'un compte existant est la seule barrière que le
+  moteur n'applique pas.** Avec la clé de service, rien n'empêche
+  techniquement de réécrire le mot de passe de n'importe qui.
+  `resetStaffPassword` vérifie donc trois conditions CUMULATIVES avant
+  d'écrire : même organisation, rôle `host`, et identifiant fabriqué par la
+  plateforme. Un éditeur affecté à la porte garde le sien, un
+  super-administrateur aussi. C'est le passage à relire en priorité de tout le
+  module.
+- **L'identifiant est FABRIQUÉ, le mot de passe est CHOISI.** Les deux moitiés
+  de la décision se tiennent. L'identifiant est fabriqué parce qu'une hôtesse
+  n'a pas à fournir d'adresse — c'est tout l'intérêt ; il est dérivé du nom
+  saisi, suffixé de quatre caractères tirés de `crypto.getRandomValues` sur un
+  sous-domaine `accueil.` qui ne reçoit aucun courrier. Incrémenter (`marie-2`)
+  aurait obligé à interroger la base pour savoir quel numéro est libre, alors
+  que deux « Marie » sont la règle. Le mot de passe, lui, n'est PAS tiré puis
+  révélé : un secret produit par le serveur devrait revenir à l'écran pour être
+  transmis, donc transiter par une redirection, donc par l'historique du
+  navigateur et les journaux — exactement ce que le jeton d'invitation existe
+  pour éviter. Celui qui crée le compte est celui qui le dicte : l'écran lui
+  propose un mot de passe prononçable, prégarni et modifiable. Conséquence
+  assumée et dite : il ne se relit pas, il se remplace.
+- **Ces deux actions RENDENT un état au lieu de rediriger.** Seules de tout
+  l'espace d'administration, et pour cette raison : la réponse d'un POST ne
+  laisse ni trace d'URL ni ligne de journal, ce qu'une redirection ne peut pas
+  promettre. Le type de cet état vit dans `src/lib/checkin/account.ts` et non
+  dans le fichier d'actions — un module `'use server'` n'exporte que des
+  fonctions asynchrones. Sans JavaScript, le formulaire poste quand même et
+  l'état revient dans la page rendue : le couple s'affiche, le parcours reste
+  entier.
+- **« Pointage » AFFECTE pour de bon, il n'ouvre pas une exception.**
+  L'organisateur n'est pas affecté à ses propres événements — il administre, il
+  ne tient pas la porte — si bien que `/accueil` lui montrait un écran vide.
+  `/admin/pointage` liste donc les événements de l'organisation et crée une
+  vraie ligne `checkin_staff`, sous RLS, par le chemin normal. Élargir les
+  policies aurait profité à tout le monde et pour toujours, là où une
+  affectation se retire ; et la règle du module reste « l'affectation ouvre ».
+  Sans date de fin, délibérément : une expiration posée dans le dos de
+  l'organisateur ferait disparaître son propre poste en plein service. Le
+  journal, lui, dira que c'est bien lui qui pointait.
+- **Le classement du listing papier se choisit AVANT la génération, et devient
+  une COLONNE.** Une liste triée autrement qu'on ne cherche est inutilisable,
+  et on ne s'en aperçoit qu'une fois les pages sorties. Les critères sont les
+  QUESTIONS du formulaire — « Nom », « Prénom », « Société » n'existent pas
+  dans une plateforme générique, c'est la même règle que la désignation de la
+  présence ou du nom. Un paragraphe libre et une case à cocher multiple en sont
+  exclus : ils trient sur une phrase entière ou sur des libellés concaténés,
+  exact et inexploitable. Et la question retenue est IMPRIMÉE, sauf si elle
+  titre déjà la rangée : classer par société sans imprimer la société donne un
+  ordre que personne ne peut vérifier, et qu'on prendrait pour un défaut. Les
+  valeurs absentes ferment la marche, et le tri se départage par le nom puis
+  par l'horodatage — deux homonymes qui changeraient d'ordre d'une impression à
+  l'autre feraient croire la liste incohérente.
+- **Le listing porte le logo de l'organisation, et seule sa HAUTEUR est
+  contrainte.** Une liste nominative circule entre plusieurs mains : elle doit
+  dire de qui elle vient, et le pied de page la redit pour qu'une feuille
+  détachée du paquet reste identifiable. Même raisonnement que `BrandMark` pour
+  la contrainte — un logo est presque toujours plus large que haut, et
+  l'enfermer dans un carré le réduirait à un timbre illisible.
 - **Le jeton seul ne suffit jamais : l'adresse doit concorder.** Un lien se
   transfère, s'oublie dans une boîte partagée, se retrouve dans l'historique
   d'un navigateur prêté. `claim_checkin_invitation` compare donc l'adresse de
@@ -1175,7 +1249,7 @@ figure, avec sa raison et sa condition de lever.
 | R1 | **CSP** : `unsafe-eval` toléré en développement (HMR de Next). Strict avec nonce en préproduction et production. **`img-src` restera ouvert aux origines `https:`** tant que le logo d'organisation pourra être désigné par un lien externe : le restreindre casserait les logos déjà en place. Conséquence assumée et dite dans l'interface — le site qui héberge un logo externe voit passer l'IP de chaque répondant. | Le HMR de Next exige `eval`. Pour `img-src`, l'alternative serait de n'accepter que le dépôt de fichier, ce qui obligerait chaque organisation à dupliquer une image déjà publiée. | N/A pour `unsafe-eval` (limite du framework). Pour `img-src` : si un client exige une CSP stricte, retirer le mode « lien » et rapatrier les logos existants. |
 | R2 | **Rate-limit fail-open** : si le store KV est injoignable, la requête passe (log + alerte), avec un garde-fou mémoire par instance en second rideau. **Pour le pointage, c'est le bon arbitrage et il est assumé** : un hoquet de KV ne doit pas arrêter une file d'attente à l'entrée d'une salle. Le seau `checkin` compte d'ailleurs par UTILISATEUR et non par IP, sans quoi six hôtesses derrière le NAT d'une salle se seraient bloquées entre elles. | Un `fail-closed` transformerait une panne KV en indisponibilité totale des soumissions publiques — et, pour l'accueil, en soirée faite sur papier. | Si un abus réel est constaté, basculer en fail-closed sur `/api/public/submit` uniquement. Jamais sur `/api/checkin`. |
 | R3 | **a11y automatisée en jsdom** (axe-core). La règle `color-contrast` y est **désactivée explicitement** — jsdom n'a pas de moteur de rendu, donc axe ne peut pas la calculer : la laisser active donnerait un faux succès. Les contrastes sont vérifiés pour de vrai par `tests/unit/design-tokens.test.ts` sur les tokens de la charte, et la navigation clavier par `user-event`. Un audit programmatique dans un vrai navigateur (contraste calculé par rasterisation canvas, tailles de cibles, débordement horizontal à 375px) a été rejoué à la main lors de la refonte, mais **il n'est pas en CI**. L'ordre de focus réel dans un navigateur reste non couvert, de même que les **pages** de l'espace d'administration : les tests rendent les composants (éditeur, agrégats, navigation, panneau événement), pas les composants serveur qui les assemblent — et **Leaflet y est remplacé par un double**, jsdom n'ayant ni moteur de rendu ni dimensions : la carte elle-même n'est pas couverte, seul l'est le chemin clavier qui la contourne — ceux-ci n'ont été vérifiés qu'en visiteur non connecté (redirection vers `/connexion`, aucune erreur de rendu). | Playwright + navigateur ajoute plusieurs minutes à chaque CI pour un MVP. | Avant la première revente à un client soumis au RGAA. |
-| R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. | À la remise des accès. |
+| R4 | **Staging Vercel/Supabase, DNS (SPF/DKIM/DMARC), sauvegardes** : documentés dans le README, **non provisionnés**. **Conséquence levée à moitié le 30 octobre 2026** : l'environnement *Preview* de Vercel n'avait jamais reçu `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` ni `NEXT_PUBLIC_SITE_URL` — déclarées pour `production` seulement — si bien qu'AUCUNE prévisualisation n'avait jamais démarré, sur aucune branche, depuis le premier jour. Elles sont désormais partagées avec `preview`, donc **toute prévisualisation lit et écrit la base de PRODUCTION**. C'est un choix explicite du client, pas un oubli. `NEXT_PUBLIC_SITE_URL` a deux valeurs : la production en repli générique, et l'URL réelle de la branche quand elle est renseignée — sans quoi la connexion depuis une prévisualisation renverrait vers la production. `SUPABASE_SERVICE_ROLE_KEY` reste volontairement hors de `preview` : une prévisualisation ne peut donc pas créer de compte de pointage ni réinitialiser un mot de passe. | Nécessite l'accès aux comptes Vercel / Supabase / registrar. Pour les previews : un vrai projet de préproduction demandait de créer un second projet Supabase et d'y rejouer les 31 migrations, pour un besoin immédiat de relecture avant une soirée. | À la remise des accès. Pour les previews : dès qu'un second relecteur travaille sur le projet, ou avant toute démonstration à un client — une prévisualisation qui écrit dans la base réelle n'est pas tenable à plusieurs. |
 | R5 | ~~**`pg_cron`**~~ — **levé**. L'extension est disponible sur le projet cible : les deux purges y sont planifiées et actives (`3 h 17` et `3 h 37`). Les migrations restent tolérantes à son absence, et les purges restent appelables en RPC, pour les environnements qui ne l'ont pas (dont PGlite). | — | Levé le 4 septembre 2026. |
 | R6 | **ESLint 9** alors qu'ESLint 10 existe : `eslint-config-next@15` ne déclare pas la compatibilité ESLint 10. La montée proposée par Dependabot vers `eslint-config-next@16` a été **refusée** : c'est le paquet de configuration de Next 16, et l'installer sans Next 16 fait diverger l'outil du framework qu'il est censé décrire. | Rester sur la stack imposée (Next 15). Outil de développement uniquement, aucune vulnérabilité connue. | À la migration Next 16, où les deux montent ensemble. |
 | R7 | **`postcss` surchargé** en 8.5.26 via `overrides` : Next 15 épingle 8.4.31, vulnérable (GHSA sourceMappingURL / XSS de stringify). Correctif amont = Next 16 (majeure). | Conserver Next 15 tout en gardant `npm audit` à zéro. `postcss` n'est utilisé qu'au build. | À la migration Next 16. |
@@ -1187,6 +1261,7 @@ figure, avec sa raison et sa condition de lever.
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
 | R15 | **Pas de *service worker*.** Le module d'accueil est installable (manifeste, icônes, plein écran, `scope` limité à `/accueil`), mais sans service worker : la coquille ne se charge donc pas hors ligne, et l'install sur Android peut être refusée par Chrome, qui l'exige encore. « Ajouter à l'écran d'accueil » fonctionne sur iOS avec le seul manifeste. | Un service worker s'installe à la racine et SURVIT aux déploiements : un défaut y est global et collant, sur toute la plateforme, pages publiques comprises. Pour un bénéfice modeste — un écran « hors ligne » au lieu du dinosaure — c'est le plus mauvais rapport de la série, et la protection qui compte vraiment (la file locale) n'en a pas besoin. | Si l'install Android devient un besoin réel : un worker strictement *network-only*, à portée `/accueil/`, sans aucune mise en cache de donnée d'invité. |
+| R16 | **Le `service role` dans un chemin déclenché par un administrateur de tenant**, pour créer les comptes de pointage. C'est l'exception la plus lourde de la base de code, et elle contredit la décision du lot 4b, qui avait conçu l'invitation pour l'éviter. Bornée en TypeScript faute de moteur : rôle `host` imposé, organisation lue du profil de l'appelant, reprise en main d'un compte refusée hors des comptes fabriqués, audit systématique — tout cela dans `src/lib/services/checkin-accounts.ts`, le seul fichier à relire pour juger le risque. Les mots de passe ne sont jamais stockés ni relus. | Créer un utilisateur n'existe QUE dans l'API d'administration de Supabase : il n'y a aucun chemin sous RLS, donc aucune alternative. Demande explicite du client, qui a pesé le risque pour un événement d'un soir : faire créer un compte depuis un téléphone, à des hôtesses engagées à la journée, ne se fait pas. | Si la plateforme est revendue à un client dont la politique interdit la création de comptes par un tenant : retirer l'écran, les invitations du lot 4b couvrent alors le besoin, au prix d'une inscription par la personne elle-même. |
 
 ## 7. Commandes
 
@@ -1340,6 +1415,38 @@ npm run build       # build de production
       (`src/lib/checkin/report.ts`), comme `responsePace` et pour la même
       raison. 1874 tests, dont 18 unitaires sur le rapport et 6
       d'accessibilité sur la vue.
+- [x] Module « Accueil », lot 6 — la porte en libre-service (30 octobre
+      2026) : onglet « Pointage » dans la barre latérale et écran
+      `/admin/pointage` qui affecte l'organisateur pour de bon plutôt que
+      d'élargir une policy ; création de comptes de pointage depuis l'écran de
+      préparation, identifiant fabriqué et mot de passe choisi, avec le message
+      d'accès déjà composé ; remise à zéro d'un mot de passe bornée aux seuls
+      comptes fabriqués ; lien du poste copiable ; listing papier au logo de
+      l'organisation, dont le classement se choisit avant génération et devient
+      une colonne. **Aucune migration** : tout tient dans les tables et les
+      policies existantes — seule la création d'un utilisateur sort du RLS, et
+      c’est R16. 1939 tests, dont 43 unitaires sur les deux modules purs
+      (`account.ts`, `print.ts`) et 8 d’accessibilité sur les nouveaux écrans.
+      **Rien à déployer côté base.** La chaîne SQL a néanmoins été rejouée sur
+      le vrai moteur le 30 octobre 2026, dans un bloc se terminant par une
+      exception — la transaction est donc annulée par construction et non par
+      la discipline de l'appelant, et un contrôle d'après coup confirme qu'il
+      ne reste ni compte, ni profil, ni affectation. Six verdicts : le
+      déclencheur pose bien un profil `viewer`/`pending` ; le passage à
+      `host`/`active` franchit `guard_profile_privileges` sans jeton (la
+      branche « contexte serveur de confiance ») ; une organisation incohérente
+      avec celle du sondage est refusée en `23503`, un profil non rattaché
+      aussi ; un compte créé mais NON affecté donne `can_staff_survey = false`,
+      et le même compte affecté donne `true` avec `is_active_member = false` —
+      c'est-à-dire la porte sans l'espace d'administration. **Première
+      rédaction fautive, et c'est la leçon du jour** : le test d'organisation
+      incohérente réutilisait le couple `(sondage, profil)` déjà inséré, si
+      bien qu'il sortait en `23505` — une violation d'UNICITÉ. Il passait, mais
+      pour une raison qui n'était pas celle qu'il prétendait vérifier, et
+      n'aurait rien dit si la clé composite avait disparu. Un test vert qui ne
+      teste pas ce qu'il annonce est pire que pas de test. **Reste non
+      vérifié** : `auth.admin.createUser` lui-même, appel REST qu'aucun harnais
+      ni aucune requête SQL ne peut exercer.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre
