@@ -1,4 +1,6 @@
 import { EmptyState } from '@/components/ui/EmptyState';
+import { StaffPasswordForm } from '@/components/admin/StaffPasswordForm';
+import { identifierLocalPart, isStaffIdentifier, type StaffAccountState } from '@/lib/checkin/account';
 import type { StaffMember } from '@/lib/checkin/readiness';
 import type { OrganisationMember } from '@/lib/services/checkin';
 
@@ -42,6 +44,12 @@ export interface CheckinStaffProps {
   assignable: readonly OrganisationMember[];
   assignAction: (formData: FormData) => void | Promise<void>;
   revokeAction: (formData: FormData) => void | Promise<void>;
+  /** Hôte des identifiants fabriqués : sert à reconnaître un compte de poste. */
+  identifierHost: string;
+  eventTitle: string;
+  deskUrl: string;
+  suggestedPassword: string;
+  resetAction: (state: StaffAccountState, formData: FormData) => Promise<StaffAccountState>;
 }
 
 export function CheckinStaff({
@@ -50,6 +58,11 @@ export function CheckinStaff({
   assignable,
   assignAction,
   revokeAction,
+  identifierHost,
+  eventTitle,
+  deskUrl,
+  suggestedPassword,
+  resetAction,
 }: CheckinStaffProps) {
   return (
     <section className="sp-card">
@@ -72,9 +85,21 @@ export function CheckinStaff({
             <li className="sp-staff__row" key={member.profileId}>
               <span className="sp-staff__who">
                 <span className="sp-staff__name">{nameOf(member)}</span>
+                {/* Pour un compte fabriqué, l'identifiant EST ce qu'on dicte :
+                    il mérite mieux qu'une mention en petits caractères au
+                    milieu d'autres métadonnées. */}
+                {isStaffIdentifier(member.email, identifierHost) && member.email ? (
+                  <span className="sp-staff__login">
+                    <span className="sp-visually-hidden">Identifiant : </span>
+                    <code>{identifierLocalPart(member.email)}</code>
+                    <span className="sp-muted">@{identifierHost}</span>
+                  </span>
+                ) : null}
                 <span className="sp-staff__meta">
                   {[
-                    member.name && member.email ? member.email : null,
+                    member.name && member.email && !isStaffIdentifier(member.email, identifierHost)
+                      ? member.email
+                      : null,
                     member.expiresAt
                       ? `accès jusqu’au ${jour(member.expiresAt)}`
                       : 'accès sans date de fin',
@@ -107,6 +132,22 @@ export function CheckinStaff({
                   </span>
                 </button>
               </form>
+
+              {/* Proposé aux seuls comptes fabriqués : le mot de passe d'un
+                  éditeur affecté à la porte est le sien. */}
+              {isStaffIdentifier(member.email, identifierHost) && member.email ? (
+                <div className="sp-staff__tools">
+                  <StaffPasswordForm
+                    action={resetAction}
+                    deskUrl={deskUrl}
+                    eventTitle={eventTitle}
+                    identifier={member.email}
+                    profileId={member.profileId}
+                    suggestedPassword={suggestedPassword}
+                    surveyId={surveyId}
+                  />
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -162,9 +203,9 @@ export function CheckinStaff({
 
         {assignable.length === 0 ? (
           <p className="sp-hint">
-            Tous les membres actifs de l’organisation sont déjà affectés. Un
-            nouveau compte se crée en s’inscrivant, puis en demandant son
-            rattachement à l’organisation.
+            Tous les membres actifs de l’organisation sont déjà affectés. Pour
+            quelqu’un d’extérieur, créez un compte de pointage ci-dessus — vous
+            lui remettrez son identifiant et son mot de passe directement.
           </p>
         ) : null}
       </form>

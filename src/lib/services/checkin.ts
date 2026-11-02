@@ -623,3 +623,34 @@ export async function claimInvitation(
 /** Réexporté pour que les routes n'aient pas à connaître deux modules. */
 export type { DbError, ResponseRow, SurveyRow };
 export { isNull };
+
+interface RawBrand {
+  name: string;
+  logo_url: string | null;
+}
+
+export interface DeskBrand {
+  readonly name: string;
+  readonly logoUrl: string | null;
+}
+
+/**
+ * Le nom et le logo de l'organisation, pour en-tête du listing papier.
+ *
+ * Lu sous RLS comme tout le reste : `organisations_select` n'ouvre que la
+ * ligne de l'organisation de l'appelant, et un compte d'accueil y est bien
+ * rattaché. Un échec ne vide pas la page — le listing se tire sans logo
+ * plutôt que pas du tout, c'est un papier qu'on attend à l'imprimante.
+ */
+export async function deskBrand(
+  context: RequestContext,
+  organisationId: string,
+): Promise<DeskBrand | null> {
+  const row = await context.port.selectOne<RawBrand>({
+    table: 'organisations',
+    columns: 'name, logo_url',
+    where: [eq('id', organisationId)],
+  });
+  if (row.error) return null;
+  return { name: row.data.name, logoUrl: row.data.logo_url };
+}

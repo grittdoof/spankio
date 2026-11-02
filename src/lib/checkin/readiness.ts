@@ -1,4 +1,4 @@
-import type { AttendanceSettings } from '@/lib/survey/attendance';
+import { identityFieldIds, type AttendanceSettings } from '@/lib/survey/attendance';
 
 /**
  * Ce qui manque pour tenir la porte — dit la VEILLE, pas à 19 h 50.
@@ -161,7 +161,7 @@ export function checkinReadiness(input: ReadinessInput): readonly ReadinessItem[
   }
 
   items.push(
-    input.attendance.identityField
+    identityFieldIds(input.attendance).length > 0
       ? {
           key: 'identity',
           state: 'ok',

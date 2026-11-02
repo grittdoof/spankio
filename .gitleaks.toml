@@ -12,3 +12,20 @@ paths = [
   '''^coverage/''',
   '''^\.vercel/''',
 ]
+
+# Le mot de passe d'exemple des tests du module Accueil.
+#
+# Ce n'est pas un secret : c'est un tirage de `suggestPassword()` figé pour que
+# les tests aient une valeur lisible et stable — un mot de passe regénéré à
+# chaque exécution rendrait les assertions illisibles.
+#
+# L'exemption est bornée aux deux à la fois (`condition = "AND"`) : ces chemins
+# ET cette chaîne précise. La même valeur dans `src/` serait toujours signalée,
+# et tout AUTRE mot de passe apparaissant dans un test l'est aussi. Exclure
+# `tests/` en bloc aurait fermé les yeux sur la prochaine vraie fuite committée
+# dans une fixture, ce qui est exactement ce que ce scan existe pour attraper.
+[[allowlists]]
+description = "Mot de passe d'exemple des tests du module Accueil."
+condition = "AND"
+paths = ['''^tests/''']
+regexes = ['''bako-tire-muso-47''']

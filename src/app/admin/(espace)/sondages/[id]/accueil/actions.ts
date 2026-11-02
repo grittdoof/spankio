@@ -10,6 +10,12 @@ import { logger } from '@/lib/logger';
 import { assignStaff, inviteStaff, revokeInvitation, revokeStaff } from '@/lib/services/checkin';
 import { getSurvey } from '@/lib/services/surveys';
 import { defaultInvitationExpiry, isEmailShape } from '@/lib/checkin/invitation';
+import {
+  isPasswordAcceptable,
+  isStaffLabelShape,
+  type StaffAccountState,
+} from '@/lib/checkin/account';
+import { createStaffAccount, resetStaffPassword } from '@/lib/services/checkin-accounts';
 import { publicEnv } from '@/lib/config/env';
 
 /**
@@ -197,4 +203,132 @@ export async function revokeInvitationAction(formData: FormData): Promise<void> 
 
   revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
   redirect(`/admin/sondages/${surveyId.data}/accueil?fait=invitation-retiree`);
+}
+
+
+/**
+ * Crée un compte de pointage et l'affecte, d'un seul geste.
+ *
+ * Cette action REND un état au lieu de rediriger, contrairement à toutes ses
+ * voisines, et c'est délibéré. L'organisation doit repartir de cet écran avec
+ * le couple identifiant / mot de passe à transmettre ; une redirection ne peut
+ * le porter que dans l'URL, donc dans l'historique du navigateur et les
+ * journaux du serveur — précisément ce que le jeton d'invitation refuse de
+ * faire. La réponse d'un POST, elle, ne laisse aucune de ces traces.
+ *
+ * Le mot de passe est CHOISI par l'organisation, pas tiré puis révélé : celui
+ * qui crée le compte est celui qui le transmet, il l'a déjà sous les yeux.
+ * L'écran se contente de lui en proposer un solide et prononçable.
+ *
+ * Sans JavaScript, le formulaire poste quand même et l'état revient dans la
+ * page rendue : le couple s'affiche, et le parcours reste entier.
+ */
+export async function createStaffAccountAction(
+  _previous: StaffAccountState,
+  formData: FormData,
+): Promise<StaffAccountState> {
+  const surveyId = idSchema.safeParse(trimmedField(formData, 'surveyId'));
+  if (!surveyId.success) redirect('/admin/sondages');
+
+  const label = textFieldOrEmpty(formData, 'label').trim();
+  if (!isStaffLabelShape(label)) {
+    return { status: 'error', message: 'Donnez un nom à ce poste — « Marie », « Entrée principale ».' };
+  }
+
+  const password = textFieldOrEmpty(formData, 'password');
+  if (!isPasswordAcceptable(password)) {
+    return {
+      status: 'error',
+      message: 'Le mot de passe doit faire au moins dix caractères, sans espace au début ni à la fin.',
+    };
+  }
+
+  const { organisationId, userId } = await requireOrganisation();
+  const context = await resolveRequestContext();
+
+  // Le sondage est relu sous RLS : sans ce passage, un identifiant forgé
+  // ferait créer un compte rattaché à l'organisation de l'appelant mais
+  // affecté à l'événement d'une autre — que la clé étrangère composite
+  // refuserait, mais après avoir créé l'utilisateur.
+  const survey = await getSurvey(context, surveyId.data);
+  if (!survey.ok) redirect('/admin/sondages');
+
+  const raw = textFieldOrEmpty(formData, 'expiresOn');
+  const expiresAt = raw === '' ? null : endOfDay(raw);
+  if (raw !== '' && expiresAt === null) {
+    return { status: 'error', message: 'La date de fin n’a pas été comprise.' };
+  }
+
+  const created = await createStaffAccount({
+    organisationId,
+    surveyId: surveyId.data,
+    label,
+    password,
+    expiresAt,
+    siteUrl: publicEnv().NEXT_PUBLIC_SITE_URL,
+    actorId: userId,
+  });
+
+  if (!created.ok) {
+    logger.warn('checkin.account_refused', 'Création de compte refusée.', {
+      code: created.error.code,
+    });
+    return { status: 'error', message: created.error.message };
+  }
+
+  revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
+  return {
+    status: 'created',
+    label,
+    identifier: created.value.identifier,
+    password,
+  };
+}
+
+/**
+ * Remplace le mot de passe d'un compte de pointage.
+ *
+ * Les trois conditions qui rendent ce geste acceptable — même organisation,
+ * rôle `host`, identifiant fabriqué par la plateforme — sont vérifiées dans le
+ * service, pas ici : c'est lui qui tient la clé de service, et c'est donc là
+ * que doit vivre la seule barrière que le moteur n'applique pas.
+ */
+export async function resetStaffPasswordAction(
+  _previous: StaffAccountState,
+  formData: FormData,
+): Promise<StaffAccountState> {
+  const surveyId = idSchema.safeParse(trimmedField(formData, 'surveyId'));
+  const profileId = idSchema.safeParse(trimmedField(formData, 'profileId'));
+  if (!surveyId.success) redirect('/admin/sondages');
+  if (!profileId.success) {
+    return { status: 'error', message: 'Ce compte est introuvable.' };
+  }
+
+  const password = textFieldOrEmpty(formData, 'password');
+  if (!isPasswordAcceptable(password)) {
+    return {
+      status: 'error',
+      message: 'Le mot de passe doit faire au moins dix caractères, sans espace au début ni à la fin.',
+    };
+  }
+
+  const { organisationId, userId } = await requireOrganisation();
+
+  const reset = await resetStaffPassword({
+    profileId: profileId.data,
+    organisationId,
+    password,
+    siteUrl: publicEnv().NEXT_PUBLIC_SITE_URL,
+    actorId: userId,
+  });
+
+  if (!reset.ok) {
+    logger.warn('checkin.password_refused', 'Remise à zéro refusée.', {
+      code: reset.error.code,
+    });
+    return { status: 'error', message: reset.error.message };
+  }
+
+  revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
+  return { status: 'reset', identifier: reset.value.identifier, password };
 }

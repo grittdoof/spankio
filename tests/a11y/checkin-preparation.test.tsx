@@ -4,8 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { CheckinReadiness } from '@/components/admin/CheckinReadiness';
 import { CheckinInvitations } from '@/components/admin/CheckinInvitations';
 import { CheckinStaff } from '@/components/admin/CheckinStaff';
+import { CheckinAccountForm } from '@/components/admin/CheckinAccountForm';
+import { CheckinShare } from '@/components/admin/CheckinShare';
+import { CheckinPrint } from '@/components/admin/CheckinPrint';
 import { Desk } from '@/components/checkin/Desk';
 import { checkinReadiness, type StaffMember } from '@/lib/checkin/readiness';
+import type { StaffAccountState } from '@/lib/checkin/account';
 import type { GuestRow } from '@/lib/survey/guests';
 import { expectNoA11yViolations } from '../helpers/axe';
 
@@ -81,8 +85,13 @@ describe('personnes affectées', () => {
             role: 'host',
           },
         ]}
+        deskUrl="https://exemple.test/accueil/abc"
+        eventTitle="Soirée des 180 ans"
+        identifierHost="accueil.exemple.test"
+        resetAction={() => Promise.resolve({ status: 'idle' as const })}
         revokeAction={() => undefined}
         staff={STAFF}
+        suggestedPassword="bako-tire-muso-47"
         surveyId="abc"
       />,
     );
@@ -246,5 +255,127 @@ describe('invitations à usage unique', () => {
     expect(
       screen.getByRole('button', { name: /Retirer l’invitation de camille@traiteur.test/ }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Comptes de pointage, partage et listing
+// ---------------------------------------------------------------------------
+
+describe('créer un compte de pointage', () => {
+  const DESK = 'https://exemple.test/accueil/abc';
+
+  function renderForm(
+    action: (state: StaffAccountState, formData: FormData) => Promise<StaffAccountState>,
+  ) {
+    return render(
+      <CheckinAccountForm
+        action={action}
+        deskUrl={DESK}
+        eventTitle="Soirée des 180 ans"
+        suggestedPassword="bako-tire-muso-47"
+        surveyId="abc"
+      />,
+    );
+  }
+
+  it('ne présente aucune violation détectable', async () => {
+    const { container } = renderForm(() => Promise.resolve({ status: 'idle' as const }));
+    await expectNoA11yViolations(container);
+  });
+
+  it('propose un mot de passe prêt à dicter, modifiable', () => {
+    renderForm(() => Promise.resolve({ status: 'idle' as const }));
+    const field = screen.getByLabelText('Mot de passe');
+    expect(field).toHaveValue('bako-tire-muso-47');
+    // En clair, délibérément : celui qui crée le compte doit le lire pour le
+    // transmettre. Un champ masqué l'obligerait à le retaper ailleurs.
+    expect(field).toHaveAttribute('type', 'text');
+  });
+
+  it('ne demande aucune adresse électronique', () => {
+    // C'est tout l'intérêt : l'hôtesse n'a rien à fournir.
+    renderForm(() => Promise.resolve({ status: 'idle' as const }));
+    expect(screen.queryByLabelText(/adresse/i)).toBeNull();
+  });
+
+  it('remet le couple complet sous les yeux après création', async () => {
+    const user = userEvent.setup();
+    renderForm(() =>
+      Promise.resolve({
+        status: 'created' as const,
+        label: 'Marie',
+        identifier: 'marie.k3rt@accueil.exemple.test',
+        password: 'bako-tire-muso-47',
+      }),
+    );
+
+    await user.type(screen.getByLabelText('Nom du poste ou de la personne'), 'Marie');
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }));
+
+    // Le message est composé une seule fois, par la même fonction que partout
+    // ailleurs : lien, identifiant et mot de passe, prêts à être transmis.
+    const message = await screen.findByText(/marie\.k3rt@accueil\.exemple\.test/);
+    expect(message.textContent).toContain(DESK);
+    expect(message.textContent).toContain('bako-tire-muso-47');
+  });
+
+  it('dit que le mot de passe ne se réaffichera pas', async () => {
+    const user = userEvent.setup();
+    renderForm(() =>
+      Promise.resolve({
+        status: 'created' as const,
+        label: 'Marie',
+        identifier: 'marie.k3rt@accueil.exemple.test',
+        password: 'bako-tire-muso-47',
+      }),
+    );
+    await user.type(screen.getByLabelText('Nom du poste ou de la personne'), 'Marie');
+    await user.click(screen.getByRole('button', { name: 'Créer le compte' }));
+
+    expect(await screen.findByText(/ne se réaffichera pas/)).toBeInTheDocument();
+  });
+});
+
+describe('partage et listing', () => {
+  it('écrit toujours le lien du poste, sans dépendre du presse-papier', async () => {
+    // Un bouton « Copier » qui serait le seul chemin rendrait le lien
+    // inaccessible là où le presse-papier manque — c'est-à-dire souvent.
+    const { container } = render(
+      <CheckinShare deskUrl="https://exemple.test/accueil/abc" hasAccounts />,
+    );
+    expect(screen.getByText('https://exemple.test/accueil/abc')).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it('fait choisir le classement AVANT de générer', async () => {
+    const { container } = render(
+      <CheckinPrint
+        defaultSort="nom"
+        empty={false}
+        options={[
+          { value: 'inscription', label: 'Ordre d’inscription' },
+          { value: 'nom', label: 'Nom' },
+          { value: 'societe', label: 'Société' },
+        ]}
+        surveyId="abc"
+      />,
+    );
+
+    expect(screen.getByLabelText('Classer les invités par')).toHaveValue('nom');
+    expect(screen.getByRole('button', { name: 'Imprimer le listing' })).toBeEnabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it('n’offre pas d’imprimer une liste vide', () => {
+    render(
+      <CheckinPrint
+        defaultSort="inscription"
+        empty
+        options={[{ value: 'inscription', label: 'Ordre d’inscription' }]}
+        surveyId="abc"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Imprimer le listing' })).toBeDisabled();
   });
 });

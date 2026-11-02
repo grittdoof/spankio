@@ -5,15 +5,28 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { CheckinReadiness } from '@/components/admin/CheckinReadiness';
 import { CheckinInvitations } from '@/components/admin/CheckinInvitations';
 import { CheckinStaff } from '@/components/admin/CheckinStaff';
+import { CheckinAccountForm } from '@/components/admin/CheckinAccountForm';
+import { CheckinShare } from '@/components/admin/CheckinShare';
+import { CheckinPrint } from '@/components/admin/CheckinPrint';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { checkinReadiness } from '@/lib/checkin/readiness';
 import { listAssignableMembers, listInvitations, listStaff } from '@/lib/services/checkin';
-import { getSurvey, listResponses } from '@/lib/services/surveys';
+import { getSurvey, listResponses, parseSurveySchema } from '@/lib/services/surveys';
+import {
+  deskUrl,
+  isStaffIdentifier,
+  staffIdentifierHost,
+  suggestPassword,
+} from '@/lib/checkin/account';
+import { parsePrintSort, printSortOptions } from '@/lib/checkin/print';
+import { publicEnv } from '@/lib/config/env';
 import { surveySettingsSchema } from '@/lib/survey/settings';
 import {
   assignStaffAction,
+  createStaffAccountAction,
   inviteStaffAction,
+  resetStaffPasswordAction,
   revokeInvitationAction,
   revokeStaffAction,
 } from './actions';
@@ -106,6 +119,22 @@ export default async function CheckinPreparationPage({
   const assigned = new Set(staff.value.map((member) => member.profileId));
   const assignable = members.value.filter((member) => !assigned.has(member.profileId));
 
+  const site = publicEnv().NEXT_PUBLIC_SITE_URL;
+  const host = staffIdentifierHost(site);
+  const url = deskUrl(site, id);
+  // Une suggestion fraîche à chaque rendu : le même mot de passe proposé deux
+  // fois de suite finirait par être réutilisé sur deux comptes.
+  const suggested = suggestPassword();
+  const hasAccounts = staff.value.some((member) => isStaffIdentifier(member.email, host));
+
+  // Le classement du listing se choisit sur CE schéma : les critères sont les
+  // questions posées, jamais une liste en dur.
+  const schema = parseSurveySchema(survey.value);
+  const sortOptions = schema.ok ? printSortOptions(schema.value) : [];
+  const defaultSort = schema.ok
+    ? parsePrintSort(undefined, schema.value, attendance)
+    : 'inscription';
+
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>
       <PageHeader
@@ -120,8 +149,13 @@ export default async function CheckinPreparationPage({
             <Link className="sp-btn sp-btn--outline" href={`/accueil/${id}?essai=1`}>
               Essai à blanc
             </Link>
-            <Link className="sp-btn sp-btn--outline" href={`/accueil/${id}/impression`}>
-              Liste de secours
+            <Link
+              className="sp-btn sp-btn--outline"
+              href={`/accueil/${id}/impression`}
+              rel="noopener"
+              target="_blank"
+            >
+              Imprimer le listing
             </Link>
           </>
         }
@@ -132,11 +166,33 @@ export default async function CheckinPreparationPage({
 
       <CheckinReadiness items={readiness} settingsHref={`/admin/sondages/${id}/evenement`} />
 
+      <CheckinShare deskUrl={url} hasAccounts={hasAccounts} />
+
+      <CheckinPrint
+        defaultSort={defaultSort}
+        empty={responses.value.length === 0}
+        options={sortOptions}
+        surveyId={id}
+      />
+
+      <CheckinAccountForm
+        action={createStaffAccountAction}
+        deskUrl={url}
+        eventTitle={survey.value.title}
+        suggestedPassword={suggested}
+        surveyId={id}
+      />
+
       <CheckinStaff
         assignAction={assignStaffAction}
         assignable={assignable}
+        deskUrl={url}
+        eventTitle={survey.value.title}
+        identifierHost={host}
+        resetAction={resetStaffPasswordAction}
         revokeAction={revokeStaffAction}
         staff={staff.value}
+        suggestedPassword={suggested}
         surveyId={id}
       />
 
