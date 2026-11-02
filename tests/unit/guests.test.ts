@@ -241,3 +241,53 @@ describe('sans désignation', () => {
     expect(list.rows[0]!.people).toBe(1);
   });
 });
+
+describe('nom composé sur plusieurs questions', () => {
+  const twoPart: AttendanceSettings = {
+    ...SETTINGS,
+    identityFields: ['nom', 'societe'],
+    identityField: undefined,
+  };
+
+  function nameFor(settings: AttendanceSettings, data: Record<string, unknown>): string | null {
+    const rows = guestList(schema, settings, [
+      { id: 'r1', submitted_at: '2026-11-01T10:00:00.000Z', data },
+    ]).rows;
+    return rows[0]?.name ?? null;
+  }
+
+  it('joint les réponses désignées, dans l’ordre', () => {
+    // C'est le besoin réel : un formulaire qui demande le nom et le prénom
+    // séparément doit titrer « Dupont Spie batignolles », pas l'un des deux.
+    expect(nameFor(twoPart, { nom: 'Dupont', societe: 'option_1' })).toBe(
+      'Dupont Spie batignolles',
+    );
+  });
+
+  it('saute une réponse vide au lieu de laisser un blanc', () => {
+    expect(nameFor(twoPart, { nom: 'Dupont' })).toBe('Dupont');
+    expect(nameFor(twoPart, { societe: 'option_1' })).toBe('Spie batignolles');
+  });
+
+  it('ne nomme rien quand aucune des questions n’a de réponse', () => {
+    expect(nameFor(twoPart, {})).toBeNull();
+  });
+
+  it('prend les initiales du nom COMPOSÉ', () => {
+    // « DS » et non « DD » : la pastille doit suivre ce qui est affiché.
+    const rows = guestList(schema, twoPart, [
+      { id: 'r1', submitted_at: '2026-11-01T10:00:00.000Z', data: { nom: 'Dupont', societe: 'option_2' } },
+    ]).rows;
+    expect(rows[0]?.initials).toBe('DV');
+  });
+
+  it('continue d’honorer la désignation historique', () => {
+    expect(nameFor({ ...SETTINGS }, { nom: 'Dupont', societe: 'option_1' })).toBe('Dupont');
+  });
+
+  it('ignore une question désignée qui n’existe plus au schéma', () => {
+    // Même règle que partout : muet plutôt que faux.
+    const orphan: AttendanceSettings = { ...SETTINGS, identityFields: ['nom', 'disparue'] };
+    expect(nameFor(orphan, { nom: 'Dupont' })).toBe('Dupont');
+  });
+});

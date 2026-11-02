@@ -1,6 +1,7 @@
 import {
   attendanceOf,
   fieldById,
+  identityFieldsOf,
   partyQuestion,
   type AttendanceSettings,
   type AttendanceStatus,
@@ -15,8 +16,11 @@ import { otherKey, type SurveySchema } from './schema';
  *
  *  1. **Le nom d'un invité est DÉSIGNÉ, jamais devine.** La plateforme est
  *     générique : « Nom et prénom » n'existe pas plus que « Société ». Sans
- *     désignation (`attendance.identityField`), la rangée est titrée par son
- *     horodatage — exactement ce que fait déjà le tableau des réponses.
+ *     désignation (`attendance.identityFields`), la rangée est titrée par son
+ *     horodatage — exactement ce que fait déjà le tableau des réponses. La
+ *     désignation en porte PLUSIEURS, dans l'ordre : un formulaire qui demande
+ *     le nom et le prénom séparément doit pouvoir titrer « Marie Dupont », et
+ *     non choisir lequel des deux sacrifier.
  *  2. **Aucun champ libre n'est agrégé pour autant.** Cette liste montre des
  *     réponses une par une, ce qui est sa raison d'être ; elle ne produit
  *     aucune statistique sur leur contenu.
@@ -146,7 +150,7 @@ export function guestList(
   options: GuestListOptions = {},
 ): GuestList {
   const party = partyQuestion(schema, settings);
-  const identityField = fieldById(schema, settings.identityField);
+  const identityFields = identityFieldsOf(schema, settings);
   const detailField = fieldById(schema, settings.detailField);
 
   const filter = options.filter ?? 'all';
@@ -170,7 +174,12 @@ export function guestList(
       continue;
     }
 
-    const name = identityField ? answerText(identityField, response.data) : null;
+    // Les réponses vides sont SAUTÉES, pas rendues par un blanc : un invité
+    // qui n'a pas donné son prénom doit s'appeler « Dupont », jamais « Dupont ».
+    const parts = identityFields
+      .map((field) => answerText(field, response.data))
+      .filter((part): part is string => part !== null && part !== '');
+    const name = parts.length > 0 ? parts.join(' ') : null;
     rows.push({
       id: response.id,
       submittedAt: response.submitted_at,

@@ -64,6 +64,29 @@ export const attendanceSettingsSchema = z.object({
    * laquelle des questions porte un nom, elle est désignée.
    */
   identityField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
+  /**
+   * Questions dont les réponses COMPOSENT le nom affiché, dans l'ordre.
+   *
+   * Une seule question ne suffit pas : un formulaire qui demande « Quel est
+   * votre nom ? » et « Quel est votre prénom ? » séparément — ce qui est le
+   * cas courant — ne pouvait titrer la rangée que par l'un des deux, et le
+   * second disparaissait de l'écran d'accueil. Or on cherche « Marie Dupont »
+   * à une porte, pas « Dupont ». Pousser le prénom dans `detailField` n'était
+   * pas une issue : cette ligne-là porte déjà la société.
+   *
+   * Reste une DÉSIGNATION, comme tout le reste : la plateforme ne devine pas
+   * qu'une question contient un prénom, et l'ORDRE est celui que
+   * l'organisation choisit — « Marie Dupont » ou « Dupont Marie » ne se
+   * cherchent pas de la même façon selon les usages.
+   *
+   * `identityField` reste lu quand cette liste est absente ou vide : les
+   * formulaires créés avant ce réglage continuent de fonctionner sans
+   * migration, et les modèles d'événement l'écrivent toujours.
+   */
+  identityFields: z
+    .array(z.string().trim().max(MAX_LENGTHS.identifier))
+    .max(3)
+    .optional(),
   /** Seconde question affichée sous le nom dans la liste (société, e-mail…). */
   detailField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
 });
@@ -199,6 +222,45 @@ export function detailCandidates(schema: SurveySchema): SurveyField[] {
       field.type === 'select' ||
       field.type === 'radio',
   );
+}
+
+/**
+ * Les questions qui composent le nom, dans l'ordre, sans doublon.
+ *
+ * Une seule lecture de la désignation pour toute l'application — l'écran
+ * d'accueil, le listing papier, le tableau des réponses et l'état de
+ * préparation. Deux lectures auraient fini par afficher un prénom d'un côté
+ * et pas de l'autre.
+ *
+ * Le repli sur `identityField` n'est pas une politesse : c'est ce qui permet
+ * d'ajouter ce réglage sans migration ni reprise des formulaires existants.
+ */
+export function identityFieldIds(settings: AttendanceSettings): readonly string[] {
+  const listed = (settings.identityFields ?? [])
+    .map((id) => id.trim())
+    .filter((id) => id !== '');
+  if (listed.length > 0) return [...new Set(listed)];
+  const legacy = settings.identityField?.trim();
+  return legacy ? [legacy] : [];
+}
+
+/**
+ * Les mêmes, résolues en questions réelles du schéma.
+ *
+ * Une désignation qui ne correspond à aucune question est IGNORÉE, pas
+ * signalée ici : c'est la règle de toutes les désignations du module — muet
+ * plutôt que faux. L'écran de préparation, lui, le dit.
+ */
+export function identityFieldsOf(
+  schema: SurveySchema,
+  settings: AttendanceSettings,
+): readonly SurveyField[] {
+  const fields: SurveyField[] = [];
+  for (const id of identityFieldIds(settings)) {
+    const field = fieldById(schema, id);
+    if (field) fields.push(field);
+  }
+  return fields;
 }
 
 export function fieldById(

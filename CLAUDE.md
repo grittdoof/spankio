@@ -283,11 +283,26 @@ changer.
   capacité d'un événement est un réglage FACULTATIF (`attendance.capacity`) :
   sans elle, l'écran affiche l'effectif attendu et rien d'autre — pas de taux
   de remplissage calculé sur un total inventé, pas de « places libres ».
-- **Le nom d'un invité est DÉSIGNÉ, comme sa présence.** « Nom et prénom »
-  n'existe pas plus que « Société » dans une plateforme générique :
-  `attendance.identityField` et `attendance.detailField` disent quelles
-  questions titrent et précisent une rangée. Sans désignation, la rangée est
-  titrée par son horodatage — exact, et l'écran dit comment faire mieux.
+- **Le nom d'un invité est DÉSIGNÉ, comme sa présence — et il se COMPOSE.**
+  « Nom et prénom » n'existe pas plus que « Société » dans une plateforme
+  générique : `attendance.identityFields` et `attendance.detailField` disent
+  quelles questions titrent et précisent une rangée. Sans désignation, la
+  rangée est titrée par son horodatage — exact, et l'écran dit comment faire
+  mieux. **La désignation en porte plusieurs, dans l'ORDRE** : défaut réel
+  signalé en production, un formulaire demandait « Quel est votre nom ? » et
+  « Quel est votre prénom ? » séparément, et le poste d'accueil ne pouvait
+  titrer que par l'un des deux — le prénom n'apparaissait nulle part, puisque
+  la ligne de détail portait déjà la société. Reporter le prénom dans
+  `detailField` aurait obligé à sacrifier la société ; on cherche « Marie
+  Dupont » à une porte, pas « Dupont ». L'ordre est choisi, pas imposé : il
+  décide de ce qu'on lit en premier, et donc de la façon dont on cherche.
+  Une réponse vide est SAUTÉE, jamais rendue par un blanc, et une question
+  disparue du schéma est ignorée — muet plutôt que faux, comme toutes les
+  autres désignations. `identityField` (au singulier) reste lu quand la liste
+  est absente : le réglage s'ajoute sans migration ni reprise des formulaires
+  existants, puisqu'il vit dans un `jsonb`. Une seule lecture pour toute
+  l'application (`identityFieldIds`), sinon le prénom finirait par s'afficher
+  à l'accueil et pas sur le listing papier.
 - **Les invités se suppriment par SÉLECTION, jamais rangée par rangée.**
   Demande du client. Toutes les cases portent le même nom (`responseId`), le
   navigateur envoie la sélection entière et `getAll` la relit : l'écran continue
@@ -1447,6 +1462,16 @@ npm run build       # build de production
       teste pas ce qu'il annonce est pire que pas de test. **Reste non
       vérifié** : `auth.admin.createUser` lui-même, appel REST qu'aucun harnais
       ni aucune requête SQL ne peut exercer.
+- [x] Module « Accueil », lot 6 bis — le nom composé (2 novembre 2026) :
+      `attendance.identityFields` remplace la désignation unique, et le titre
+      d'une rangée se compose d'une à deux questions dans l'ordre choisi.
+      Défaut signalé à l'usage : un formulaire qui demande le nom et le prénom
+      séparément ne pouvait afficher que l'un des deux au poste d'accueil.
+      Aucune migration, aucun formulaire à reprendre — la désignation vit dans
+      un `jsonb` et le réglage au singulier reste lu. Une seule lecture
+      (`identityFieldIds`) sert au poste, au listing papier, au tableau des
+      réponses, à l'écran de correction et à l'état de préparation. 1954 tests,
+      dont 15 ajoutés sur la composition et son repli.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

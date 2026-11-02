@@ -10,6 +10,7 @@ import { availableTimeZones, isoToWallClock, wallClockToIso } from '@/lib/event/
 import {
   detailCandidates,
   identityCandidates,
+  identityFieldIds,
   partyCandidates,
   effectivePartyMode,
   partyModesFor,
@@ -203,6 +204,29 @@ export function EventSettings({
   };
   const identityOptions = identityCandidates(schema);
   const detailOptions = detailCandidates(schema);
+
+  /**
+   * Le nom affiché se compose d'une à deux questions, dans l'ordre.
+   *
+   * Écrire les deux désignations ensemble, et EFFACER le réglage historique
+   * au passage : deux sources pour la même chose finiraient par diverger, et
+   * c'est toujours la périmée qu'on finit par lire. Vider la première vide
+   * aussi la seconde — « complète le nom » sans nom ne veut rien dire.
+   */
+  const identityIds = identityFieldIds(draft.attendance);
+  const primaryIdentity = identityIds[0] ?? '';
+  const secondaryIdentity = identityIds[1] ?? '';
+
+  function setIdentity(primary: string, secondary: string): void {
+    const list = primary === '' ? [] : [primary, secondary].filter((id) => id !== '');
+    patch({
+      attendance: {
+        ...draft.attendance,
+        identityFields: list.length > 0 ? list : undefined,
+        identityField: undefined,
+      },
+    });
+  }
   const presenceValueOptions = presenceValues(schema, draft.attendance.presenceField);
 
   /**
@@ -694,17 +718,8 @@ export function EventSettings({
                 <select
                   {...attributes}
                   className="sp-select"
-                  onChange={(event) =>
-                    patch({
-                      attendance: {
-                        ...draft.attendance,
-                        ...(event.target.value
-                          ? { identityField: event.target.value }
-                          : { identityField: undefined }),
-                      },
-                    })
-                  }
-                  value={draft.attendance.identityField ?? ''}
+                  onChange={(event) => setIdentity(event.target.value, secondaryIdentity)}
+                  value={primaryIdentity}
                 >
                   <option value="">Titrer les rangées par leur date</option>
                   {identityOptions.map((field) => (
@@ -712,6 +727,35 @@ export function EventSettings({
                       {field.label}
                     </option>
                   ))}
+                </select>
+              )}
+            </Field>
+
+            {/* Un formulaire qui demande le nom et le prénom séparément ne
+                peut pas titrer la rangée par l'un des deux : à une porte on
+                cherche « Marie Dupont ». L'ordre est celui qu'on choisit
+                ici — il décide de ce qu'on lit en premier dans la liste. */}
+            <Field
+              hint="Facultatif. Ajoutée au nom, dans cet ordre : « Dupont » puis « Marie » donne « Dupont Marie »."
+              id="evt-identite-2"
+              label="Question qui complète le nom"
+            >
+              {(attributes) => (
+                <select
+                  {...attributes}
+                  className="sp-select"
+                  disabled={primaryIdentity === ''}
+                  onChange={(event) => setIdentity(primaryIdentity, event.target.value)}
+                  value={secondaryIdentity}
+                >
+                  <option value="">Aucune</option>
+                  {identityOptions
+                    .filter((field) => field.id !== primaryIdentity)
+                    .map((field) => (
+                      <option key={field.id} value={field.id}>
+                        {field.label}
+                      </option>
+                    ))}
                 </select>
               )}
             </Field>
@@ -739,7 +783,7 @@ export function EventSettings({
                 >
                   <option value="">Aucune</option>
                   {detailOptions
-                    .filter((field) => field.id !== draft.attendance.identityField)
+                    .filter((field) => !identityIds.includes(field.id))
                     .map((field) => (
                       <option key={field.id} value={field.id}>
                         {field.label}

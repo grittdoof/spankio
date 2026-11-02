@@ -3,6 +3,7 @@ import {
   attendanceOf,
   effectivePartyMode,
   hasDeclined,
+  identityFieldIds,
   partyModesFor,
   partyQuestion,
   attendanceRows,
@@ -642,5 +643,34 @@ describe('refus d’une invitation', () => {
     for (const answers of [{}, { presence: '' }, { presence: null }]) {
       expect(hasDeclined(BASE, answers)).toBe(false);
     }
+  });
+});
+
+describe('identityFieldIds', () => {
+  it('lit la liste quand elle existe, dans l’ordre', () => {
+    expect(identityFieldIds({ identityFields: ['nom', 'prenom'] })).toEqual(['nom', 'prenom']);
+  });
+
+  it('retombe sur la désignation historique', () => {
+    // Sans ce repli, tous les formulaires créés avant ce réglage perdraient
+    // le nom de leurs invités du jour au lendemain, sans migration possible
+    // puisque la désignation vit dans un jsonb.
+    expect(identityFieldIds({ identityField: 'nom' })).toEqual(['nom']);
+  });
+
+  it('préfère la liste à la désignation historique', () => {
+    expect(
+      identityFieldIds({ identityField: 'ancien', identityFields: ['nom', 'prenom'] }),
+    ).toEqual(['nom', 'prenom']);
+  });
+
+  it('ignore une liste vide, des blancs et des doublons', () => {
+    expect(identityFieldIds({ identityFields: [], identityField: 'nom' })).toEqual(['nom']);
+    expect(identityFieldIds({ identityFields: ['  ', ''], identityField: 'nom' })).toEqual(['nom']);
+    expect(identityFieldIds({ identityFields: ['nom', 'nom'] })).toEqual(['nom']);
+  });
+
+  it('ne désigne rien quand rien n’est désigné', () => {
+    expect(identityFieldIds({})).toEqual([]);
   });
 });

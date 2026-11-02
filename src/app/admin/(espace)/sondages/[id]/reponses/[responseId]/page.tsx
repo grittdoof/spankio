@@ -13,7 +13,7 @@ import {
   listResponses,
   parseSurveySchema,
 } from '@/lib/services/surveys';
-import { fieldById } from '@/lib/survey/attendance';
+import { identityFieldsOf } from '@/lib/survey/attendance';
 import { answerText } from '@/lib/survey/answer-text';
 import { validateSurveySettings } from '@/lib/survey/settings';
 import { ResponseEditorClient } from './ResponseEditorClient';
@@ -65,8 +65,12 @@ export default async function CorrectResponsePage({
   // Arnoult » se lit mieux qu'un identifiant.
   const settings = validateSurveySettings(survey.value.settings);
   const attendance = settings.ok ? (settings.settings.attendance ?? {}) : {};
-  const identity = fieldById(schema.value, attendance.identityField);
-  const name = identity ? answerText(identity, response.data) : null;
+  // La MÊME composition que la liste d'accueil : « Corriger la réponse de
+  // Marie Dupont » doit nommer la personne comme l'écran d'où l'on vient.
+  const parts = identityFieldsOf(schema.value, attendance)
+    .map((field) => answerText(field, response.data))
+    .filter((part): part is string => part !== null && part !== '');
+  const name = parts.length > 0 ? parts.join(' ') : null;
 
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>

@@ -31,6 +31,7 @@ import {
 import {
   countAttendance,
   fieldById,
+  identityFieldsOf,
   isAttendanceConfigured,
 } from '@/lib/survey/attendance';
 import { guestList } from '@/lib/survey/guests';
@@ -346,7 +347,7 @@ export default async function SurveyStatisticsPage({
                   counting={counting}
                   deleteSelectionAction={deleteResponsesAction}
                   list={list}
-                  named={Boolean(fieldById(schema.value, attendance.identityField))}
+                  named={identityFieldsOf(schema.value, attendance).length > 0}
                   rows={rows}
                   settingsHref={settingsHref}
                   surveyId={survey.value.id}

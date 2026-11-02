@@ -1,4 +1,8 @@
-import { fieldById, type AttendanceSettings } from '@/lib/survey/attendance';
+import {
+  fieldById,
+  identityFieldIds,
+  type AttendanceSettings,
+} from '@/lib/survey/attendance';
 import { answerText } from '@/lib/survey/answer-text';
 import type { SurveyField, SurveySchema } from '@/lib/survey/schema';
 import type { GuestResponse, GuestRow } from '@/lib/survey/guests';
@@ -75,7 +79,7 @@ export function parsePrintSort(
   if (raw !== undefined && options.some((option) => option.value === raw)) return raw;
   // Sans choix explicite, le nom désigné — c'est ce qu'on cherche à une porte.
   // Faute de désignation, l'ordre d'inscription, qui n'invente rien.
-  const identity = attendance.identityField;
+  const [identity] = identityFieldIds(attendance);
   if (identity && options.some((option) => option.value === identity)) return identity;
   return PRINT_SORT_SUBMITTED;
 }
@@ -136,7 +140,7 @@ export function printList(
   // question qui titre déjà la rangée n'appelle pas une seconde colonne.
   const alreadyShown =
     field === null ||
-    field.id === attendance.identityField ||
+    identityFieldIds(attendance).includes(field.id) ||
     field.id === attendance.detailField;
 
   const decorated = rows.map((row) => {

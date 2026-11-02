@@ -176,3 +176,37 @@ describe('printList', () => {
     }
   });
 });
+
+describe('classement quand le nom est composé de deux questions', () => {
+  const composed: AttendanceSettings = {
+    identityFields: ['nom', 'prenom'],
+    detailField: 'societe',
+  };
+
+  it('classe par défaut sur la PREMIÈRE question du nom', () => {
+    expect(parsePrintSort(undefined, schema, composed)).toBe('nom');
+  });
+
+  it('n’ajoute pas de colonne pour une question déjà dans le nom', () => {
+    // « Prénom » est imprimé dans le titre de la rangée : le répéter en
+    // colonne n'apprendrait rien et volerait de la largeur au papier.
+    const rows = guestList(schema, composed, RESPONSES).rows;
+    expect(printList(schema, composed, rows, RESPONSES, 'prenom').sortColumn).toBeNull();
+    expect(printList(schema, composed, rows, RESPONSES, 'nom').sortColumn).toBeNull();
+  });
+
+  it('ajoute toujours la colonne d’une question extérieure au nom', () => {
+    const rows = guestList(schema, composed, RESPONSES).rows;
+    expect(printList(schema, composed, rows, RESPONSES, 'salle').sortColumn).toBe('Salle');
+  });
+
+  it('imprime le nom composé dans la rangée', () => {
+    const rows = guestList(schema, composed, RESPONSES).rows;
+    const printed = printList(schema, composed, rows, RESPONSES, 'nom');
+    expect(printed.rows.map(({ row }) => row.name)).toEqual([
+      'Arnaud Bea',
+      'Michel Ana',
+      'Zola Émile',
+    ]);
+  });
+});
