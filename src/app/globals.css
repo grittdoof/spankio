@@ -4349,7 +4349,12 @@ summary.sp-btn::-webkit-details-marker {
 }
 
 .sp-desk__head {
+  /* `relative` : l'accès au papier se pose dans le coin, sans disputer sa
+     ligne au compteur de salle. */
+  position: relative;
   padding: var(--sp-space-4);
+  /* Place réservée à droite, sinon un titre long passerait sous l'icône. */
+  padding-right: calc(44px + var(--sp-space-4));
   border-radius: var(--sp-radius-lg);
   background: var(--sp-accent-light);
 }
@@ -4901,12 +4906,84 @@ summary.sp-btn::-webkit-details-marker {
   color: var(--sp-text);
 }
 
-/* Le sélecteur d'événements de l'espace d'administration : un titre, puis les
-   actions. Il réutilise la liste du poste, qui n'avait qu'un lien par rangée. */
-.sp-desk__picker-title {
-  flex: 1;
-  min-width: 12rem;
+/* ---------------------------------------------------------------------------
+   Choix de l'événement à pointer
+   ---------------------------------------------------------------------------
+   Première version faite en réutilisant la liste du poste, qui n'attendait
+   qu'UN lien par rangée : les boutons chevauchaient les titres et deux
+   rangées sur quatre ne se ressemblaient pas. Leçon retenue — une liste dont
+   les rangées portent un texte ET des actions a besoin de ses deux colonnes
+   déclarées, pas d'un `flex` hérité d'un autre usage.
+   --------------------------------------------------------------------------- */
+
+.sp-eventpick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-eventpick__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-space-4);
+  flex-wrap: wrap;
+  padding: var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
+}
+
+/* `min-width: 0` sur une colonne flex : sans lui, un titre long refuse de se
+   couper et pousse les actions hors de la carte — c'est exactement ce qui
+   faisait chevaucher le bouton et le titre. */
+.sp-eventpick__text {
+  display: flex;
+  flex: 1 1 16rem;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-space-1);
+}
+
+.sp-eventpick__name {
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sp-eventpick__meta {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-eventpick__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-2);
+  flex: none;
+}
+
+/* Sous 40rem, les actions passent sous le texte et le bouton principal prend
+   toute la largeur : viser un bouton à côté d'un titre tronqué, sur un
+   téléphone, est une source d'erreur. */
+@media (max-width: 40rem) {
+  .sp-eventpick__actions {
+    width: 100%;
+  }
+
+  .sp-eventpick__actions > form {
+    flex: 1;
+  }
+
+  .sp-eventpick__actions > form > .sp-btn {
+    width: 100%;
+  }
+
+  .sp-eventpick__actions > .sp-btn--primary {
+    flex: 1;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -4990,5 +5067,35 @@ summary.sp-btn::-webkit-details-marker {
   .sp-print__foot {
     position: fixed;
     bottom: 0;
+  }
+}
+
+/* L'accès au papier depuis le poste : discret, mais jamais hors d'atteinte.
+   Le dessin fait 20px, la cible 44px — même arrangement que le déclencheur
+   d'aide contextuelle, et pour la même raison : une icône de 44px écraserait
+   le compteur de salle, qui est l'information principale de cet écran. */
+.sp-desk__print {
+  position: absolute;
+  top: var(--sp-space-3);
+  right: var(--sp-space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--sp-radius-sm);
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity var(--sp-transition);
+}
+
+.sp-desk__print:hover,
+.sp-desk__print:focus-visible {
+  opacity: 1;
+}
+
+@media print {
+  .sp-desk__print {
+    display: none;
   }
 }

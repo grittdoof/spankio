@@ -313,6 +313,28 @@ export function Desk(props: DeskProps) {
         </p>
       ) : null}
       <header className="sp-desk__head">
+        {/* L'imprimante vivait dans le pied de page, SOUS la liste entière :
+            sur cent cinquante rangées, personne n'y descend jamais. Elle est
+            donc en tête, discrète — une icône, pas un bouton qui dispute la
+            place au compteur — et toujours atteignable. Elle ouvre un onglet
+            à part pour ne pas quitter le poste en plein service. */}
+        <a
+          className="sp-desk__print"
+          href={printHref}
+          rel="noopener"
+          target="_blank"
+        >
+          <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
+            <path
+              d="M7 9V4h10v5M7 19H6a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1M7 15h10v5H7v-5Z"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.8"
+            />
+          </svg>
+          <span className="sp-visually-hidden">Imprimer la liste de secours</span>
+        </a>
         <p className="sp-desk__title">{title}</p>
         <p className="sp-desk__count">
           <strong>{totals.inRoom}</strong>
@@ -430,9 +452,6 @@ export function Desk(props: DeskProps) {
       )}
 
       <footer className="sp-desk__foot">
-        <a className="sp-btn sp-btn--ghost" href={printHref}>
-          Liste de secours à imprimer
-        </a>
         <span className="sp-muted">
           {totals.arrived} arrivé{totals.arrived > 1 ? 's' : ''} sur {list.rows.length}
         </span>
