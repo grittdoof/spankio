@@ -235,3 +235,62 @@ describe('poste d’accueil', () => {
     expect(screen.getByText(/nombre d’accompagnants à vérifier/)).toBeInTheDocument();
   });
 });
+
+describe('ce que le poste retrouve au rechargement', () => {
+  /**
+   * Défaut signalé en production, et le plus déroutant de la série : une
+   * hôtesse pointe, rafraîchit la page, et tout le monde repasse « Attendu ».
+   * Repointer donnait alors « un autre poste vient de modifier cette rangée »
+   * alors que personne d'autre n'y avait touché — l'écran annonçait la
+   * version 0 sur une ligne déjà en version 1.
+   *
+   * La cause était une indexation recopiée : par `responseId` seul ici, par
+   * `réponse#siège` partout ailleurs.
+   */
+  function renderWith(states: { responseId: string; seat: number }[]) {
+    return render(
+      <Desk
+        counting
+        guests={GUESTS}
+        initialStates={states.map(({ responseId, seat }) => ({
+          responseId,
+          seat,
+          arrivedAt: '2026-11-18T19:05:00.000Z',
+          version: 1,
+          updatedAt: '2026-11-18T19:05:00.000Z',
+        }))}
+        printHref="/accueil/abc/impression"
+        surveyId="abc"
+        title="Soirée des 180 ans"
+      />,
+    );
+  }
+
+  it('affiche « Arrivé » pour une personne déjà pointée', () => {
+    renderWith([{ responseId: GUESTS[0]!.id, seat: 0 }]);
+    const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
+    expect(within(row).getByText('Arrivé')).toBeInTheDocument();
+  });
+
+  it('distingue le siège de l’hôte de celui de son accompagnante', () => {
+    // L'accompagnante est pointée, pas l'hôte : confondre les deux sièges
+    // ferait entrer quelqu'un qui n'est pas là.
+    renderWith([{ responseId: GUESTS[0]!.id, seat: 1 }]);
+
+    const host = screen.getByRole('button', { name: /^Élodie Marchand/ });
+    const companion = screen.getByRole('button', { name: /Jacqueline Marchand/ });
+    expect(within(host).getByText('Attendu')).toBeInTheDocument();
+    expect(within(companion).getByText('Arrivé')).toBeInTheDocument();
+  });
+
+  it('compte les arrivées retrouvées dans le compteur de salle', () => {
+    renderWith([
+      { responseId: GUESTS[0]!.id, seat: 0 },
+      { responseId: GUESTS[0]!.id, seat: 1 },
+    ]);
+    // Le compteur de salle, pas les pastilles de filtre : « 2 » tout seul
+    // apparaît à plusieurs endroits de l'écran.
+    const counter = screen.getByText(/personnes présentes/).closest('p');
+    expect(counter?.textContent).toMatch(/^2\s*personnes présentes/);
+  });
+});

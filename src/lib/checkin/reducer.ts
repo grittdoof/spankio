@@ -92,6 +92,40 @@ export type DeskAction =
   | { readonly type: 'retry'; readonly opId: string }
   | { readonly type: 'dismiss'; readonly opId: string };
 
+/**
+ * Indexe les états par PERSONNE — et c'est la SEULE écriture de cette clé.
+ *
+ * Défaut réel, signalé en production : le poste construisait son état initial
+ * avec sa propre boucle, indexée par `responseId` seul, pendant que tout le
+ * reste cherchait par `réponse#siège`. Les arrivées déjà enregistrées
+ * n'étaient donc jamais retrouvées au chargement — chaque rangée repartait
+ * « Attendu », et le premier appui annonçait la version 0 sur une ligne qui
+ * était déjà en version 1 : refus `PT409`, « un autre poste vient de modifier
+ * cette rangée », alors que personne d'autre n'y avait touché.
+ *
+ * La clé était écrite à trois endroits. C'est la duplication qui a permis la
+ * divergence, pas l'inattention : elle n'en a plus qu'un.
+ */
+export function indexStates(
+  states: readonly CheckinState[],
+): Record<string, CheckinState> {
+  const map: Record<string, CheckinState> = {};
+  for (const one of states) map[seatKey(one.responseId, one.seat)] = one;
+  return map;
+}
+
+/** Plus grand `updated_at` connu : le curseur du prochain delta. */
+export function cursorOf(
+  current: string | null,
+  incoming: readonly CheckinState[],
+): string | null {
+  let cursor = current;
+  for (const state of incoming) {
+    if (cursor === null || state.updatedAt > cursor) cursor = state.updatedAt;
+  }
+  return cursor;
+}
+
 function mergeStates(
   current: Readonly<Record<string, CheckinState>>,
   incoming: readonly CheckinState[],
@@ -108,27 +142,14 @@ function mergeStates(
   return next;
 }
 
-function latestCursor(
-  current: string | null,
-  incoming: readonly CheckinState[],
-): string | null {
-  let cursor = current;
-  for (const state of incoming) {
-    if (cursor === null || state.updatedAt > cursor) cursor = state.updatedAt;
-  }
-  return cursor;
-}
-
 export function deskReducer(state: DeskState, action: DeskAction): DeskState {
   switch (action.type) {
     case 'hydrate': {
-      const states: Record<string, CheckinState> = {};
-      for (const one of action.states) states[seatKey(one.responseId, one.seat)] = one;
       return {
         ...state,
-        states,
+        states: indexStates(action.states),
         syncedAt: action.at,
-        cursor: latestCursor(null, action.states),
+        cursor: cursorOf(null, action.states),
       };
     }
 
@@ -137,7 +158,7 @@ export function deskReducer(state: DeskState, action: DeskAction): DeskState {
         ...state,
         states: mergeStates(state.states, action.states),
         syncedAt: action.at,
-        cursor: latestCursor(state.cursor, action.states),
+        cursor: cursorOf(state.cursor, action.states),
       };
 
     case 'tap':
@@ -184,7 +205,7 @@ export function deskReducer(state: DeskState, action: DeskAction): DeskState {
         // L'opération quitte la file : elle est devenue un fait.
         queue: state.queue.filter((op) => op.opId !== action.opId),
         states: mergeStates(state.states, [action.state]),
-        cursor: latestCursor(state.cursor, [action.state]),
+        cursor: cursorOf(state.cursor, [action.state]),
       };
 
     case 'refused':

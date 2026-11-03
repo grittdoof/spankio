@@ -5109,15 +5109,47 @@ summary.sp-btn::-webkit-details-marker {
   width: auto;
 }
 
-/* La pastille d'un accompagnant : azur sur fond tinté azur, contre gris et
-   marine pour la personne inscrite. Les deux paires sont déjà vérifiées par
-   `CONTRAST_REQUIREMENTS` — on distingue sans inventer de couleur.
+/* La rangée d'un accompagnant : décalée, et marquée d'un bandeau qui la NOMME.
+   Une simple teinte de pastille ne suffisait pas — essayée, jugée illisible
+   d'un coup d'œil sur deux cents rangées. Le décalage se lit même en noir et
+   blanc, et même par quelqu'un qui ne sépare pas les deux teintes ; le mot,
+   lui, ne laisse aucun doute.
 
-   Elle ne porte AUCUNE information à elle seule : la rangée dit
-   « accompagnant(e) de … » en toutes lettres. L'anneau renforce la
-   différence pour qui ne sépare pas les deux teintes. */
-.sp-desk__avatar--companion {
-  background: var(--sp-accent-light);
-  color: var(--sp-accent-text);
-  box-shadow: inset 0 0 0 2px var(--sp-accent);
+   Le bandeau est décoratif (`aria-hidden`) : la rangée dit déjà
+   « accompagnant(e) de … » dans sa précision. */
+.sp-desk__row--companion .sp-desk__toggle {
+  padding-left: var(--sp-space-6);
+}
+
+.sp-desk__flag {
+  display: grid;
+  flex: none;
+  place-items: center;
+  align-self: stretch;
+  width: 1.25rem;
+  min-height: 2.5rem;
+  padding: var(--sp-space-2) 0;
+  border-radius: var(--sp-radius-pill);
+  /* Blanc sur azur : paire déjà vérifiée par `CONTRAST_REQUIREMENTS`. */
+  background: var(--sp-accent);
+  color: var(--sp-on-accent);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  /* De bas en haut : le mot se lit en penchant la tête à gauche, qui est le
+     sens attendu d'une étiquette verticale en Europe. */
+  writing-mode: vertical-rl;
+  /* `transform` et non la propriété `rotate`, plus récente : ce bandeau est
+     lu sur le téléphone de quelqu'un qu'on n'a pas choisi, et dont on ne
+     connaît ni le modèle ni la version. */
+  transform: rotate(180deg);
+}
+
+/* Sous 40rem, la place manque pour un décalage franc : on le réduit plutôt
+   que de rogner le nom, qui est ce qu'on vient chercher. */
+@media (max-width: 40rem) {
+  .sp-desk__row--companion .sp-desk__toggle {
+    padding-left: var(--sp-space-4);
+  }
 }
