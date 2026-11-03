@@ -6,6 +6,7 @@ import { CopyBox } from '@/components/ui/CopyBox';
 import {
   IDLE_ACCOUNT_STATE,
   accessMessage,
+  identifierLocalPart,
   type StaffAccountState,
 } from '@/lib/checkin/account';
 
@@ -24,6 +25,7 @@ export interface StaffPasswordFormProps {
   surveyId: string;
   profileId: string;
   identifier: string;
+  identifierHost: string;
   eventTitle: string;
   deskUrl: string;
   suggestedPassword: string;
@@ -34,6 +36,7 @@ export function StaffPasswordForm({
   surveyId,
   profileId,
   identifier,
+  identifierHost,
   eventTitle,
   deskUrl,
   suggestedPassword,
@@ -58,6 +61,7 @@ export function StaffPasswordForm({
             value={accessMessage({
               eventTitle,
               deskUrl,
+              host: identifierHost,
               identifier: state.identifier,
               password: state.password,
             })}
@@ -71,7 +75,7 @@ export function StaffPasswordForm({
 
         <p className="sp-field">
           <label className="sp-label" htmlFor={`sp-pass-${profileId}`}>
-            Mot de passe de {identifier}
+            Mot de passe de {identifierLocalPart(identifier)}
           </label>
           <input
             autoComplete="off"

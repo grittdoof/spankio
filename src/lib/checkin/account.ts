@@ -186,13 +186,25 @@ export function accessMessage(input: {
   readonly eventTitle: string;
   readonly deskUrl: string;
   readonly identifier: string;
+  /** Hôte des identifiants fabriqués : décide si l'adresse se raccourcit. */
+  readonly host: string;
   readonly password?: string;
 }): string {
+  // Le message dit ce qu'on TAPE, pas ce que la base stocke. Écrire
+  // « test2@accueil.spankio.vpstrat.com » alors que « test2 » ouvre la
+  // session reprenait d'une main ce que l'identifiant court donne de
+  // l'autre — et c'est ce message-là qu'on copie-colle dans un SMS.
+  // Une adresse qui n'est PAS fabriquée reste entière : c'est alors la
+  // vraie adresse de la personne, et elle doit la saisir telle quelle.
+  const typed = isStaffIdentifier(input.identifier, input.host)
+    ? identifierLocalPart(input.identifier)
+    : input.identifier;
+
   const lines = [
     `Accueil — ${input.eventTitle}`,
     '',
     `Lien : ${input.deskUrl}`,
-    `Identifiant : ${input.identifier}`,
+    `Identifiant : ${typed}`,
   ];
   if (input.password) lines.push(`Mot de passe : ${input.password}`);
   lines.push('', 'Ouvrez le lien, connectez-vous, la liste s’affiche.');

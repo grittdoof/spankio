@@ -179,6 +179,7 @@ export default async function CheckinPreparationPage({
         action={createStaffAccountAction}
         deskUrl={url}
         eventTitle={survey.value.title}
+        identifierHost={host}
         suggestedPassword={suggested}
         surveyId={id}
       />
