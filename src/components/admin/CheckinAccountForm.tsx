@@ -31,6 +31,7 @@ export interface CheckinAccountFormProps {
   surveyId: string;
   eventTitle: string;
   deskUrl: string;
+  identifierHost: string;
   /** Suggestion tirée au sort par le serveur à chaque rendu de l'écran. */
   suggestedPassword: string;
   action: (state: StaffAccountState, formData: FormData) => Promise<StaffAccountState>;
@@ -40,6 +41,7 @@ export function CheckinAccountForm({
   surveyId,
   eventTitle,
   deskUrl,
+  identifierHost,
   suggestedPassword,
   action,
 }: CheckinAccountFormProps) {
@@ -70,6 +72,7 @@ export function CheckinAccountForm({
             value={accessMessage({
               eventTitle,
               deskUrl,
+              host: identifierHost,
               identifier: state.identifier,
               password: state.password,
             })}

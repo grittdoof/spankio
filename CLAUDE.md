@@ -704,6 +704,19 @@ changer.
   précisé » tombe avec elle. Corollaire pour le rapport : « corrigé » ne veut
   plus dire « saisi à la main » mais « entré différent de l'annoncé », et ce
   chiffre est désormais exact au lieu d'être déclaratif.
+- **Le message à transmettre dit ce qu'on TAPE, pas ce que la base stocke.**
+  Il écrivait l'adresse entière alors que l'identifiant nu ouvre la session :
+  c'est pourtant CE message qu'on copie-colle dans un SMS, et il reprenait
+  d'une main ce que l'identifiant court donne de l'autre. Une adresse qui
+  n'est PAS fabriquée reste entière — c'est alors la vraie adresse de la
+  personne, et la raccourcir donnerait un identifiant qui n'ouvre rien.
+- **La pastille d'un accompagnant DISTINGUE, elle n'informe pas.** Azur sur
+  fond tinté azur, contre gris et marine pour la personne inscrite — deux
+  paires déjà vérifiées par `CONTRAST_REQUIREMENTS`, donc aucune couleur
+  inventée. La rangée dit « accompagnant(e) de … » en toutes lettres : la
+  couleur ne fait que le redire, pour qui parcourt deux cents rangées des
+  yeux. Même règle que les graphiques, et un anneau renforce la différence
+  pour qui ne sépare pas les deux teintes.
 - **La liste d'accueil est classée A → Z par défaut, et l'ordre se change.**
   Elle arrivait dans l'ordre reçu, ce qui obligeait à parcourir deux cents
   rangées à l'œil : à une porte on cherche un NOM, et l'ordre d'inscription

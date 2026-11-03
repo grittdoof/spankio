@@ -5108,3 +5108,16 @@ summary.sp-btn::-webkit-details-marker {
   flex: 0 1 auto;
   width: auto;
 }
+
+/* La pastille d'un accompagnant : azur sur fond tinté azur, contre gris et
+   marine pour la personne inscrite. Les deux paires sont déjà vérifiées par
+   `CONTRAST_REQUIREMENTS` — on distingue sans inventer de couleur.
+
+   Elle ne porte AUCUNE information à elle seule : la rangée dit
+   « accompagnant(e) de … » en toutes lettres. L'anneau renforce la
+   différence pour qui ne sépare pas les deux teintes. */
+.sp-desk__avatar--companion {
+  background: var(--sp-accent-light);
+  color: var(--sp-accent-text);
+  box-shadow: inset 0 0 0 2px var(--sp-accent);
+}

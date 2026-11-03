@@ -142,6 +142,7 @@ export function CheckinStaff({
                     deskUrl={deskUrl}
                     eventTitle={eventTitle}
                     identifier={member.email}
+                    identifierHost={identifierHost}
                     profileId={member.profileId}
                     suggestedPassword={suggestedPassword}
                     surveyId={surveyId}

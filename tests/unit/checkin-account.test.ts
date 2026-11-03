@@ -196,13 +196,30 @@ describe('accessMessage', () => {
     eventTitle: 'Soirée des 180 ans',
     deskUrl: 'https://spankio.example/accueil/abc',
     identifier: 'marie.k3rt@accueil.spankio.example',
+    host: 'accueil.spankio.example',
   };
 
   it('porte le lien, l’identifiant et le mot de passe', () => {
     const message = accessMessage({ ...base, password: 'bako-tire-muso-47' });
     expect(message).toContain('https://spankio.example/accueil/abc');
-    expect(message).toContain('marie.k3rt@accueil.spankio.example');
     expect(message).toContain('bako-tire-muso-47');
+  });
+
+  it('écrit ce qu’on TAPE, pas l’adresse complète', () => {
+    // C'est ce message qu'on copie-colle dans un SMS : y écrire
+    // « marie.k3rt@accueil.spankio.example » alors que « marie.k3rt » ouvre
+    // la session reprendrait d'une main ce que l'identifiant court donne de
+    // l'autre.
+    const message = accessMessage(base);
+    expect(message).toContain('Identifiant : marie.k3rt\n');
+    expect(message).not.toContain('@accueil.spankio.example');
+  });
+
+  it('laisse ENTIÈRE une adresse qui n’est pas fabriquée', () => {
+    // Un éditeur affecté à la porte se connecte avec sa vraie adresse : la
+    // raccourcir donnerait un identifiant qui n'ouvre rien.
+    const message = accessMessage({ ...base, identifier: 'ines@exemple.fr' });
+    expect(message).toContain('Identifiant : ines@exemple.fr');
   });
 
   it('omet le mot de passe quand il n’est pas connu', () => {

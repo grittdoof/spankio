@@ -450,7 +450,17 @@ export function Desk(props: DeskProps) {
                 onClick={() => toggle(row)}
                 type="button"
               >
-                <span aria-hidden="true" className="sp-desk__avatar">
+                {/* La pastille DISTINGUE, elle n'informe pas : la rangée
+                    d'un accompagnant porte déjà « accompagnant(e) de … » en
+                    toutes lettres, lue par un lecteur d'écran comme par
+                    quelqu'un qui ne distingue pas les deux teintes. Même
+                    règle que les graphiques. */}
+                <span
+                  aria-hidden="true"
+                  className={`sp-desk__avatar${
+                    row.isCompanion ? ' sp-desk__avatar--companion' : ''
+                  }`}
+                >
                   {row.initials || '·'}
                 </span>
                 <span className="sp-desk__who">

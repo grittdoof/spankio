@@ -274,6 +274,7 @@ describe('créer un compte de pointage', () => {
         action={action}
         deskUrl={DESK}
         eventTitle="Soirée des 180 ans"
+        identifierHost="accueil.exemple.test"
         suggestedPassword="bako-tire-muso-47"
         surveyId="abc"
       />,
@@ -314,11 +315,11 @@ describe('créer un compte de pointage', () => {
     await user.type(screen.getByLabelText('Nom du poste ou de la personne'), 'Marie');
     await user.click(screen.getByRole('button', { name: 'Créer le compte' }));
 
-    // Le message est composé une seule fois, par la même fonction que partout
-    // ailleurs : lien, identifiant et mot de passe, prêts à être transmis.
-    const message = await screen.findByText(/marie\.k3rt@accueil\.exemple\.test/);
+    // Le message dit ce qu'on TAPE : l'identifiant nu, sans le domaine.
+    const message = await screen.findByText(/Identifiant : marie\.k3rt/);
     expect(message.textContent).toContain(DESK);
     expect(message.textContent).toContain('bako-tire-muso-47');
+    expect(message.textContent).not.toContain('@accueil.exemple.test');
   });
 
   it('dit que le mot de passe ne se réaffichera pas', async () => {
