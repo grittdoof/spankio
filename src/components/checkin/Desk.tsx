@@ -11,6 +11,7 @@ import {
   type DeskState,
 } from '@/lib/checkin/reducer';
 import { deskList, deskStatusLabel, type DeskRow } from '@/lib/checkin/rows';
+import { expandSeats } from '@/lib/checkin/seats';
 import { freshness, POLL_INTERVAL_MS } from '@/lib/checkin/freshness';
 import { loadQueue, saveQueue } from '@/lib/checkin/storage';
 import { normaliseSearch, type GuestRow } from '@/lib/survey/guests';
@@ -82,7 +83,10 @@ export function Desk(props: DeskProps) {
      sinon « à jour il y a 3 s » resterait affiché pendant deux minutes. */
   const [tick, setTick] = useState(() => Date.now());
 
-  const list = useMemo(() => deskList(guests, state), [guests, state]);
+  // Les inscriptions sont dépliées en PERSONNES avant toute chose : le poste
+  // ne manipule plus que des sièges, et le compteur de salle en découle.
+  const seats = useMemo(() => expandSeats(guests), [guests]);
+  const list = useMemo(() => deskList(seats, state), [seats, state]);
 
   const visible = useMemo(() => {
     const needle = normaliseSearch(search);
@@ -113,8 +117,8 @@ export function Desk(props: DeskProps) {
         type: 'tap',
         opId: op.opId,
         responseId: op.responseId,
+        seat: op.seat,
         arrived: op.arrived,
-        peopleIn: op.peopleIn,
       });
     }
   }, [surveyId, rehearsal]);
@@ -183,7 +187,7 @@ export function Desk(props: DeskProps) {
     if (!op || sending.current) return;
 
     sending.current = true;
-    const expectedVersion = expectedVersionOf(state, op.responseId);
+    const expectedVersion = expectedVersionOf(state, op.responseId, op.seat);
     dispatch({ type: 'sending', opId: op.opId });
 
     let timer: number | null = null;
@@ -195,10 +199,10 @@ export function Desk(props: DeskProps) {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             responseId: op.responseId,
+            seat: op.seat,
             arrived: op.arrived,
             opId: op.opId,
             expectedVersion,
-            peopleIn: op.peopleIn,
           }),
         });
 
@@ -213,7 +217,11 @@ export function Desk(props: DeskProps) {
            * file existe pour couvrir. On vérifie donc que la réponse parle bien
            * de CETTE rangée, et on réessaie sinon.
            */
-          if (applied && applied.responseId === op.responseId) {
+          if (
+            applied &&
+            applied.responseId === op.responseId &&
+            applied.seat === op.seat
+          ) {
             dispatch({ type: 'applied', opId: op.opId, state: applied });
             return;
           }
@@ -269,11 +277,9 @@ export function Desk(props: DeskProps) {
       dispatch({
         type: 'tap',
         opId,
-        responseId: row.id,
+        responseId: row.responseId,
+        seat: row.seat,
         arrived,
-        // On n'invente aucun effectif : non précisé reste non précisé, et le
-        // compteur de salle retient l'effectif ANNONCÉ en le disant.
-        peopleIn: null,
       });
 
       if (rehearsal) {
@@ -284,9 +290,9 @@ export function Desk(props: DeskProps) {
           type: 'applied',
           opId,
           state: {
-            responseId: row.id,
+            responseId: row.responseId,
+            seat: row.seat,
             arrivedAt: arrived ? new Date().toISOString() : null,
-            peopleIn: null,
             version: (row.pending ? 0 : 1) + 1,
             updatedAt: new Date().toISOString(),
           },
@@ -387,8 +393,8 @@ export function Desk(props: DeskProps) {
                 {key === 'all'
                   ? list.rows.length
                   : key === 'arrived'
-                    ? totals.arrived
-                    : list.rows.length - totals.arrived}
+                    ? totals.inRoom
+                    : list.rows.length - totals.inRoom}
               </span>
             </button>
           ))}
@@ -408,7 +414,7 @@ export function Desk(props: DeskProps) {
               className={`sp-desk__row${row.arrived ? ' sp-desk__row--in' : ''}${
                 row.pending ? ' sp-desk__row--sending' : ''
               }`}
-              key={row.id}
+              key={row.key}
             >
               <button
                 className="sp-desk__toggle"
@@ -420,11 +426,15 @@ export function Desk(props: DeskProps) {
                 </span>
                 <span className="sp-desk__who">
                   <span className="sp-desk__name">{row.name ?? 'Réponse sans nom'}</span>
+                  {/* Une ligne par personne : il n'y a plus d'effectif à
+                      afficher ni à vérifier sur la rangée — le compteur de
+                      salle est le nombre de sièges pointés. Ne reste que la
+                      précision : société pour l'inscrit, « accompagnant(e)
+                      de X » pour celui qu'il amène. */}
                   <span className="sp-desk__meta">
                     {[
                       row.detail,
-                      row.announced > 1 ? `${row.announced} personnes annoncées` : null,
-                      row.ambiguous ? 'effectif à vérifier' : null,
+                      row.ambiguous ? 'nombre d’accompagnants à vérifier' : null,
                     ]
                       .filter((part): part is string => Boolean(part))
                       .join(' · ')}
@@ -453,7 +463,7 @@ export function Desk(props: DeskProps) {
 
       <footer className="sp-desk__foot">
         <span className="sp-muted">
-          {totals.arrived} arrivé{totals.arrived > 1 ? 's' : ''} sur {list.rows.length}
+          {totals.inRoom} arrivé{totals.inRoom > 1 ? 's' : ''} sur {list.rows.length}
         </span>
       </footer>
     </div>

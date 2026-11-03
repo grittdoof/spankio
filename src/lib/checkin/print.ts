@@ -6,6 +6,7 @@ import {
 import { answerText } from '@/lib/survey/answer-text';
 import type { SurveyField, SurveySchema } from '@/lib/survey/schema';
 import type { GuestResponse, GuestRow } from '@/lib/survey/guests';
+import { expandSeats, type SeatRow } from './seats';
 
 /**
  * Le listing papier : son classement, et la colonne qui le rend lisible.
@@ -85,7 +86,8 @@ export function parsePrintSort(
 }
 
 export interface PrintRow {
-  readonly row: GuestRow;
+  /** Une PERSONNE, pas une inscription : le papier dit la même chose que l'écran. */
+  readonly row: SeatRow;
   /** Valeur de la question de classement, quand elle fait une colonne à part. */
   readonly sortValue: string | null;
 }
@@ -158,8 +160,16 @@ export function printList(
     return left.row.submittedAt.localeCompare(right.row.submittedAt);
   });
 
+  // Le dépliage vient APRÈS le classement : les personnes d'une même
+  // inscription restent côte à côte, l'inscrit puis ses accompagnants. Trier
+  // les sièges séparément aurait éparpillé un couple qui se présente ensemble
+  // — et sur du papier, on ne cherche pas deux fois.
+  const printable = decorated.flatMap(({ row, sortValue }) =>
+    expandSeats([row]).map((seat) => ({ row: seat, sortValue })),
+  );
+
   return {
-    rows: decorated.map(({ row, sortValue }) => ({ row, sortValue })),
+    rows: printable,
     sortColumn: alreadyShown ? null : (field?.label ?? null),
     sortLabel,
   };

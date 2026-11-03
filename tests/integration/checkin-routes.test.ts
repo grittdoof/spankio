@@ -59,8 +59,8 @@ describe('routes du poste d’accueil', () => {
   interface StateBody {
     response_id?: string;
     responseId: string;
+    seat: number;
     arrivedAt: string | null;
-    peopleIn: number | null;
     version: number;
     replayed: boolean;
   }
@@ -73,7 +73,7 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId: randomUUID(),
         expectedVersion: 0,
-        peopleIn: null,
+        seat: 0,
       });
 
       expect(status).toBe(200);
@@ -95,14 +95,14 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId,
         expectedVersion: 0,
-        peopleIn: 2,
+        seat: 0,
       });
       const second = await post(a.eventSurvey, {
         responseId: response,
         arrived: true,
         opId,
         expectedVersion: 0,
-        peopleIn: 99,
+        seat: 0,
       });
 
       expect(first.status).toBe(200);
@@ -112,8 +112,9 @@ describe('routes du poste d’accueil', () => {
       const replayed = second.body as StateBody;
       expect(replayed.replayed).toBe(true);
       expect(replayed.version).toBe(1);
-      // Le rejeu ne RÉAPPLIQUE rien : 99 n'est pas écrit.
-      expect(replayed.peopleIn).toBe(2);
+      // Le rejeu rend l'état courant SANS rien réappliquer.
+      expect(replayed.seat).toBe(0);
+      expect(replayed.arrivedAt).not.toBeNull();
     });
 
     it('refuse une version périmée, et le dit en 409', async () => {
@@ -125,7 +126,7 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId: randomUUID(),
         expectedVersion: 0,
-        peopleIn: null,
+        seat: 0,
       });
 
       const stale = await post(a.eventSurvey, {
@@ -133,7 +134,7 @@ describe('routes du poste d’accueil', () => {
         arrived: false,
         opId: randomUUID(),
         expectedVersion: 0,
-        peopleIn: null,
+        seat: 0,
       });
 
       expect(stale.status).toBe(409);
@@ -175,7 +176,7 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId: randomUUID(),
         expectedVersion: null,
-        peopleIn: null,
+        seat: 0,
       });
       expect(status).toBe(401);
     });
@@ -189,7 +190,7 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId: randomUUID(),
         expectedVersion: null,
-        peopleIn: null,
+        seat: 0,
       });
       expect(status).toBe(403);
     });
@@ -201,7 +202,7 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId: randomUUID(),
         expectedVersion: null,
-        peopleIn: null,
+        seat: 0,
       });
       // Isolation : la réponse de A n'existe pas pour l'hôtesse de B.
       expect([403, 404]).toContain(status);
@@ -228,16 +229,40 @@ describe('routes du poste d’accueil', () => {
         arrived: false,
         opId: randomUUID(),
         expectedVersion: 0,
-        peopleIn: 3,
+        seat: 0,
       });
 
-      // Un nombre d'entrants SANS entrée ne veut rien dire, et la contrainte de
-      // table le refuserait. Plutôt que de renvoyer une erreur sur une
-      // incohérence que le serveur sait trancher, la fonction efface
-      // l'effectif en même temps que l'arrivée.
+      // Dé-pointer une personne jamais pointée est sans objet, pas une faute :
+      // la ligne existe, sans heure d'arrivée.
       expect(status).toBe(200);
       expect((body as StateBody).arrivedAt).toBeNull();
-      expect((body as StateBody).peopleIn).toBeNull();
+    });
+
+    it('pointe un accompagnant sans toucher à son hôte', async () => {
+      api.actAs(a.host);
+      const response = await insertResponse(db, a.eventSurvey, { nom: 'Jean Martin' });
+
+      const host = await post(a.eventSurvey, {
+        responseId: response,
+        arrived: true,
+        opId: randomUUID(),
+        expectedVersion: 0,
+        seat: 0,
+      });
+      const companion = await post(a.eventSurvey, {
+        responseId: response,
+        arrived: true,
+        opId: randomUUID(),
+        expectedVersion: 0,
+        seat: 1,
+      });
+
+      expect(host.status).toBe(200);
+      expect(companion.status).toBe(200);
+      // La version est par SIÈGE : annoncer 0 sur le siège 1 après avoir
+      // pointé le siège 0 ne doit pas être refusé.
+      expect((companion.body as StateBody).seat).toBe(1);
+      expect((companion.body as StateBody).version).toBe(1);
     });
 
     it('refuse un identifiant d’opération qui n’est pas un UUID', async () => {
@@ -247,19 +272,32 @@ describe('routes du poste d’accueil', () => {
         arrived: true,
         opId: 'pas-un-uuid',
         expectedVersion: null,
-        peopleIn: null,
+        seat: 0,
       });
       expect(status).toBe(400);
     });
 
-    it('refuse un effectif hors des bornes de la colonne', async () => {
+    it('refuse un siège hors des bornes', async () => {
       api.actAs(a.host);
       const { status } = await post(a.eventSurvey, {
         responseId: a.eventResponse,
         arrived: true,
         opId: randomUUID(),
         expectedVersion: null,
-        peopleIn: 5000,
+        seat: 5000,
+      });
+      expect(status).toBe(400);
+    });
+
+    it('refuse un corps SANS siège', async () => {
+      // Un siège par défaut pointerait l'hôte à la place de l'accompagnant,
+      // en silence : mieux vaut un 400 franc.
+      api.actAs(a.host);
+      const { status } = await post(a.eventSurvey, {
+        responseId: a.eventResponse,
+        arrived: true,
+        opId: randomUUID(),
+        expectedVersion: null,
       });
       expect(status).toBe(400);
     });

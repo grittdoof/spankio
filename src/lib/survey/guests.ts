@@ -1,5 +1,6 @@
 import {
   attendanceOf,
+  companionFieldsOf,
   fieldById,
   identityFieldsOf,
   partyQuestion,
@@ -44,6 +45,15 @@ export interface GuestRow {
   readonly initials: string;
   /** Seconde ligne : la question désignée, puis l'effectif s'il est connu. */
   readonly detail: string | null;
+  /**
+   * Nom de l'accompagnant, quand le formulaire le demande.
+   *
+   * Composé ici et pas ailleurs : c'est le seul endroit qui parcourt déjà les
+   * réponses avec le schéma sous la main, et deux compositions auraient fini
+   * par nommer l'accompagnant d'une façon à l'écran et d'une autre sur le
+   * papier.
+   */
+  readonly companion: string | null;
   readonly status: AttendanceStatus;
   readonly people: number;
   readonly ambiguous: boolean;
@@ -151,6 +161,7 @@ export function guestList(
 ): GuestList {
   const party = partyQuestion(schema, settings);
   const identityFields = identityFieldsOf(schema, settings);
+  const companionFields = companionFieldsOf(schema, settings);
   const detailField = fieldById(schema, settings.detailField);
 
   const filter = options.filter ?? 'all';
@@ -180,12 +191,18 @@ export function guestList(
       .map((field) => answerText(field, response.data))
       .filter((part): part is string => part !== null && part !== '');
     const name = parts.length > 0 ? parts.join(' ') : null;
+
+    const companionParts = companionFields
+      .map((field) => answerText(field, response.data))
+      .filter((part): part is string => part !== null && part !== '');
+    const companion = companionParts.length > 0 ? companionParts.join(' ') : null;
     rows.push({
       id: response.id,
       submittedAt: response.submitted_at,
       name,
       initials: name ? initialsOf(name) : '',
       detail: detailField ? answerText(detailField, response.data) : null,
+      companion,
       status: attendance.status,
       people: attendance.people,
       ambiguous: attendance.ambiguous,

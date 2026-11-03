@@ -19,7 +19,7 @@ function row(partial: Partial<ArrivalRow> & { id: string }): ArrivalRow {
     expected: 'attending',
     announced: 1,
     arrivedAt: null,
-    peopleIn: null,
+    entered: 0,
     ...partial,
   };
 }
@@ -27,7 +27,7 @@ function row(partial: Partial<ArrivalRow> & { id: string }): ArrivalRow {
 const ROWS: ArrivalRow[] = [
   row({ id: 'a', announced: 2, arrivedAt: '2026-11-18T18:02:00.000Z' }),
   row({ id: 'b', arrivedAt: '2026-11-18T18:07:00.000Z' }),
-  row({ id: 'c', arrivedAt: '2026-11-18T18:14:00.000Z', peopleIn: 1 }),
+  row({ id: 'c', arrivedAt: '2026-11-18T18:14:00.000Z', entered: 1 }),
   row({ id: 'd' }),
   row({ id: 'e', expected: 'declined', arrivedAt: '2026-11-18T18:31:00.000Z' }),
 ];

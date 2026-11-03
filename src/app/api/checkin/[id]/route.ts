@@ -45,7 +45,7 @@ const bodySchema = z.object({
    */
   expectedVersion: z.number().int().min(0).max(1_000_000).nullable(),
   /** Effectif réellement entré. `null` : non précisé, jamais zéro. */
-  peopleIn: z.number().int().min(0).max(999).nullable(),
+  seat: z.number().int().min(0).max(998),
 });
 
 /** Corps d'un pointage : quelques centaines d'octets, jamais plus. */
@@ -114,7 +114,7 @@ export async function POST(
     arrived: parsed.value.arrived,
     opId: parsed.value.opId,
     expectedVersion: parsed.value.expectedVersion,
-    peopleIn: parsed.value.peopleIn,
+    seat: parsed.value.seat,
   });
   if (!recorded.ok) return mapDbError(recorded.error, 'checkin.set_failed');
 

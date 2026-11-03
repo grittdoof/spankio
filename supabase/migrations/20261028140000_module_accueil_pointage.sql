@@ -78,8 +78,26 @@ create table if not exists public.event_checkins (
 
 comment on table public.event_checkins is
   'État d''arrivée d''une réponse. Fait distinct de la réponse elle-même, qui reste immuable. Absence de ligne = pas arrivé.';
-comment on column public.event_checkins.people_in is
-  'Personnes réellement entrées. null = non précisé, jamais zéro : un chiffre que personne n''a donné ne s''invente pas.';
+-- Ce commentaire est GARDÉ par une condition d'existence, et c'est la seule
+-- retouche jamais faite à cette migration déjà appliquée. La migration des
+-- SIÈGES (20261103090000) supprime `people_in`, devenue sans objet dès lors
+-- qu'une ligne vaut une personne ; or le test de rejouabilité repasse toutes
+-- les migrations dans l'ordre, et ce `comment on column` échouait au second
+-- tour sur une colonne qui n'existe plus. L'alternative — garder une colonne
+-- morte pour ne pas toucher l'historique — aurait laissé un chiffre que
+-- quelqu'un aurait fini par additionner au compte réel.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'event_checkins'
+       and column_name = 'people_in'
+  ) then
+    execute $c$comment on column public.event_checkins.people_in is
+      'Personnes réellement entrées. null = non précisé, jamais zéro : un chiffre que personne n''a donné ne s''invente pas.'$c$;
+  end if;
+end $$;
 comment on column public.event_checkins.version is
   'Concurrence optimiste. Incrémentée à chaque transition ; une écriture qui annonce une version périmée est refusée.';
 

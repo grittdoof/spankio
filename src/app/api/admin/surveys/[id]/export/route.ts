@@ -86,10 +86,20 @@ export async function GET(
   const arrivals =
     checkins.ok && checkins.value.length > 0
       ? new Map<string, ArrivalExport>(
-          checkins.value.map((state) => [
-            state.responseId,
-            { arrivedAt: state.arrivedAt, peopleIn: state.peopleIn },
-          ]),
+          // Les états viennent par SIÈGE : on les replie par inscription,
+          // le fichier gardant une ligne par réponse.
+          [...checkins.value.reduce((acc, state) => {
+            const seen = acc.get(state.responseId);
+            const arrived = state.arrivedAt !== null;
+            acc.set(state.responseId, {
+              arrivedAt:
+                arrived && (seen?.arrivedAt == null || state.arrivedAt < seen.arrivedAt)
+                  ? state.arrivedAt
+                  : (seen?.arrivedAt ?? null),
+              entered: (seen?.entered ?? 0) + (arrived ? 1 : 0),
+            });
+            return acc;
+          }, new Map<string, ArrivalExport>())],
         )
       : undefined;
 

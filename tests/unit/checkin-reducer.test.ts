@@ -10,6 +10,7 @@ import {
   type DeskState,
 } from '@/lib/checkin/reducer';
 import { deskList, deskStatusLabel } from '@/lib/checkin/rows';
+import { expandSeats } from '@/lib/checkin/seats';
 import { freshness, STALE_AFTER_MS } from '@/lib/checkin/freshness';
 import type { GuestRow } from '@/lib/survey/guests';
 
@@ -27,6 +28,7 @@ function guest(partial: Partial<GuestRow> & { id: string }): GuestRow {
     name: `Invité ${partial.id}`,
     initials: 'IN',
     detail: null,
+    companion: null,
     status: 'attending',
     people: 1,
     ambiguous: false,
@@ -34,24 +36,35 @@ function guest(partial: Partial<GuestRow> & { id: string }): GuestRow {
   };
 }
 
+/** Les inscriptions dépliées en personnes, comme le fait le poste. */
+function listOf(guests: readonly GuestRow[], state: DeskState) {
+  return deskList(expandSeats(guests), state);
+}
+
 function serverState(partial: Partial<CheckinState> & { responseId: string }): CheckinState {
   return {
+    seat: 0,
     arrivedAt: null,
-    peopleIn: null,
     version: 1,
     updatedAt: '2026-11-18T19:00:00.000Z',
     ...partial,
   };
 }
 
-function tap(state: DeskState, responseId: string, arrived: boolean, opId = 'op-1'): DeskState {
-  return deskReducer(state, { type: 'tap', opId, responseId, arrived, peopleIn: null });
+function tap(
+  state: DeskState,
+  responseId: string,
+  arrived: boolean,
+  opId = 'op-1',
+  seat = 0,
+): DeskState {
+  return deskReducer(state, { type: 'tap', opId, responseId, seat, arrived });
 }
 
 describe('ce que le geste fait AVANT le réseau', () => {
   it('verdit la rangée au doigt, sans attendre le serveur', () => {
     const after = tap(EMPTY_DESK, 'r1', true);
-    const { rows } = deskList([guest({ id: 'r1' })], after);
+    const { rows } = listOf([guest({ id: 'r1' })], after);
 
     expect(rows[0]!.arrived).toBe(true);
     expect(rows[0]!.pending).toBe(true);
@@ -60,18 +73,29 @@ describe('ce que le geste fait AVANT le réseau', () => {
 
   it("compte la personne dans la salle dès le geste, pas à la confirmation", () => {
     const after = tap(EMPTY_DESK, 'r1', true);
-    expect(deskList([guest({ id: 'r1' })], after).totals.inRoom).toBe(1);
+    expect(listOf([guest({ id: 'r1' })], after).totals.inRoom).toBe(1);
   });
 
-  it('retient l’effectif ANNONCÉ tant que personne ne l’a corrigé', () => {
+  it('ne compte dans la salle que les personnes RÉELLEMENT pointées', () => {
+    // C'est le gain de la ligne par personne, et le renversement par rapport
+    // à l'ancien comptage : pointer l'inscrit ne fait plus entrer ses
+    // accompagnants par ricochet. Trois annoncés, un pointé, un dans la salle.
     const after = tap(EMPTY_DESK, 'r1', true);
-    const { totals } = deskList([guest({ id: 'r1', people: 3 })], after);
+    const { rows, totals } = listOf([guest({ id: 'r1', people: 3 })], after);
 
-    // Trois personnes annoncées, non démenties : trois dans la salle. Retenir
-    // une seule ferait disparaître deux personnes présentes ; inventer un
-    // chiffre serait pire encore.
-    expect(totals.inRoom).toBe(3);
-    expect(totals.corrected).toBe(0);
+    expect(rows).toHaveLength(3);
+    expect(totals.inRoom).toBe(1);
+    expect(totals.expectedPeople).toBe(3);
+  });
+
+  it('laisse entrer l’accompagnant sans son hôte', () => {
+    // Elle arrive avant lui : rien ne doit l'en empêcher, et lui reste absent.
+    const after = tap(EMPTY_DESK, 'r1', true, 'op-1', 1);
+    const { rows, totals } = listOf([guest({ id: 'r1', people: 2 })], after);
+
+    expect(rows[0]!.arrived).toBe(false);
+    expect(rows[1]!.arrived).toBe(true);
+    expect(totals.inRoom).toBe(1);
   });
 });
 
@@ -89,7 +113,7 @@ describe('ce qu’un refus fait, et ce qu’il ne fait pas', () => {
       message: 'Un autre poste vient de modifier cette rangée.',
     });
 
-    const row = deskList([guest({ id: 'r1' })], refused).rows[0]!;
+    const row = listOf([guest({ id: 'r1' })], refused).rows[0]!;
     // La rangée REVIENT à l'absence : laisser le vert afficherait un présent
     // qui n'en est pas un, et c'est ce chiffre qu'on viendra chercher.
     expect(row.arrived).toBe(false);
@@ -103,10 +127,10 @@ describe('ce qu’un refus fait, et ce qu’il ne fait pas', () => {
       opId: 'op-1',
       message: 'Refusé',
     });
-    expect(deskList([guest({ id: 'r1' })], refused).totals.refused).toBe(1);
+    expect(listOf([guest({ id: 'r1' })], refused).totals.refused).toBe(1);
 
     const dismissed = deskReducer(refused, { type: 'dismiss', opId: 'op-1' });
-    expect(deskList([guest({ id: 'r1' })], dismissed).totals.refused).toBe(0);
+    expect(listOf([guest({ id: 'r1' })], dismissed).totals.refused).toBe(0);
   });
 
   it('est remplacé dès qu’on reprend la main sur la même rangée', () => {
@@ -155,7 +179,7 @@ describe('la file, et l’ordre dans lequel elle part', () => {
       states: [serverState({ responseId: 'r1', version: 0 })],
       at: 1000,
     });
-    expect(expectedVersionOf(hydrated, 'r1')).toBe(0);
+    expect(expectedVersionOf(hydrated, 'r1', 0)).toBe(0);
 
     const applied = deskReducer(hydrated, {
       type: 'applied',
@@ -165,11 +189,11 @@ describe('la file, et l’ordre dans lequel elle part', () => {
 
     // Le second appui annoncera 1, pas 0 : une version figée au doigt ferait
     // échouer en PT409 un simple « présent puis absent ».
-    expect(expectedVersionOf(applied, 'r1')).toBe(1);
+    expect(expectedVersionOf(applied, 'r1', 0)).toBe(1);
   });
 
   it('annonce 0 pour une rangée que personne n’a jamais touchée', () => {
-    expect(expectedVersionOf(EMPTY_DESK, 'inconnue')).toBe(0);
+    expect(expectedVersionOf(EMPTY_DESK, 'inconnue', 0)).toBe(0);
   });
 
   it('espace les reprises, et plafonne', () => {
@@ -198,7 +222,7 @@ describe('le delta ne peut pas faire reculer la liste', () => {
       at: 2000,
     });
 
-    expect(deskList([guest({ id: 'r1' })], stale).rows[0]!.arrived).toBe(true);
+    expect(listOf([guest({ id: 'r1' })], stale).rows[0]!.arrived).toBe(true);
   });
 
   it('avance le curseur sur le plus grand horodatage reçu', () => {
@@ -223,24 +247,23 @@ describe('les totaux que l’écran affiche', () => {
   ];
 
   it('n’attend que ceux qui ont annoncé venir', () => {
-    const { totals } = deskList(guests, EMPTY_DESK);
-    expect(totals.expected).toBe(2);
+    const { totals } = listOf(guests, EMPTY_DESK);
     expect(totals.expectedPeople).toBe(3);
+    expect(totals.people).toBe(5);
     expect(totals.inRoom).toBe(0);
   });
 
   it('compte dans la salle quiconque est pointé, même s’il avait décliné', () => {
     // Quelqu'un qui avait dit non et qui vient quand même est DANS la salle :
     // le traiteur et la sécurité comptent des corps, pas des intentions.
-    const { totals } = deskList(guests, tap(EMPTY_DESK, 'r3', true));
+    const { totals } = listOf(guests, tap(EMPTY_DESK, 'r3', true));
     expect(totals.inRoom).toBe(1);
-    expect(totals.arrived).toBe(1);
   });
 });
 
 describe('le statut est ÉCRIT, jamais seulement coloré', () => {
   it('nomme chacun des quatre états', () => {
-    const rows = deskList(
+    const rows = listOf(
       [
         guest({ id: 'r1' }),
         guest({ id: 'r2', status: 'declined' }),
@@ -250,7 +273,7 @@ describe('le statut est ÉCRIT, jamais seulement coloré', () => {
     ).rows;
 
     expect(rows.map(deskStatusLabel)).toEqual(['Attendu', 'A décliné', 'Sans réponse']);
-    expect(deskStatusLabel(deskList([guest({ id: 'r1' })], tap(EMPTY_DESK, 'r1', true)).rows[0]!))
+    expect(deskStatusLabel(listOf([guest({ id: 'r1' })], tap(EMPTY_DESK, 'r1', true)).rows[0]!))
       .toBe('Arrivé — envoi en cours');
   });
 });

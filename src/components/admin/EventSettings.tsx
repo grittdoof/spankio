@@ -10,6 +10,7 @@ import { availableTimeZones, isoToWallClock, wallClockToIso } from '@/lib/event/
 import {
   detailCandidates,
   identityCandidates,
+  companionFieldsOf,
   identityFieldIds,
   partyCandidates,
   effectivePartyMode,
@@ -216,6 +217,26 @@ export function EventSettings({
   const identityIds = identityFieldIds(draft.attendance);
   const primaryIdentity = identityIds[0] ?? '';
   const secondaryIdentity = identityIds[1] ?? '';
+
+  /**
+   * Les questions qui nomment l'ACCOMPAGNANT, même mécanique que le nom.
+   *
+   * Sans elles, la rangée de l'accompagnant s'appelle « Invité » : pointable,
+   * mais introuvable quand c'est lui qui se présente au contrôle.
+   */
+  const companionIds = companionFieldsOf(schema, draft.attendance).map((field) => field.id);
+  const primaryCompanion = companionIds[0] ?? '';
+  const secondaryCompanion = companionIds[1] ?? '';
+
+  function setCompanion(primary: string, secondary: string): void {
+    const list = primary === '' ? [] : [primary, secondary].filter((id) => id !== '');
+    patch({
+      attendance: {
+        ...draft.attendance,
+        companionFields: list.length > 0 ? list : undefined,
+      },
+    });
+  }
 
   function setIdentity(primary: string, secondary: string): void {
     const list = primary === '' ? [] : [primary, secondary].filter((id) => id !== '');
@@ -784,6 +805,57 @@ export function EventSettings({
                   <option value="">Aucune</option>
                   {detailOptions
                     .filter((field) => !identityIds.includes(field.id))
+                    .map((field) => (
+                      <option key={field.id} value={field.id}>
+                        {field.label}
+                      </option>
+                    ))}
+                </select>
+              )}
+            </Field>
+
+            {/* Un accompagnant est un invité à part entière : il a sa propre
+                ligne à pointer. Elle doit porter SON nom — à une porte, on
+                cherche le nom de la personne qui se présente, jamais celui de
+                son hôte. */}
+            <Field
+              hint="Facultatif. Sa ligne portera ce nom, avec « accompagnant(e) de … » en dessous. Sans désignation, elle s’appelle « Invité »."
+              id="evt-accompagnant"
+              label="Question qui nomme l’accompagnant"
+            >
+              {(attributes) => (
+                <select
+                  {...attributes}
+                  className="sp-select"
+                  onChange={(event) => setCompanion(event.target.value, secondaryCompanion)}
+                  value={primaryCompanion}
+                >
+                  <option value="">Aucune</option>
+                  {identityOptions.map((field) => (
+                    <option key={field.id} value={field.id}>
+                      {field.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+
+            <Field
+              hint="Facultatif, et dans cet ordre, comme pour l’invité."
+              id="evt-accompagnant-2"
+              label="Question qui complète le nom de l’accompagnant"
+            >
+              {(attributes) => (
+                <select
+                  {...attributes}
+                  className="sp-select"
+                  disabled={primaryCompanion === ''}
+                  onChange={(event) => setCompanion(primaryCompanion, event.target.value)}
+                  value={secondaryCompanion}
+                >
+                  <option value="">Aucune</option>
+                  {identityOptions
+                    .filter((field) => field.id !== primaryCompanion)
                     .map((field) => (
                       <option key={field.id} value={field.id}>
                         {field.label}

@@ -166,7 +166,7 @@ describe('printList', () => {
     ];
     const rows = guestList(schema, attendance, doubles).rows;
     const printed = printList(schema, attendance, rows, doubles, 'nom');
-    expect(printed.rows.map(({ row }) => row.id)).toEqual(['a', 'b']);
+    expect(printed.rows.map(({ row }) => row.responseId)).toEqual(['a', 'b']);
   });
 
   it('ne perd aucune rangée, quel que soit le classement', () => {

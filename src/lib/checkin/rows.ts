@@ -1,24 +1,34 @@
-import type { GuestRow } from '@/lib/survey/guests';
 import type { AttendanceStatus } from '@/lib/survey/attendance';
 import type { DeskState, PendingOp } from './reducer';
+import { seatKey, type SeatRow } from './seats';
 
 /**
  * Composition de la liste affichée au poste d'accueil.
  *
- * Séparée du réducteur à dessein : celui-ci dit comment l'état CHANGE, celle-ci
- * dit ce qu'on en MONTRE. Mélanger les deux donnerait une fonction qu'on ne
- * saurait plus tester sur un seul axe.
+ * Séparée du réducteur à dessein : celui-ci dit comment l'état CHANGE,
+ * celle-ci dit ce qu'on en MONTRE. Mélanger les deux donnerait une fonction
+ * qu'on ne saurait plus tester sur un seul axe.
+ *
+ * Depuis le passage à une ligne par personne, elle ne compte plus
+ * d'effectifs : le nombre de gens dans la salle EST le nombre de sièges
+ * pointés. Toute la mécanique d'« effectif entré non précisé » a disparu avec
+ * la colonne qui la portait — un chiffre qu'on n'a plus à deviner est un
+ * chiffre qu'on ne peut plus se tromper en devinant.
  */
 
 export interface DeskRow {
-  readonly id: string;
+  /** `réponse#siège` : l'identité d'une PERSONNE, pas d'une inscription. */
+  readonly key: string;
+  readonly responseId: string;
+  readonly seat: number;
   readonly name: string | null;
   readonly initials: string;
   readonly detail: string | null;
-  /** Ce que l'invité a ANNONCÉ : présent, décliné, sans réponse. */
+  /** Accompagnant : l'écran le marque discrètement sous le nom. */
+  readonly isCompanion: boolean;
+  /** Ce que l'inscription a ANNONCÉ : présent, décliné, sans réponse. */
   readonly expected: AttendanceStatus;
-  /** Effectif annoncé à l'inscription. */
-  readonly announced: number;
+  /** Effectif annoncé douteux. Porté par le seul siège 0. */
   readonly ambiguous: boolean;
   /** Arrivé, tel qu'on l'affiche — file locale comprise. */
   readonly arrived: boolean;
@@ -26,27 +36,19 @@ export interface DeskRow {
   readonly pending: boolean;
   /** Refus à lire. La rangée est revenue à l'état serveur. */
   readonly refused: { readonly opId: string; readonly message: string } | null;
-  /** Effectif RÉELLEMENT entré, corrigé par l'accueil. `null` : non corrigé. */
-  readonly peopleIn: number | null;
-  /** Effectif retenu dans le compteur de salle. */
-  readonly counted: number;
 }
 
 export interface DeskTotals {
-  /** Personnes dans la salle. */
+  /** Personnes dans la salle : une par siège pointé. */
   readonly inRoom: number;
-  /** Rangées pointées comme arrivées. */
-  readonly arrived: number;
-  /** Rangées qui ont annoncé venir. */
-  readonly expected: number;
-  /** Personnes attendues, d'après les effectifs annoncés. */
+  /** Personnes attendues, d'après les inscriptions qui annoncent venir. */
   readonly expectedPeople: number;
+  /** Personnes listées, tous statuts confondus. */
+  readonly people: number;
   /** Gestes non encore confirmés. */
   readonly pending: number;
   /** Refus non lus. */
   readonly refused: number;
-  /** Rangées dont l'effectif entré a été corrigé à la main. */
-  readonly corrected: number;
 }
 
 export interface DeskList {
@@ -54,85 +56,64 @@ export interface DeskList {
   readonly totals: DeskTotals;
 }
 
-/** Dernier geste non refusé portant sur cette rangée. */
-function pendingFor(queue: readonly PendingOp[], responseId: string): PendingOp | null {
+/** Dernier geste non refusé portant sur cette personne. */
+function pendingFor(queue: readonly PendingOp[], responseId: string, seat: number): PendingOp | null {
   let found: PendingOp | null = null;
   for (const op of queue) {
-    if (op.responseId !== responseId) continue;
+    if (op.responseId !== responseId || op.seat !== seat) continue;
     if (op.status === 'failed') continue;
     found = op;
   }
   return found;
 }
 
-function refusedFor(queue: readonly PendingOp[], responseId: string): PendingOp | null {
+function refusedFor(
+  queue: readonly PendingOp[],
+  responseId: string,
+  seat: number,
+): PendingOp | null {
   return (
-    queue.find((op) => op.responseId === responseId && op.status === 'failed') ?? null
+    queue.find(
+      (op) => op.responseId === responseId && op.seat === seat && op.status === 'failed',
+    ) ?? null
   );
 }
 
-/**
- * Effectif compté pour une rangée arrivée.
- *
- * Sans correction de l'accueil, on retient l'effectif ANNONCÉ. Ce n'est pas un
- * chiffre inventé — c'est celui que l'invité a donné, non démenti — et la
- * différence est dite à l'écran. Retenir zéro ferait disparaître de la salle des
- * gens qui y sont ; exiger une saisie par invité ferait taper cent cinquante
- * nombres pour en corriger trois.
- */
-function countedFor(peopleIn: number | null, announced: number): number {
-  if (peopleIn !== null) return peopleIn;
-  return Math.max(1, announced);
-}
-
-export function deskList(
-  guests: readonly GuestRow[],
-  state: DeskState,
-): DeskList {
+export function deskList(seats: readonly SeatRow[], state: DeskState): DeskList {
   const rows: DeskRow[] = [];
   let inRoom = 0;
-  let arrivedCount = 0;
-  let expectedCount = 0;
   let expectedPeople = 0;
   let pendingCount = 0;
   let refusedCount = 0;
-  let correctedCount = 0;
 
-  for (const guest of guests) {
-    const server = state.states[guest.id];
-    const pending = pendingFor(state.queue, guest.id);
-    const refused = refusedFor(state.queue, guest.id);
+  for (const seat of seats) {
+    const server = state.states[seatKey(seat.responseId, seat.seat)];
+    const pending = pendingFor(state.queue, seat.responseId, seat.seat);
+    const refused = refusedFor(state.queue, seat.responseId, seat.seat);
 
     // Le geste en vol l'emporte ; à défaut, l'état serveur fait foi.
-    const arrived = pending ? pending.arrived : server?.arrivedAt !== null && server !== undefined;
-    const peopleIn = pending ? pending.peopleIn : (server?.peopleIn ?? null);
-    const counted = arrived ? countedFor(peopleIn, guest.people) : 0;
+    const arrived = pending
+      ? pending.arrived
+      : server !== undefined && server.arrivedAt !== null;
 
-    if (guest.status === 'attending') {
-      expectedCount += 1;
-      expectedPeople += Math.max(1, guest.people);
-    }
-    if (arrived) {
-      arrivedCount += 1;
-      inRoom += counted;
-      if (peopleIn !== null) correctedCount += 1;
-    }
+    if (seat.status === 'attending') expectedPeople += 1;
+    if (arrived) inRoom += 1;
     if (pending) pendingCount += 1;
     if (refused) refusedCount += 1;
 
     rows.push({
-      id: guest.id,
-      name: guest.name,
-      initials: guest.initials,
-      detail: guest.detail,
-      expected: guest.status,
-      announced: guest.people,
-      ambiguous: guest.ambiguous,
+      key: seat.key,
+      responseId: seat.responseId,
+      seat: seat.seat,
+      name: seat.name,
+      initials: seat.initials,
+      detail: seat.detail,
+      isCompanion: seat.isCompanion,
+      expected: seat.status,
+      ambiguous: seat.ambiguous,
       arrived,
       pending: pending !== null,
       refused: refused ? { opId: refused.opId, message: refused.error ?? 'Refusé' } : null,
-      peopleIn,
-      counted,
     });
   }
 
@@ -140,12 +121,10 @@ export function deskList(
     rows,
     totals: {
       inRoom,
-      arrived: arrivedCount,
-      expected: expectedCount,
       expectedPeople,
+      people: rows.length,
       pending: pendingCount,
       refused: refusedCount,
-      corrected: correctedCount,
     },
   };
 }

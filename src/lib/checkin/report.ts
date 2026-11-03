@@ -24,9 +24,17 @@ export interface ArrivalRow {
   readonly expected: AttendanceStatus;
   /** Effectif annoncé à l'inscription. */
   readonly announced: number;
+  /** Première arrivée parmi les personnes de cette inscription. */
   readonly arrivedAt: string | null;
-  /** Effectif réellement entré, s'il a été corrigé à l'accueil. */
-  readonly peopleIn: number | null;
+  /**
+   * Personnes RÉELLEMENT entrées : le nombre de sièges pointés.
+   *
+   * Plus rien à deviner depuis qu'une ligne vaut une personne. L'ancien
+   * « effectif entré, null si non précisé » existait parce qu'une arrivée
+   * valait un groupe dont on ignorait la taille ; ce doute n'a plus lieu
+   * d'être, et le chiffre est toujours exact.
+   */
+  readonly entered: number;
 }
 
 /** Compose les rangées du rapport depuis la liste et l'état des arrivées. */
@@ -34,29 +42,45 @@ export function arrivalRows(
   guests: readonly GuestRow[],
   states: readonly CheckinState[],
 ): ArrivalRow[] {
-  const byId = new Map(states.map((state) => [state.responseId, state]));
+  // Les états arrivent par SIÈGE : on les regroupe par inscription, puisque
+  // le rapport raisonne en inscriptions annoncées contre personnes entrées.
+  const bySurvey = new Map<string, CheckinState[]>();
+  for (const state of states) {
+    const list = bySurvey.get(state.responseId);
+    if (list) list.push(state);
+    else bySurvey.set(state.responseId, [state]);
+  }
+
   return guests.map((guest) => {
-    const state = byId.get(guest.id);
+    const arrived = (bySurvey.get(guest.id) ?? []).filter(
+      (state) => state.arrivedAt !== null,
+    );
+    // La PREMIÈRE arrivée date l'inscription : c'est l'instant où ce groupe a
+    // franchi la porte, et c'est lui que la courbe d'affluence doit placer.
+    let first: string | null = null;
+    for (const state of arrived) {
+      if (state.arrivedAt && (first === null || state.arrivedAt < first)) {
+        first = state.arrivedAt;
+      }
+    }
     return {
       id: guest.id,
       expected: guest.status,
       announced: guest.people,
-      arrivedAt: state?.arrivedAt ?? null,
-      peopleIn: state?.peopleIn ?? null,
+      arrivedAt: first,
+      entered: arrived.length,
     };
   });
 }
 
 /**
- * Effectif retenu pour une rangée arrivée.
+ * Effectif retenu pour une rangée arrivée : les personnes réellement pointées.
  *
- * Sans correction de l'accueil, on retient l'effectif ANNONCÉ — c'est le
- * chiffre que l'invité a donné, non démenti, pas un chiffre inventé. La
- * différence est dite à l'écran par `corrected`.
+ * Il n'y a plus d'arbitrage ici, et c'est le gain de la ligne par personne :
+ * on comptait auparavant l'effectif ANNONCÉ faute de mieux, en le disant.
  */
 function countedFor(row: ArrivalRow): number {
-  if (row.peopleIn !== null) return row.peopleIn;
-  return Math.max(1, row.announced);
+  return row.entered;
 }
 
 /** Largeurs de tranche proposées, de la plus fine à la plus large. */
@@ -159,7 +183,11 @@ export function arrivalReport(
     if (came) {
       arrived += 1;
       peopleIn += countedFor(row);
-      if (row.peopleIn !== null) corrected += 1;
+      // « Corrigé » ne veut plus dire « saisi à la main » mais « entré
+      // différent de l'annoncé » — un invité annoncé accompagné venu seul, ou
+      // l'inverse. C'est le chiffre qui sert à dimensionner la soirée
+      // suivante, et il est désormais exact au lieu d'être déclaratif.
+      if (row.entered !== Math.max(1, row.announced)) corrected += 1;
       if (!Number.isNaN(at)) instants.push(at);
     }
   }
