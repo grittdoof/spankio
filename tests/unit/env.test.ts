@@ -88,3 +88,49 @@ describe('détection des intégrations', () => {
     ).toBe(true);
   });
 });
+
+describe('variables facultatives déclarées mais VIDES', () => {
+  /**
+   * Défaut réel, apparu en production seulement : une plateforme
+   * d'hébergement stocke `""` pour un secret déclaré sans être rempli, et
+   * `.optional()` n'accepte que `undefined`. `serverEnv()` validant tout d'un
+   * bloc, ces chaînes vides faisaient lever la seule fonction qui l'appelle —
+   * le client à clé de service — et échouer la création d'un compte en 500.
+   */
+  const base = {
+    NEXT_PUBLIC_SUPABASE_URL: 'https://exemple.supabase.co',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: 'cle-anonyme',
+    NEXT_PUBLIC_SITE_URL: 'https://exemple.test',
+    SUPABASE_SERVICE_ROLE_KEY: 'cle-de-service',
+  };
+
+  it('accepte les cinq chaînes vides réellement rencontrées', () => {
+    const parsed = parseServerEnv({
+      ...base,
+      KV_REST_API_URL: '',
+      KV_REST_API_TOKEN: '',
+      SENTRY_DSN: '',
+      CRON_SECRET: '',
+      NOMINATIM_USER_AGENT: '',
+    });
+    expect(parsed.KV_REST_API_URL).toBeUndefined();
+    expect(parsed.SENTRY_DSN).toBeUndefined();
+    expect(parsed.CRON_SECRET).toBeUndefined();
+  });
+
+  it('traite une URL facultative vide comme absente, pas comme invalide', () => {
+    expect(parseServerEnv({ ...base, KV_REST_API_URL: '' }).KV_REST_API_URL).toBeUndefined();
+  });
+
+  it('refuse toujours une URL facultative RENSEIGNÉE mais fausse', () => {
+    // Vide veut dire « pas configuré » ; « pas-une-url » veut dire « mal
+    // configuré », et les deux ne doivent pas se confondre.
+    expect(() => parseServerEnv({ ...base, KV_REST_API_URL: 'pas-une-url' })).toThrow(EnvError);
+  });
+
+  it('refuse toujours une variable EXIGÉE vide', () => {
+    // Une clé de service vide n'est pas une clé absente : c'est une
+    // configuration cassée, et elle doit se voir tout de suite.
+    expect(() => parseServerEnv({ ...base, SUPABASE_SERVICE_ROLE_KEY: '' })).toThrow(EnvError);
+  });
+});

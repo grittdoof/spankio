@@ -19,15 +19,40 @@ const publicSchema = z.object({
   NEXT_PUBLIC_SITE_URL: url,
 });
 
+/**
+ * Une variable FACULTATIVE déclarée mais VIDE vaut absente.
+ *
+ * Défaut réel, et il n'est apparu qu'en production : `.optional()` accepte
+ * `undefined`, pas la chaîne vide. Or une plateforme d'hébergement stocke
+ * `""` pour un secret qu'on a déclaré sans le remplir — c'est le cas de
+ * `KV_REST_API_URL`, `SENTRY_DSN`, `CRON_SECRET` et `NOMINATIM_USER_AGENT`
+ * sur ce projet. `serverEnv()` validant TOUT d'un bloc, ces cinq chaînes
+ * vides faisaient lever la seule fonction qui l'appelle — le client à clé de
+ * service — et donc échouer la création d'un compte de pointage, en 500,
+ * avant d'avoir rien tenté.
+ *
+ * Le défaut dormait depuis l'étape 1 : rien n'appelait `serverEnv()` sur un
+ * chemin déclenché par un utilisateur. La leçon est moins la correction que
+ * la cause de sa découverte tardive — « non vérifié en vrai » reste
+ * « non vérifié », quel que soit le nombre de tests autour.
+ *
+ * Les variables EXIGÉES, elles, continuent d'échouer sur une chaîne vide :
+ * une clé de service vide n'est pas une clé de service absente, c'est une
+ * configuration cassée qu'il faut voir tout de suite.
+ */
+function optionalish<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+}
+
 const serverSchema = publicSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: nonEmpty,
-  RESEND_API_KEY: nonEmpty.optional(),
-  EMAIL_FROM: nonEmpty.optional(),
-  KV_REST_API_URL: url.optional(),
-  KV_REST_API_TOKEN: nonEmpty.optional(),
-  SENTRY_DSN: nonEmpty.optional(),
-  CRON_SECRET: nonEmpty.optional(),
-  NOMINATIM_USER_AGENT: nonEmpty.optional(),
+  RESEND_API_KEY: optionalish(nonEmpty),
+  EMAIL_FROM: optionalish(nonEmpty),
+  KV_REST_API_URL: optionalish(url),
+  KV_REST_API_TOKEN: optionalish(nonEmpty),
+  SENTRY_DSN: optionalish(nonEmpty),
+  CRON_SECRET: optionalish(nonEmpty),
+  NOMINATIM_USER_AGENT: optionalish(nonEmpty),
 });
 
 export type PublicEnv = z.infer<typeof publicSchema>;
