@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { Desk } from '@/components/checkin/Desk';
 import { resolveRequestContext } from '@/lib/data/context';
-import { loadDesk, touchStaff } from '@/lib/services/checkin';
+import { deskBrand, loadDesk, touchStaff } from '@/lib/services/checkin';
 import { guestList } from '@/lib/survey/guests';
 import { isAttendanceConfigured } from '@/lib/survey/attendance';
 
@@ -48,11 +48,19 @@ export default async function CheckinDeskPage({
   const { survey, schema, attendance, responses, states } = desk.value;
   const list = guestList(schema, attendance, responses);
 
+  // La marque de l'organisation sur le poste : une hôtesse engagée pour une
+  // soirée tient parfois deux événements dans la semaine, et l'écran doit
+  // dire chez qui elle est. Un échec de lecture ne vide pas la page — le
+  // poste s'ouvre sans logo plutôt que pas du tout.
+  const brand = await deskBrand(context, survey.organisation_id);
+
   return (
     <Desk
       counting={isAttendanceConfigured(attendance)}
       guests={list.rows}
       initialStates={states}
+      logoUrl={brand?.logoUrl ?? null}
+      organisationName={brand?.name ?? null}
       printHref={`/accueil/${id}/impression`}
       rehearsal={rehearsal}
       surveyId={id}

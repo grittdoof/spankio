@@ -710,6 +710,33 @@ changer.
   d'une main ce que l'identifiant court donne de l'autre. Une adresse qui
   n'est PAS fabriquée reste entière — c'est alors la vraie adresse de la
   personne, et la raccourcir donnerait un identifiant qui n'ouvre rien.
+- **Le journal de la porte est un RECOURS, pas une lecture de la soirée.**
+  Cinquième vue des statistiques, et dernière : on ne l'ouvre que lorsqu'un
+  chiffre surprend — un invité qui jure être entré, deux postes qui se
+  contredisent. Les données existaient depuis le lot 2 (`event_checkin_log`),
+  rien ne les montrait. Trois décisions : l'heure est à la SECONDE, parce que
+  deux postes se départagent à la seconde près ; une transition dont la
+  personne n'est plus identifiable reste AFFICHÉE, sans nom, puisque c'est
+  précisément celle-là qu'on cherche — une correction de réponse change
+  l'identifiant et le journal garde l'ancien, à dessein ; et l'ordre reçu du
+  service n'est pas retrié côté écran, sinon deux tris coexisteraient et
+  c'est le plus discret qui finirait par mentir. La vue n'est lue que
+  lorsqu'elle est demandée : cinq cents lignes et deux requêtes de plus pour
+  un écran qu'on ouvre rarement. Un compte d'accueil ne la voit pas —
+  `event_checkin_log_select` exige un membre actif.
+- **Sur le papier, un accompagnant se distingue par la POSITION, jamais par
+  la couleur.** Une imprimante de bureau sort en noir et blanc : la rangée
+  est donc décalée et soulignée d'un filet, et le texte
+  « accompagnant(e) de … » reste dans sa colonne. Même différenciation qu'à
+  l'écran, obtenue autrement — c'est le même raisonnement que les
+  graphiques, appliqué à un support qui n'a pas de teintes.
+- **Le poste porte la marque de l'organisation, en petit.** Une personne
+  engagée pour une soirée en tient parfois deux dans la semaine : l'écran
+  doit dire chez qui elle est. Le logo est DÉCORATIF (`alt=""`) — le titre de
+  l'événement et le nom de l'organisation sont écrits juste à côté — et seule
+  sa HAUTEUR est contrainte, comme pour `BrandMark`. Plus petit encore sous
+  40rem : sur un téléphone, chaque pixel de hauteur pris à l'en-tête est une
+  rangée d'invité en moins.
 - **La pastille d'un accompagnant DISTINGUE, elle n'informe pas.** Azur sur
   fond tinté azur, contre gris et marine pour la personne inscrite — deux
   paires déjà vérifiées par `CONTRAST_REQUIREMENTS`, donc aucune couleur

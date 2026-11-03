@@ -654,3 +654,87 @@ export async function deskBrand(
   if (row.error) return null;
   return { name: row.data.name, logoUrl: row.data.logo_url };
 }
+
+// ---------------------------------------------------------------------------
+// Le journal : qui a pointé qui, et quand
+// ---------------------------------------------------------------------------
+
+interface RawLogRow {
+  op_id: string;
+  response_id: string;
+  seat: number;
+  at: string | Date;
+  by_profile: string | null;
+  arrived: boolean;
+  source: string;
+}
+
+export interface CheckinLogRow {
+  readonly opId: string;
+  readonly responseId: string;
+  readonly seat: number;
+  readonly at: string;
+  readonly byProfile: string | null;
+  readonly arrived: boolean;
+  readonly source: 'desk' | 'admin';
+}
+
+/** Au-delà, l'écran n'est plus un journal mais un export. */
+export const JOURNAL_LIMIT = 500;
+
+/**
+ * Le journal des transitions, du plus récent au plus ancien.
+ *
+ * Lu sous RLS : `event_checkin_log_select` ne l'ouvre qu'aux membres ACTIFS de
+ * l'organisation. Un compte d'accueil ne le voit donc pas — il tient la porte,
+ * il n'audite pas la soirée — et c'est pour cela que cet écran vit dans
+ * `/admin` et nulle part ailleurs.
+ */
+export async function listCheckinLog(
+  context: RequestContext,
+  surveyId: string,
+  limit: number = JOURNAL_LIMIT,
+): Promise<SurveyOutcome<CheckinLogRow[]>> {
+  const rows = await context.port.select<RawLogRow>({
+    table: 'event_checkin_log',
+    columns: 'op_id, response_id, seat, at, by_profile, arrived, source',
+    where: [eq('survey_id', surveyId)],
+    order: { column: 'at', ascending: false },
+    limit,
+  });
+  if (rows.error) return { ok: false, error: rows.error };
+
+  return {
+    ok: true,
+    value: rows.data.map((row) => ({
+      opId: row.op_id,
+      responseId: row.response_id,
+      seat: row.seat,
+      at: toIsoString(row.at),
+      byProfile: row.by_profile,
+      arrived: row.arrived,
+      source: row.source === 'desk' ? 'desk' : 'admin',
+    })),
+  };
+}
+
+/** Noms des personnes qui ont pointé, pour que le journal nomme ses auteurs. */
+export async function actorNames(
+  context: RequestContext,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return new Map();
+
+  const rows = await context.port.select<{ id: string; full_name: string | null; email: string | null }>({
+    table: 'profiles',
+    columns: 'id, full_name, email',
+    where: [inList('id', unique)],
+    limit: 200,
+  });
+  if (rows.error) return new Map();
+
+  return new Map(
+    rows.data.map((row) => [row.id, row.full_name ?? row.email ?? 'Compte sans nom']),
+  );
+}
