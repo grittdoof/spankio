@@ -144,3 +144,55 @@ export function expandSeats(rows: readonly GuestRow[]): readonly SeatRow[] {
 
   return seats;
 }
+
+/**
+ * Classement de la liste d'accueil.
+ *
+ * Par ordre alphabétique PAR DÉFAUT, et c'est le seul défaut raisonnable : à
+ * une porte on cherche un nom, et l'ordre d'inscription n'a de sens que pour
+ * celui qui a construit le formulaire. La liste arrivait jusqu'ici dans
+ * l'ordre reçu, ce qui obligeait à parcourir deux cents rangées à l'œil.
+ *
+ * Le classement porte sur les INSCRIPTIONS, pas sur les sièges : le dépliage
+ * vient après, pour que l'hôte et son accompagnant restent côte à côte. Trier
+ * les personnes séparément les séparerait alors qu'ils se présentent ensemble.
+ */
+export type DeskOrder = 'name' | 'detail' | 'submitted';
+
+export const DESK_ORDERS: readonly { readonly value: DeskOrder; readonly label: string }[] = [
+  { value: 'name', label: 'Nom (A → Z)' },
+  { value: 'detail', label: 'Précision (A → Z)' },
+  { value: 'submitted', label: 'Ordre d’inscription' },
+];
+
+export function parseDeskOrder(raw: string | undefined): DeskOrder {
+  return DESK_ORDERS.some((order) => order.value === raw) ? (raw as DeskOrder) : 'name';
+}
+
+/** Les absents de la clé ferment la marche : une rangée sans nom ne s'intercale pas. */
+function compareText(left: string | null, right: string | null): number {
+  if (left === null || left === '') return right === null || right === '' ? 0 : 1;
+  if (right === null || right === '') return -1;
+  return left.localeCompare(right, 'fr-FR', { numeric: true, sensitivity: 'base' });
+}
+
+export function sortGuests(
+  rows: readonly GuestRow[],
+  order: DeskOrder,
+): readonly GuestRow[] {
+  if (order === 'submitted') {
+    return [...rows].sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+  }
+
+  const key = order === 'name' ? 'name' : 'detail';
+  // Départage par le nom puis par l'horodatage : deux homonymes qui
+  // changeraient de place d'un rafraîchissement à l'autre feraient douter de
+  // la liste au pire moment.
+  return [...rows].sort((left, right) => {
+    const primary = compareText(left[key], right[key]);
+    if (primary !== 0) return primary;
+    const secondary = compareText(left.name, right.name);
+    if (secondary !== 0) return secondary;
+    return left.submittedAt.localeCompare(right.submittedAt);
+  });
+}

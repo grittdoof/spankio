@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { expandSeats, parseSeatKey, seatCount, seatKey } from '@/lib/checkin/seats';
+import {
+  expandSeats,
+  parseDeskOrder,
+  parseSeatKey,
+  seatCount,
+  seatKey,
+  sortGuests,
+} from '@/lib/checkin/seats';
 import type { GuestRow } from '@/lib/survey/guests';
 
 /**
@@ -134,5 +141,77 @@ describe('seatKey / parseSeatKey', () => {
     expect(parseSeatKey('abc#-1')).toBeNull();
     expect(parseSeatKey('abc#1.5')).toBeNull();
     expect(parseSeatKey('abc#9999')).toBeNull();
+  });
+});
+
+describe('classement de la liste', () => {
+  const rows = [
+    guest({ id: 'c', name: 'Zola Émile', detail: 'Ville de Paris', submittedAt: '2026-11-01T10:00:00.000Z' }),
+    guest({ id: 'a', name: 'arnaud Bea', detail: 'Spie batignolles', submittedAt: '2026-11-02T10:00:00.000Z' }),
+    guest({ id: 'b', name: null, detail: null, submittedAt: '2026-11-03T10:00:00.000Z' }),
+  ];
+
+  it('classe par nom, sans tenir compte de la casse ni des accents', () => {
+    expect(sortGuests(rows, 'name').map((row) => row.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('range les rangées sans nom à la FIN', () => {
+    // Une rangée sans nom intercalée au milieu passerait pour un défaut de
+    // tri, et on la chercherait là où elle n'est pas.
+    expect(sortGuests(rows, 'name').at(-1)?.id).toBe('b');
+  });
+
+  it('classe aussi par la précision', () => {
+    expect(sortGuests(rows, 'detail').map((row) => row.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('rend l’ordre d’inscription quand on le demande', () => {
+    expect(sortGuests(rows, 'submitted').map((row) => row.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('départage les homonymes de façon stable', () => {
+    // Deux rangées qui changeraient de place d'un rafraîchissement à l'autre
+    // feraient douter de la liste au pire moment.
+    const twins = [
+      guest({ id: 'tard', name: 'Martin Jean', submittedAt: '2026-11-05T10:00:00.000Z' }),
+      guest({ id: 'tot', name: 'Martin Jean', submittedAt: '2026-11-04T10:00:00.000Z' }),
+    ];
+    expect(sortGuests(twins, 'name').map((row) => row.id)).toEqual(['tot', 'tard']);
+  });
+
+  it('ne modifie pas la liste qu’on lui donne', () => {
+    const original = [...rows];
+    sortGuests(rows, 'name');
+    expect(rows).toEqual(original);
+  });
+
+  it('garde l’hôte et son accompagnant côte à côte APRÈS classement', () => {
+    const seats = expandSeats(
+      sortGuests(
+        [
+          guest({ id: 'z', name: 'Zola Émile', people: 2, companion: 'Zola Alex' }),
+          guest({ id: 'a', name: 'Arnaud Bea', people: 2, companion: 'Arnaud Max' }),
+        ],
+        'name',
+      ),
+    );
+    expect(seats.map((seat) => seat.name)).toEqual([
+      'Arnaud Bea',
+      'Arnaud Max',
+      'Zola Émile',
+      'Zola Alex',
+    ]);
+  });
+});
+
+describe('parseDeskOrder', () => {
+  it('retombe sur l’alphabétique, qui est le seul défaut raisonnable', () => {
+    expect(parseDeskOrder(undefined)).toBe('name');
+    expect(parseDeskOrder('n’importe quoi')).toBe('name');
+  });
+
+  it('accepte les ordres connus', () => {
+    expect(parseDeskOrder('submitted')).toBe('submitted');
+    expect(parseDeskOrder('detail')).toBe('detail');
   });
 });

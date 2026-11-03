@@ -704,6 +704,26 @@ changer.
   précisé » tombe avec elle. Corollaire pour le rapport : « corrigé » ne veut
   plus dire « saisi à la main » mais « entré différent de l'annoncé », et ce
   chiffre est désormais exact au lieu d'être déclaratif.
+- **La liste d'accueil est classée A → Z par défaut, et l'ordre se change.**
+  Elle arrivait dans l'ordre reçu, ce qui obligeait à parcourir deux cents
+  rangées à l'œil : à une porte on cherche un NOM, et l'ordre d'inscription
+  n'a de sens que pour qui a construit le formulaire. Le classement porte sur
+  les INSCRIPTIONS et le dépliage vient après, pour que l'hôte et son
+  accompagnant restent côte à côte — même raisonnement que le listing papier.
+  Les rangées sans nom ferment la marche, et les homonymes se départagent par
+  l'horodatage : deux rangées qui changeraient de place d'un rafraîchissement
+  à l'autre feraient douter de la liste au pire moment.
+- **L'identifiant d'un compte de pointage est COURT tant qu'il peut l'être.**
+  « test1 » suffit, et c'est ce qu'on dicte ;
+  `test1.ppjd@accueil.spankio.vpstrat.com` tenait la promesse d'un identifiant
+  simple à l'envers. Le premier essai ne porte donc aucun suffixe — celui-ci
+  n'apparaît que si la base refuse, c'est-à-dire pour le SECOND homonyme d'une
+  organisation. Corollaire sans lequel le reste ne sert à rien : **la
+  connexion accepte l'identifiant NU**. Une saisie sans arrobase est complétée
+  par l'hôte des identifiants fabriqués ; exiger l'adresse complète
+  reprendrait d'une main ce que la création donne de l'autre. Aucun
+  assainissement au-delà de la casse — un identifiant suffixé contient un
+  point, et le « corriger » ferait échouer une connexion valide en silence.
 - **L'accompagnant porte SON nom, pas celui de son hôte.**
   `attendance.companionFields` le désigne, exactement comme `identityFields`
   désigne l'invité. « accompagnant(e) de Jean Martin » est une PRÉCISION sous

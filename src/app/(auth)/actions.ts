@@ -9,6 +9,10 @@ import { checkNewPassword, checkSubmittedPassword } from '@/lib/auth/password';
 import { resolveRequestContext } from '@/lib/data/context';
 import { textField, textFieldOrEmpty, trimmedField } from '@/lib/api/form';
 import { logger } from '@/lib/logger';
+import {
+  resolveSignInIdentifier,
+  staffIdentifierHost,
+} from '@/lib/checkin/account';
 import { safeAfterSignIn } from '@/lib/auth/after-sign-in';
 import { checkRateLimit, clientIdentifier } from '@/lib/security/rate-limit';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -37,7 +41,14 @@ function siteUrl(): string {
 }
 
 export async function signIn(formData: FormData): Promise<void> {
-  const email = emailSchema.safeParse(textField(formData, 'email'));
+  // Un compte de pointage reçoit un identifiant NU — « test1 » — et c'est ce
+  // qu'on lui dicte. Exiger l'adresse complète à la saisie reprendrait d'une
+  // main ce que la création donne de l'autre. Une saisie contenant une
+  // arrobase est une adresse, et passe inchangée.
+  const typed = textField(formData, 'email') ?? '';
+  const email = emailSchema.safeParse(
+    resolveSignInIdentifier(typed, staffIdentifierHost(siteUrl())),
+  );
   const password = textField(formData, 'password') ?? '';
 
   if (!email.success) redirect('/connexion?erreur=emailInvalid');
@@ -71,13 +82,15 @@ export async function signIn(formData: FormData): Promise<void> {
 }
 
 export async function signUp(formData: FormData): Promise<void> {
+  // L'inscription, elle, exige une vraie adresse : c'est elle qui recevra le
+  // courriel de confirmation. Aucun identifiant fabriqué ici.
+  const email = emailSchema.safeParse(textField(formData, 'email'));
   const fullName = z
     .string()
     .trim()
     .min(1)
     .max(160)
     .safeParse(textField(formData, 'fullName'));
-  const email = emailSchema.safeParse(textField(formData, 'email'));
   const password = textField(formData, 'password') ?? '';
 
   if (!fullName.success) redirect('/inscription?erreur=fullNameRequired');

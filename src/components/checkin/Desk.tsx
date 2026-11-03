@@ -11,7 +11,13 @@ import {
   type DeskState,
 } from '@/lib/checkin/reducer';
 import { deskList, deskStatusLabel, type DeskRow } from '@/lib/checkin/rows';
-import { expandSeats } from '@/lib/checkin/seats';
+import {
+  DESK_ORDERS,
+  expandSeats,
+  parseDeskOrder,
+  sortGuests,
+  type DeskOrder,
+} from '@/lib/checkin/seats';
 import { freshness, POLL_INTERVAL_MS } from '@/lib/checkin/freshness';
 import { loadQueue, saveQueue } from '@/lib/checkin/storage';
 import { normaliseSearch, type GuestRow } from '@/lib/survey/guests';
@@ -77,6 +83,8 @@ export function Desk(props: DeskProps) {
   const [state, dispatch] = useReducer(deskReducer, props, initial);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  /* Alphabétique par défaut : à une porte, on cherche un nom. */
+  const [order, setOrder] = useState<DeskOrder>('name');
   const [online, setOnline] = useState(true);
   const [announcement, setAnnouncement] = useState('');
   /* Horloge du rendu : la fraîcheur se recalcule même sans nouvel événement,
@@ -85,7 +93,8 @@ export function Desk(props: DeskProps) {
 
   // Les inscriptions sont dépliées en PERSONNES avant toute chose : le poste
   // ne manipule plus que des sièges, et le compteur de salle en découle.
-  const seats = useMemo(() => expandSeats(guests), [guests]);
+  // Classement PUIS dépliage : l'hôte et son accompagnant restent côte à côte.
+  const seats = useMemo(() => expandSeats(sortGuests(guests, order)), [guests, order]);
   const list = useMemo(() => deskList(seats, state), [seats, state]);
 
   const visible = useMemo(() => {
@@ -379,6 +388,26 @@ export function Desk(props: DeskProps) {
           type="search"
           value={search}
         />
+
+        {/* Le classement est un vrai `select` natif, comme partout : au doigt,
+            debout, une liste déroulante du système bat n'importe quel menu
+            dessiné à la main. */}
+        <label className="sp-visually-hidden" htmlFor="sp-desk-order">
+          Classer la liste
+        </label>
+        <select
+          className="sp-select sp-desk__order"
+          id="sp-desk-order"
+          onChange={(event) => setOrder(parseDeskOrder(event.target.value))}
+          value={order}
+        >
+          {DESK_ORDERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
         <nav aria-label="Filtrer la liste" className="sp-chips">
           {(['all', 'awaited', 'arrived'] as const).map((key) => (
             <button
