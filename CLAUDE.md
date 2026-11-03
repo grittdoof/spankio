@@ -203,6 +203,21 @@ changer.
   ces phrases de toute façon, les laisser en anglais aurait été un choix.
 - Accès aux secrets exclusivement via `serverEnv()` (`src/lib/config/env.ts`),
   qui lève une erreur s'il est appelé côté client.
+- **Une variable FACULTATIVE déclarée mais VIDE vaut absente.** Défaut réel,
+  et il n'est apparu qu'en production : `.optional()` accepte `undefined`,
+  pas la chaîne vide. Or Vercel stocke `""` pour un secret déclaré sans être
+  rempli — c'était le cas de `KV_REST_API_URL`, `SENTRY_DSN`, `CRON_SECRET`
+  et `NOMINATIM_USER_AGENT`. Comme `serverEnv()` valide TOUT d'un bloc, ces
+  cinq chaînes vides faisaient lever sa seule appelante, le client à clé de
+  service : la création d'un compte de pointage échouait en 500 avant d'avoir
+  rien tenté. Le défaut dormait depuis l'étape 1, aucun chemin déclenché par
+  un utilisateur n'appelant `serverEnv()`. Les variables EXIGÉES, elles,
+  échouent toujours sur une chaîne vide : une clé de service vide n'est pas
+  une clé absente, c'est une configuration cassée qui doit se voir tout de
+  suite. **Leçon, et c'est la quatrième fois sous une autre forme** : « non
+  vérifié en vrai » reste « non vérifié », quel que soit le nombre de tests
+  autour — celui-ci a été trouvé au premier essai réel, pas par les 1976
+  précédents.
 - `dangerouslySetInnerHTML` est **interdit par ESLint** (anti-XSS stocké) :
   toute valeur issue d'une soumission est rendue comme texte.
 - Design system : classes préfixées `sp-`, tokens CSS dans
