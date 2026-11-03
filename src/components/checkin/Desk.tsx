@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
+  cursorOf,
   deskReducer,
+  indexStates,
   expectedVersionOf,
   nextOp,
   retryDelay,
@@ -68,14 +70,26 @@ const FILTER_LABELS: Readonly<Record<Filter, string>> = {
   arrived: 'Arrivés',
 };
 
+/**
+ * L'état de départ, rendu par le SERVEUR : la liste est complète avant tout
+ * JavaScript, arrivées comprises.
+ *
+ * L'indexation passe par `indexStates`, la même que le réducteur. Elle était
+ * recopiée ici, et la copie indexait par `responseId` seul : les arrivées
+ * déjà enregistrées disparaissaient au rechargement, et le premier appui
+ * annonçait une version périmée.
+ *
+ * `syncedAt` reste NUL, délibérément : écrire ici un `Date.now()` ferait
+ * différer le rendu serveur du premier rendu client d'une seconde, et React
+ * signalerait une divergence d'hydratation. La fraîcheur se dira au premier
+ * delta, qui part dès le montage.
+ */
 function initial(props: DeskProps): DeskState {
-  const states: Record<string, CheckinState> = {};
-  for (const one of props.initialStates) states[one.responseId] = one;
-  let cursor: string | null = null;
-  for (const one of props.initialStates) {
-    if (cursor === null || one.updatedAt > cursor) cursor = one.updatedAt;
-  }
-  return { ...EMPTY_DESK, states, cursor };
+  return {
+    ...EMPTY_DESK,
+    states: indexStates(props.initialStates),
+    cursor: cursorOf(null, props.initialStates),
+  };
 }
 
 export function Desk(props: DeskProps) {
@@ -442,7 +456,7 @@ export function Desk(props: DeskProps) {
             <li
               className={`sp-desk__row${row.arrived ? ' sp-desk__row--in' : ''}${
                 row.pending ? ' sp-desk__row--sending' : ''
-              }`}
+              }${row.isCompanion ? ' sp-desk__row--companion' : ''}`}
               key={row.key}
             >
               <button
@@ -450,19 +464,25 @@ export function Desk(props: DeskProps) {
                 onClick={() => toggle(row)}
                 type="button"
               >
-                {/* La pastille DISTINGUE, elle n'informe pas : la rangée
-                    d'un accompagnant porte déjà « accompagnant(e) de … » en
-                    toutes lettres, lue par un lecteur d'écran comme par
-                    quelqu'un qui ne distingue pas les deux teintes. Même
-                    règle que les graphiques. */}
-                <span
-                  aria-hidden="true"
-                  className={`sp-desk__avatar${
-                    row.isCompanion ? ' sp-desk__avatar--companion' : ''
-                  }`}
-                >
-                  {row.initials || '·'}
-                </span>
+                {/* Une teinte de pastille ne suffisait pas à faire
+                    comprendre d'un coup d'œil qu'il s'agit d'un
+                    accompagnant : la rangée porte donc un bandeau vertical
+                    qui le NOMME, et son contenu est décalé vers la droite —
+                    le décalage se lit même sans couleur.
+
+                    Le bandeau est `aria-hidden` : la rangée dit déjà
+                    « accompagnant(e) de … » dans sa précision, et l'entendre
+                    deux fois n'apprendrait rien. Même règle que le compte
+                    inscrit au-dessus d'une colonne de graphique. */}
+                {row.isCompanion ? (
+                  <span aria-hidden="true" className="sp-desk__flag">
+                    accompagnant
+                  </span>
+                ) : (
+                  <span aria-hidden="true" className="sp-desk__avatar">
+                    {row.initials || '·'}
+                  </span>
+                )}
                 <span className="sp-desk__who">
                   <span className="sp-desk__name">{row.name ?? 'Réponse sans nom'}</span>
                   {/* Une ligne par personne : il n'y a plus d'effectif à
