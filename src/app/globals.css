@@ -5153,3 +5153,136 @@ summary.sp-btn::-webkit-details-marker {
     padding-left: var(--sp-space-4);
   }
 }
+
+/* Un accompagnant sur le papier : décalé et souligné d'un filet, comme à
+   l'écran. La couleur ne se transmet pas à l'imprimante de bureau — la
+   différence passe donc par la POSITION et par un trait, jamais par une
+   teinte. Le texte « accompagnant(e) de … » reste dans la colonne de
+   précision : le filet le redit, il ne le remplace pas. */
+.sp-print__row--companion .sp-print__name {
+  padding-left: var(--sp-space-5);
+  border-left: 3px solid var(--sp-text);
+  font-weight: 400;
+}
+
+/* La marque de l'organisation sur le poste.
+   Seule la HAUTEUR est contrainte, comme pour `BrandMark` : un logo est
+   presque toujours plus large que haut. Elle est volontairement petite — cet
+   écran appartient au compteur de salle et à la liste, pas à la marque — et
+   plus petite encore sur téléphone, où chaque pixel de hauteur est une
+   rangée d'invité en moins. */
+.sp-desk__logo {
+  display: block;
+  height: 1.5rem;
+  width: auto;
+  max-width: 7rem;
+  margin-bottom: var(--sp-space-2);
+  object-fit: contain;
+}
+
+.sp-desk__org {
+  display: block;
+  color: var(--sp-marine-soft);
+  font-size: var(--sp-text-sm);
+  font-weight: 400;
+}
+
+@media (min-width: 40rem) {
+  .sp-desk__logo {
+    height: 2rem;
+    max-width: 10rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Journal de la porte
+   ---------------------------------------------------------------------------
+   Écran de recours : on l'ouvre quand un chiffre surprend. Il se lit donc en
+   phrases, et l'heure y est à la SECONDE — deux postes qui se contredisent se
+   départagent à la seconde près, pas à la minute.
+   --------------------------------------------------------------------------- */
+
+.sp-journal__facts {
+  display: flex;
+  gap: var(--sp-space-6);
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.sp-journal__facts dt {
+  font-size: var(--sp-text-xs);
+  color: var(--sp-text-muted);
+  text-transform: uppercase;
+}
+
+.sp-journal__facts dd {
+  margin: 0;
+  font-size: var(--sp-text-xl);
+  font-weight: 700;
+  color: var(--sp-marine);
+}
+
+.sp-journal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-journal__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-space-4);
+  flex-wrap: wrap;
+  padding: var(--sp-space-3) var(--sp-space-4);
+  border: 1px solid var(--sp-border);
+  border-radius: var(--sp-radius);
+  background: var(--sp-surface);
+}
+
+/* Un retrait se distingue d'une arrivée par le MOT d'abord — « Arrivée
+   retirée » — la teinte ne fait que le redire. */
+.sp-journal__row--undone {
+  background: var(--sp-surface-muted);
+}
+
+.sp-journal__when {
+  flex: none;
+  min-width: 11rem;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.sp-journal__what {
+  display: flex;
+  flex: 1 1 14rem;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--sp-space-1);
+}
+
+.sp-journal__action {
+  font-weight: 600;
+}
+
+.sp-journal__who {
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.sp-journal__by {
+  flex: none;
+  font-size: var(--sp-text-sm);
+  text-align: right;
+}
+
+@media (max-width: 40rem) {
+  .sp-journal__by {
+    text-align: left;
+    width: 100%;
+  }
+}

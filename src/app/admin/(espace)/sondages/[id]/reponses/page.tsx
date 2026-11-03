@@ -5,8 +5,16 @@ import Link from 'next/link';
 import { EventOverview, type PartySummary } from '@/components/admin/EventOverview';
 import { GuestList } from '@/components/admin/GuestList';
 import { arrivalFacts, arrivalReport, arrivalRows } from '@/lib/checkin/report';
-import { readCheckins } from '@/lib/services/checkin';
+import {
+  JOURNAL_LIMIT,
+  actorNames,
+  listCheckinLog,
+  readCheckins,
+} from '@/lib/services/checkin';
 import { ArrivalsPanel } from '@/components/admin/ArrivalsPanel';
+import { ArrivalsJournal } from '@/components/admin/ArrivalsJournal';
+import { journalEntries } from '@/lib/checkin/journal';
+import { expandSeats } from '@/lib/checkin/seats';
 import { StatisticsPanel } from '@/components/admin/StatisticsPanel';
 import { StatisticsTabs } from '@/components/admin/StatisticsTabs';
 import { Alert } from '@/components/ui/Alert';
@@ -158,6 +166,27 @@ export default async function SurveyStatisticsPage({
    */
   const checkins =
     view.tab === 'arrivees' ? await readCheckins(context, survey.value.id) : null;
+
+  // Le journal n'est lu QUE sur sa vue : c'est jusqu'à 500 lignes et deux
+  // requêtes de plus, pour un écran de recours qu'on ouvre rarement.
+  const log = view.tab === 'journal' ? await listCheckinLog(context, survey.value.id) : null;
+  const actors =
+    log?.ok && log.value.length > 0
+      ? await actorNames(
+          context,
+          log.value
+            .map((row) => row.byProfile)
+            .filter((id): id is string => id !== null),
+        )
+      : new Map<string, string>();
+  const journal =
+    log?.ok && schema.ok
+      ? journalEntries(
+          log.value,
+          expandSeats(guestList(schema.value, attendance, responses.value).rows),
+          actors,
+        )
+      : [];
   const clock =
     survey.value.kind === 'event'
       ? countdown(survey.value.event_starts_at, { now, timeZone })
@@ -330,6 +359,10 @@ export default async function SurveyStatisticsPage({
                 preparationHref={`/admin/sondages/${survey.value.id}/accueil`}
                 report={report}
               />
+            ) : null}
+
+            {view.tab === 'journal' ? (
+              <ArrivalsJournal capped={journal.length >= JOURNAL_LIMIT} entries={journal} />
             ) : null}
 
             {view.tab === 'invites' ? (

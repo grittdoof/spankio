@@ -119,10 +119,14 @@ export default async function CheckinPrintPage({
         </thead>
         <tbody>
           {printed.rows.map(({ row, sortValue }) => (
-            <tr key={row.key}>
+            <tr className={row.isCompanion ? 'sp-print__row--companion' : ''} key={row.key}>
               <td>
                 <span aria-hidden="true" className="sp-print__box" />
               </td>
+              {/* Décalé et souligné d'un filet, comme à l'écran. Sur du
+                  papier la couleur ne se transmet pas — une imprimante de
+                  bureau sort en noir et blanc — donc la différence passe par
+                  la POSITION et par un trait, jamais par une teinte. */}
               <td className="sp-print__name">{row.name ?? 'Sans nom'}</td>
               {printed.sortColumn ? <td>{sortValue ?? ''}</td> : null}
               <td>{row.detail ?? ''}</td>

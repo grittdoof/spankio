@@ -16,12 +16,18 @@ import { parsePaceWindow, type PaceWindow } from '@/lib/survey/pace';
  * des lignes déjà lues.
  */
 
-export type StatisticsTab = 'apercu' | 'questions' | 'invites' | 'arrivees';
+export type StatisticsTab = 'apercu' | 'questions' | 'invites' | 'arrivees' | 'journal';
 
 /**
- * « Arrivées » ferme la marche, et pas par hasard : les trois premières vues
+ * « Journal » ferme la marche, derrière « Arrivées », et pour une raison
+ * différente des autres : ce n'est pas une lecture de la soirée, c'est un
+ * recours. On ne l'ouvre que lorsqu'un chiffre surprend — un invité qui jure
+ * être entré, deux postes qui se contredisent. Le mettre en avant lui
+ * donnerait une importance qu'il n'a pas les autres jours.
+ *
+ * « Arrivées », juste avant, suit la même logique : les trois premières vues
  * se lisent AVANT la soirée — combien serons-nous, qu'ont répondu les gens,
- * untel a-t-il confirmé. Celle-ci ne se lit qu'APRÈS, une fois les portes
+ * untel a-t-il confirmé. Celle-là ne se lit qu'APRÈS, une fois les portes
  * fermées. La placer en tête ferait croire qu'elle manque de données pendant
  * les trois semaines où elle est légitimement vide.
  */
@@ -30,6 +36,7 @@ export const STATISTICS_TABS: readonly StatisticsTab[] = [
   'questions',
   'invites',
   'arrivees',
+  'journal',
 ];
 
 export const STATISTICS_TAB_LABELS: Readonly<Record<StatisticsTab, string>> = {
@@ -37,6 +44,7 @@ export const STATISTICS_TAB_LABELS: Readonly<Record<StatisticsTab, string>> = {
   questions: 'Questions',
   invites: 'Invités',
   arrivees: 'Arrivées',
+  journal: 'Journal',
 };
 
 export function parseStatisticsTab(raw: string | undefined): StatisticsTab {

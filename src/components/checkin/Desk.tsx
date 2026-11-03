@@ -53,6 +53,9 @@ export interface DeskProps {
   /** Le comptage est-il désigné ? Sans lui, pas de statut annoncé. */
   readonly counting: boolean;
   readonly printHref: string;
+  /** Logo de l'organisation, s'il en a déposé un. */
+  readonly logoUrl?: string | null;
+  readonly organisationName?: string | null;
   /**
    * Essai à blanc : les hôtesses s'entraînent, RIEN n'est envoyé ni compté, et
    * un rechargement remet à zéro. Le classique « on a découvert à 19 h 50 que
@@ -93,7 +96,16 @@ function initial(props: DeskProps): DeskState {
 }
 
 export function Desk(props: DeskProps) {
-  const { surveyId, guests, counting, printHref, title, rehearsal = false } = props;
+  const {
+    surveyId,
+    guests,
+    counting,
+    printHref,
+    title,
+    logoUrl = null,
+    organisationName = null,
+    rehearsal = false,
+  } = props;
   const [state, dispatch] = useReducer(deskReducer, props, initial);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -364,7 +376,21 @@ export function Desk(props: DeskProps) {
           </svg>
           <span className="sp-visually-hidden">Imprimer la liste de secours</span>
         </a>
-        <p className="sp-desk__title">{title}</p>
+        {/* Le logo est DÉCORATIF : le titre de l'événement est juste à côté,
+            et le nom de l'organisation avec lui. L'entendre deux fois
+            n'apprendrait rien. Seule la HAUTEUR est contrainte — un logo est
+            presque toujours plus large que haut, et l'enfermer dans un carré
+            le réduirait à un timbre. */}
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img alt="" className="sp-desk__logo" decoding="async" src={logoUrl} />
+        ) : null}
+        <p className="sp-desk__title">
+          {title}
+          {organisationName ? (
+            <span className="sp-desk__org">{organisationName}</span>
+          ) : null}
+        </p>
         <p className="sp-desk__count">
           <strong>{totals.inRoom}</strong>
           <span>
