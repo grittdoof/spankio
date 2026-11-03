@@ -16,12 +16,15 @@
  * un sous-domaine `accueil.` qui ne reçoit aucun courrier. Elle sert
  * d'identifiant et de rien d'autre.
  *
- * **Le suffixe est tiré au sort, pas incrémenté.** Deux « Marie » dans la même
- * organisation sont la règle, pas l'exception ; `marie-2` obligerait à
- * interroger la base pour savoir quel numéro est libre, et à recommencer à
- * chaque collision. Quatre caractères tirés de `crypto.getRandomValues`
- * règlent la question sans lecture préalable — et la contrainte d'unicité de
- * la base reste le juge, l'appelant réessayant avec un autre tirage.
+ * **L'identifiant est COURT tant qu'il peut l'être.** « test1 » suffit, et
+ * c'est ce qu'on dicte ; `test1.ppjd@accueil.spankio.vpstrat.com` tenait la
+ * promesse à l'envers. Le premier essai ne porte donc aucun suffixe — on
+ * tente le nom nu. Le suffixe de quatre caractères n'apparaît qu'en cas de
+ * collision, c'est-à-dire pour le SECOND « Marie » d'une organisation, et il
+ * est tiré de `crypto.getRandomValues` plutôt qu'incrémenté : `marie-2`
+ * obligerait à interroger la base pour savoir quel numéro est libre, et à
+ * recommencer à chaque fois. La contrainte d'unicité de la base reste le
+ * juge, l'appelant réessayant avec un tirage de plus.
  *
  * **Le mot de passe se DICTE.** Il sera lu au téléphone ou recopié d'un SMS :
  * des syllabes prononçables valent mieux qu'une suite de caractères, et le
@@ -83,9 +86,35 @@ export function staffIdentifierHost(siteUrl: string): string {
   }
 }
 
-/** L'identifiant complet, celui qu'on remet à la personne. */
-export function staffIdentifier(label: string, host: string): string {
-  return `${slugifyLabel(label)}.${randomSuffix()}@${host}`;
+/**
+ * L'identifiant complet, celui qu'on remet à la personne.
+ *
+ * `attempt` vaut 0 au premier essai : le nom nu, sans suffixe. Au-delà, c'est
+ * que la base a refusé l'adresse — quelqu'un porte déjà ce nom — et on ajoute
+ * le tirage qui départage.
+ */
+export function staffIdentifier(label: string, host: string, attempt = 0): string {
+  const slug = slugifyLabel(label);
+  return attempt === 0 ? `${slug}@${host}` : `${slug}.${randomSuffix()}@${host}`;
+}
+
+/**
+ * Ce que la personne tape pour se connecter, traduit en adresse.
+ *
+ * Remettre « test1 » et exiger « test1@accueil.spankio.vpstrat.com » à la
+ * saisie serait reprendre d'une main ce qu'on donne de l'autre. Une saisie
+ * SANS arrobase est donc complétée par l'hôte des identifiants fabriqués ;
+ * tout ce qui en contient une est une adresse, et passe inchangé.
+ *
+ * Aucun assainissement au-delà de la casse : le nom nu peut contenir un point
+ * (`marie.k3rt`), et le « corriger » ferait échouer une connexion valide en
+ * silence. Si la traduction ne désigne personne, l'authentification refuse —
+ * c'est elle qui tranche, pas cette fonction.
+ */
+export function resolveSignInIdentifier(input: string, host: string): string {
+  const trimmed = input.trim();
+  if (trimmed === '' || trimmed.includes('@')) return trimmed;
+  return `${trimmed.toLowerCase()}@${host}`;
 }
 
 /**

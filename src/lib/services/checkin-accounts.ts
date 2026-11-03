@@ -67,7 +67,13 @@ export interface CreatedAccount {
   readonly identifier: string;
 }
 
-/** Trois tirages suffisent : une collision sur quatre caractères est rare. */
+/**
+ * Le premier essai est le nom NU ; les suivants ajoutent un tirage.
+ *
+ * Trois suffisent : il faut déjà deux homonymes dans une organisation pour
+ * atteindre le deuxième, et une collision sur quatre caractères tirés au sort
+ * pour atteindre le troisième.
+ */
 const IDENTIFIER_ATTEMPTS = 3;
 
 /**
@@ -90,7 +96,7 @@ export async function createStaffAccount(
   let identifier = '';
 
   for (let attempt = 0; attempt < IDENTIFIER_ATTEMPTS; attempt += 1) {
-    identifier = staffIdentifier(input.label, host);
+    identifier = staffIdentifier(input.label, host, attempt);
     const created = await admin.auth.admin.createUser({
       email: identifier,
       password: input.password,

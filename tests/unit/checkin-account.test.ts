@@ -7,6 +7,7 @@ import {
   isStaffIdentifier,
   isStaffLabelShape,
   mayResetPassword,
+  resolveSignInIdentifier,
   slugifyLabel,
   staffIdentifier,
   staffIdentifierHost,
@@ -66,17 +67,55 @@ describe('staffIdentifierHost', () => {
 describe('staffIdentifier', () => {
   const host = 'accueil.spankio.example';
 
-  it('compose nom, tirage et hôte', () => {
-    expect(staffIdentifier('Marie', host)).toMatch(
+  it('est COURT au premier essai : le nom nu, rien d’autre', () => {
+    // C'est ce qu'on dicte au téléphone. « marie.ppjd@… » tenait la promesse
+    // d'un identifiant simple à l'envers.
+    expect(staffIdentifier('Marie', host)).toBe('marie@accueil.spankio.example');
+  });
+
+  it('n’ajoute un tirage qu’à partir du second essai', () => {
+    // Le second essai n'arrive que si la base a refusé le premier, donc pour
+    // le SECOND « Marie » d'une organisation.
+    expect(staffIdentifier('Marie', host, 1)).toMatch(
       /^marie\.[bcdfghjkmnpqrstvwxz23456789]{4}@accueil\.spankio\.example$/,
     );
   });
 
-  it('ne produit pas deux fois le même identifiant', () => {
+  it('ne produit pas deux fois le même identifiant de repli', () => {
     // Le vrai juge reste la contrainte d'unicité de la base ; ce test vérifie
     // seulement que le tirage ne dégénère pas en constante.
-    const drawn = new Set(Array.from({ length: 200 }, () => staffIdentifier('Marie', host)));
+    const drawn = new Set(
+      Array.from({ length: 200 }, () => staffIdentifier('Marie', host, 1)),
+    );
     expect(drawn.size).toBeGreaterThan(190);
+  });
+});
+
+describe('resolveSignInIdentifier', () => {
+  const host = 'accueil.spankio.example';
+
+  it('complète un identifiant nu', () => {
+    expect(resolveSignInIdentifier('test1', host)).toBe('test1@accueil.spankio.example');
+  });
+
+  it('ignore la casse et les espaces de saisie', () => {
+    expect(resolveSignInIdentifier('  Test1  ', host)).toBe('test1@accueil.spankio.example');
+  });
+
+  it('laisse une vraie adresse intacte', () => {
+    expect(resolveSignInIdentifier('marie@exemple.fr', host)).toBe('marie@exemple.fr');
+  });
+
+  it('ne touche pas au point d’un identifiant suffixé', () => {
+    // `marie.k3rt` est un identifiant valide : « corriger » ce point ferait
+    // échouer une connexion parfaitement légitime, en silence.
+    expect(resolveSignInIdentifier('marie.k3rt', host)).toBe(
+      'marie.k3rt@accueil.spankio.example',
+    );
+  });
+
+  it('ne fabrique rien à partir du vide', () => {
+    expect(resolveSignInIdentifier('   ', host)).toBe('');
   });
 });
 

@@ -5099,3 +5099,12 @@ summary.sp-btn::-webkit-details-marker {
     display: none;
   }
 }
+
+/* Le classement de la liste d'accueil : au doigt, debout. La hauteur suit la
+   cible tactile de la charte, et la largeur s'adapte au libellé le plus long
+   plutôt que de s'étirer sur toute la barre. */
+.sp-desk__order {
+  min-height: 44px;
+  flex: 0 1 auto;
+  width: auto;
+}
