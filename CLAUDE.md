@@ -667,11 +667,45 @@ changer.
   le journal ne vaudrait plus rien comme compte rendu. La signature de
   `set_checkin` n'a donc aucun paramètre de source, et un test fige cette
   absence.
-- **Un effectif entré non précisé vaut `null`, jamais zéro.** « Mme X annoncée
-  +2, arrive seule » : l'effectif RÉEL n'est pas l'effectif annoncé, et c'est
-  lui que demandent le traiteur et la sécurité. Mais un chiffre que personne
-  n'a donné ne s'invente pas — c'est la même règle que l'effectif « à
-  vérifier » du comptage.
+- **UN POINTAGE = UNE PERSONNE.** Le lot 2 attachait l'arrivée à la réponse,
+  avec un effectif à côté : une inscription « Jean Martin, accompagné » valait
+  deux personnes sur UNE ligne, et Jacqueline Martin n'existait nulle part —
+  alors qu'elle franchit la porte, mange et compte pour la sécurité. Le siège
+  entre donc dans l'IDENTITÉ d'une arrivée, jusque dans la clé primaire
+  `(response_id, seat)` : deux personnes d'une même inscription arrivent
+  souvent à vingt minutes d'écart, et l'une peut venir sans l'autre. Un
+  compteur « 2 sur 3 arrivés » n'aurait pas su dire LESQUELS, ni résister à
+  deux postes qui pointent ensemble. Le siège 0 est toujours la personne
+  inscrite — numéroter autrement ferait dépendre l'identité d'une arrivée de
+  l'ordre d'affichage, qui change avec le tri et la recherche. La version
+  optimiste est elle aussi par siège, sans quoi pointer l'accompagnant
+  périmerait la ligne de l'hôte.
+- **`people_in` a DISPARU, et c'est la simplification que ce changement
+  rapporte.** Elle existait parce qu'une ligne pouvait valoir plusieurs
+  personnes et qu'il fallait pouvoir corriger ce nombre à l'entrée ; avec une
+  ligne par personne, l'effectif entré EST le nombre de sièges pointés.
+  Garder la colonne aurait laissé un chiffre que quelqu'un aurait fini par
+  additionner au compte réel. Toute la mécanique d'« effectif entré non
+  précisé » tombe avec elle. Corollaire pour le rapport : « corrigé » ne veut
+  plus dire « saisi à la main » mais « entré différent de l'annoncé », et ce
+  chiffre est désormais exact au lieu d'être déclaratif.
+- **L'accompagnant porte SON nom, pas celui de son hôte.**
+  `attendance.companionFields` le désigne, exactement comme `identityFields`
+  désigne l'invité. « accompagnant(e) de Jean Martin » est une PRÉCISION sous
+  le nom, jamais le nom lui-même : à une porte, on cherche le nom de la
+  personne qui se présente. Sans désignation — beaucoup de formulaires ne
+  demandent rien sur l'accompagnant — la ligne existe quand même et s'appelle
+  « Invité », numérotée s'il y en a plusieurs ; pointable, ce qui est
+  l'essentiel. Un formulaire ne posant qu'UN jeu de questions pour
+  l'accompagnant, le nom désigné ne sert qu'au premier : le recopier sur les
+  suivants inventerait des homonymes.
+- **Le papier dit la même chose que l'écran.** Le listing imprimé est déplié
+  en personnes lui aussi, et le dépliage vient APRÈS le classement : les
+  personnes d'une même inscription restent côte à côte, l'inscrit puis ses
+  accompagnants. Trier les sièges séparément aurait éparpillé un couple qui se
+  présente ensemble — et sur du papier, on ne cherche pas deux fois. La
+  colonne « Entrés » a disparu du listing : la case à cocher EST l'entrée, et
+  la garder ferait compter deux fois.
 - **Une correction de réponse EMPORTE son arrivée.** Défaut qui serait apparu
   au premier essai réel, et au pire endroit : une correction est une
   suppression logique PLUS une copie portant un nouvel identifiant, et
@@ -943,8 +977,9 @@ changer.
   deux colonnes parce qu'un module a été installé. Dès qu'une arrivée existe,
   en revanche, elles sont là pour TOUTES les lignes — des colonnes qui
   apparaîtraient réponse par réponse casseraient ce traitement bien plus
-  sûrement. Et un effectif non précisé reste VIDE, jamais « 0 » : un tableur
-  additionnerait les zéros.
+  sûrement. Et l'effectif d'une inscription dont PERSONNE n'est venu reste
+  VIDE, jamais « 0 » : un tableur additionnerait les zéros, et personne n'a dit
+  que ce groupe s'était présenté à zéro — il ne s'est pas présenté du tout.
 - **Le nombre se lit dans le LIBELLÉ de l'option, pas dans sa valeur.** Les
   valeurs sont des identifiants figés à la création (`option_1`…) ; seul le
   libellé porte le sens (« 2 »). C'est la contrepartie de la règle qui gèle
@@ -1472,6 +1507,24 @@ npm run build       # build de production
       (`identityFieldIds`) sert au poste, au listing papier, au tableau des
       réponses, à l'écran de correction et à l'état de préparation. 1954 tests,
       dont 15 ajoutés sur la composition et son repli.
+- [x] Module « Accueil », lot 7 — un pointage, une personne (3 novembre
+      2026) : trente-deuxième migration, clé `(response_id, seat)` sur
+      `event_checkins` et sur le journal, `set_checkin` reprise avec un
+      paramètre de siège — signature REMPLACÉE et non surchargée, pour rester
+      à douze fonctions exposées et ne pas laisser ouverte l'ancienne porte,
+      celle qui écrit toujours sur le siège 0. `people_in` supprimée des deux
+      tables. Module pur `src/lib/checkin/seats.ts` pour le dépliage,
+      désignation `companionFields` et son réglage à l'écran. Un défaut
+      attrapé par les tests en l'écrivant : `Number('')` vaut zéro, si bien
+      qu'une clé tronquée à `abc#` se lisait comme le siège 0 et aurait pointé
+      quelqu'un d'autre, en silence. **Une retouche à une migration déjà
+      appliquée**, la seule du projet : le lot 2 commentait `people_in`, et le
+      test de rejouabilité repassait dessus après la suppression de la
+      colonne — ce commentaire est désormais gardé par une condition
+      d'existence, l'alternative étant de conserver une colonne morte.
+      1976 tests. **Migration NON appliquée** : elle doit l'être AVANT la
+      fusion, puisqu'elle retire la signature que le code en production
+      appelle encore.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

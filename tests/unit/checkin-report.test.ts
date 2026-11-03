@@ -22,13 +22,16 @@ import { validateSurveySchema, type SurveySchema } from '@/lib/survey/schema';
 
 const TZ = 'Europe/Paris';
 
+/**
+ * Par défaut, TOUTES les personnes annoncées d'une inscription arrivée sont
+ * pointées — c'est le cas courant. Les tests qui veulent un écart le disent
+ * en passant `entered` explicitement.
+ */
 function row(partial: Partial<ArrivalRow> & { id: string }): ArrivalRow {
+  const base = { expected: 'attending' as const, announced: 1, arrivedAt: null, ...partial };
   return {
-    expected: 'attending',
-    announced: 1,
-    arrivedAt: null,
-    peopleIn: null,
-    ...partial,
+    ...base,
+    entered: partial.entered ?? (base.arrivedAt ? Math.max(1, base.announced) : 0),
   };
 }
 
@@ -62,7 +65,9 @@ describe('les écarts entre annoncé et constaté', () => {
     expect(report.noShow).toBe(0);
   });
 
-  it('retient l’effectif ANNONCÉ tant qu’il n’a pas été corrigé', () => {
+  it('compte les personnes RÉELLEMENT pointées, sans écart à signaler', () => {
+    // Trois annoncés, trois pointés : le compte tombe juste, et il n'y a rien
+    // à vérifier. C'est désormais un fait, plus une présomption.
     const report = arrivalReport(
       [row({ id: 'a', announced: 3, arrivedAt: '2026-11-18T19:05:00.000Z' })],
       TZ,
@@ -71,24 +76,25 @@ describe('les écarts entre annoncé et constaté', () => {
     expect(report.corrected).toBe(0);
   });
 
-  it('retient l’effectif CORRIGÉ dès qu’il existe, et le signale', () => {
+  it('signale l’écart quand il manque des personnes à l’entrée', () => {
+    // « Mme X annoncée +2, arrive seule » : c'est le chiffre que le traiteur
+    // demande à 21 h, et on le TIENT au lieu de le supposer.
     const report = arrivalReport(
-      [row({ id: 'a', announced: 3, peopleIn: 1, arrivedAt: '2026-11-18T19:05:00.000Z' })],
+      [row({ id: 'a', announced: 3, entered: 1, arrivedAt: '2026-11-18T19:05:00.000Z' })],
       TZ,
     );
-    // « Mme X annoncée +2, arrive seule » : c'est le chiffre que le traiteur
-    // demande à 21 h.
     expect(report.peopleIn).toBe(1);
     expect(report.corrected).toBe(1);
   });
 
-  it('accepte un effectif corrigé à ZÉRO sans le confondre avec une absence', () => {
+  it('signale aussi l’écart dans l’autre sens', () => {
+    // Annoncé seul, arrivé à deux : la salle compte deux corps.
     const report = arrivalReport(
-      [row({ id: 'a', announced: 2, peopleIn: 0, arrivedAt: '2026-11-18T19:05:00.000Z' })],
+      [row({ id: 'a', announced: 1, entered: 2, arrivedAt: '2026-11-18T19:05:00.000Z' })],
       TZ,
     );
-    expect(report.arrived).toBe(1);
-    expect(report.peopleIn).toBe(0);
+    expect(report.peopleIn).toBe(2);
+    expect(report.corrected).toBe(1);
   });
 });
 
@@ -161,7 +167,7 @@ describe('les faits énoncés', () => {
   const report = arrivalReport(
     [
       row({ id: 'a', announced: 2, arrivedAt: '2026-11-18T19:00:00.000Z' }),
-      row({ id: 'b', peopleIn: 1, arrivedAt: '2026-11-18T19:05:00.000Z' }),
+      row({ id: 'b', entered: 1, arrivedAt: '2026-11-18T19:05:00.000Z' }),
       row({ id: 'c' }),
       row({ id: 'd', expected: 'declined', arrivedAt: '2026-11-18T19:20:00.000Z' }),
     ],
@@ -203,6 +209,7 @@ describe('la composition des rangées', () => {
         name: 'Élodie',
         initials: 'É',
         detail: null,
+        companion: null,
         status: 'attending',
         people: 2,
         ambiguous: false,
@@ -213,6 +220,7 @@ describe('la composition des rangées', () => {
         name: 'Karim',
         initials: 'K',
         detail: null,
+        companion: null,
         status: 'declined',
         people: 0,
         ambiguous: false,
@@ -221,10 +229,19 @@ describe('la composition des rangées', () => {
     const states: CheckinState[] = [
       {
         responseId: 'r1',
+        seat: 0,
         arrivedAt: '2026-11-18T19:00:00.000Z',
-        peopleIn: null,
         version: 1,
         updatedAt: '2026-11-18T19:00:00.000Z',
+      },
+      // Son accompagnante est entrée aussi : l'inscription vaut donc DEUX
+      // personnes entrées, et c'est le comptage des sièges qui le dit.
+      {
+        responseId: 'r1',
+        seat: 1,
+        arrivedAt: '2026-11-18T19:04:00.000Z',
+        version: 1,
+        updatedAt: '2026-11-18T19:04:00.000Z',
       },
     ];
 
@@ -281,7 +298,7 @@ describe('les colonnes d’arrivée de l’export', () => {
 
   it('ajoute les deux colonnes dès qu’une arrivée est fournie, pour TOUTES les lignes', () => {
     const rows = responseRows(schema, responses, {
-      arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', peopleIn: 2 }]]),
+      arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', entered: 2 }]]),
     });
 
     expect(rows[0]!.slice(-2)).toEqual(['Arrivée', 'Personnes entrées']);
@@ -291,18 +308,22 @@ describe('les colonnes d’arrivée de l’export', () => {
     expect(rows[2]!.slice(-2)).toEqual(['', '']);
   });
 
-  it('laisse VIDE un effectif non précisé, jamais « 0 »', () => {
+  it('laisse VIDE l’effectif d’une inscription dont personne n’est venu', () => {
+    // Un tableur additionnerait les zéros, et le total serait faux. Personne
+    // n'a dit que ce groupe s'était présenté à zéro : il ne s'est pas
+    // présenté du tout.
     const rows = responseRows(schema, responses, {
-      arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', peopleIn: null }]]),
+      arrivals: new Map([['r1', { arrivedAt: null, entered: 0 }]]),
     });
-    // Un tableur additionnerait les zéros, et le total serait faux.
     expect(rows[1]!.slice(-1)).toEqual(['']);
   });
 
-  it('écrit bien un zéro quand l’accueil a corrigé à zéro', () => {
+  it('écrit le nombre de personnes réellement entrées', () => {
+    // Deux sièges pointés sur cette inscription : le fichier dit deux, et
+    // c'est un fait compté, plus un effectif annoncé puis supposé.
     const rows = responseRows(schema, responses, {
-      arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', peopleIn: 0 }]]),
+      arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', entered: 2 }]]),
     });
-    expect(rows[1]!.slice(-1)).toEqual(['0']);
+    expect(rows[1]!.slice(-1)).toEqual(['2']);
   });
 });

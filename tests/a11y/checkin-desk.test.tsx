@@ -22,6 +22,7 @@ const GUESTS: GuestRow[] = [
     name: 'Élodie Marchand',
     initials: 'ÉM',
     detail: 'Agence de Lyon',
+    companion: 'Jacqueline Marchand',
     status: 'attending',
     people: 2,
     ambiguous: false,
@@ -32,6 +33,7 @@ const GUESTS: GuestRow[] = [
     name: 'Karim Benali',
     initials: 'KB',
     detail: null,
+    companion: null,
     status: 'declined',
     people: 0,
     ambiguous: false,
@@ -42,6 +44,7 @@ const GUESTS: GuestRow[] = [
     name: 'Sophie Nguyen',
     initials: 'SN',
     detail: null,
+    companion: null,
     status: 'unknown',
     people: 1,
     ambiguous: true,
@@ -76,11 +79,15 @@ beforeEach(() => {
         // composant doit justement refuser.
         const sent = JSON.parse(typeof init.body === 'string' ? init.body : '{}') as {
           responseId?: string;
+          seat?: number;
         };
+        // Le siège est RENDU : le poste vérifie que la réponse parle bien de
+        // la personne envoyée, et un double qui l'omettrait ferait réessayer
+        // indéfiniment — exactement ce qui arrive derrière un portail captif.
         body = JSON.stringify({
           responseId: sent.responseId ?? '',
+          seat: sent.seat ?? 0,
           arrivedAt: new Date().toISOString(),
-          peopleIn: null,
           version: 1,
           updatedAt: new Date().toISOString(),
         });
@@ -105,15 +112,35 @@ describe('poste d’accueil', () => {
 
   it('écrit le statut de chaque rangée, sans dépendre de la couleur', () => {
     renderDesk();
-    // Les trois états annoncés sont nommés, pas seulement teintés.
-    expect(screen.getByText('Attendu')).toBeInTheDocument();
+    // Les trois états annoncés sont nommés, pas seulement teintés. « Attendu »
+    // apparaît deux fois : Élodie ET son accompagnante, qui a sa propre
+    // rangée depuis qu'un pointage vaut une personne.
+    expect(screen.getAllByText('Attendu')).toHaveLength(2);
     expect(screen.getByText('A décliné')).toBeInTheDocument();
     expect(screen.getByText('Sans réponse')).toBeInTheDocument();
   });
 
+  it('donne à l’accompagnante sa propre rangée, à son nom', () => {
+    renderDesk();
+    // C'est le besoin exprimé : Jacqueline se pointe elle-même, et la
+    // précision dit de qui elle est l'invitée.
+    expect(
+      screen.getByRole('button', { name: /Jacqueline Marchand/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/accompagnant\(e\) de Élodie Marchand/)).toBeInTheDocument();
+  });
+
+  it('pointe l’accompagnante sans faire entrer son hôte', async () => {
+    renderDesk();
+    await userEvent.click(screen.getByRole('button', { name: /Jacqueline Marchand/ }));
+
+    const host = screen.getByRole('button', { name: /^Élodie Marchand/ });
+    expect(within(host).getByText('Attendu')).toBeInTheDocument();
+  });
+
   it('fait de la rangée entière un bouton, atteignable au clavier', async () => {
     renderDesk();
-    const row = screen.getByRole('button', { name: /Élodie Marchand/ });
+    const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
     expect(row).toBeInTheDocument();
 
     await userEvent.tab();
@@ -140,18 +167,18 @@ describe('poste d’accueil', () => {
     );
 
     renderDesk();
-    await userEvent.click(screen.getByRole('button', { name: /Élodie Marchand/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
 
-    const row = screen.getByRole('button', { name: /Élodie Marchand/ });
+    const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
     expect(within(row).getByText('Arrivé — envoi en cours')).toBeInTheDocument();
     expect(screen.getByText(/1 pointage en attente d’envoi/)).toBeInTheDocument();
   });
 
   it('dit « Arrivé » tout court une fois le serveur confirmé', async () => {
     renderDesk();
-    await userEvent.click(screen.getByRole('button', { name: /Élodie Marchand/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
 
-    const row = screen.getByRole('button', { name: /Élodie Marchand/ });
+    const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
     expect(within(row).getByText('Arrivé')).toBeInTheDocument();
     // Plus rien en attente : l'opération confirmée a QUITTÉ la file.
     expect(screen.queryByText(/en attente d’envoi/)).not.toBeInTheDocument();
@@ -164,7 +191,7 @@ describe('poste d’accueil', () => {
     // la première.
     expect(screen.getAllByRole('status')).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole('button', { name: /Élodie Marchand/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
     expect(screen.getByRole('status')).toHaveTextContent('Élodie Marchand — arrivé');
   });
 
@@ -197,12 +224,14 @@ describe('poste d’accueil', () => {
     renderDesk();
     await userEvent.type(screen.getByRole('searchbox'), 'elodie');
 
-    expect(screen.getByRole('button', { name: /Élodie Marchand/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Élodie Marchand/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Karim Benali/ })).not.toBeInTheDocument();
   });
 
-  it('signale un effectif à vérifier, en toutes lettres', () => {
+  it('signale en toutes lettres un nombre d’accompagnants douteux', () => {
+    // La réserve ne porte plus sur « combien sont entrés » — une ligne vaut
+    // une personne — mais sur « combien de lignes fallait-il créer ».
     renderDesk();
-    expect(screen.getByText(/effectif à vérifier/)).toBeInTheDocument();
+    expect(screen.getByText(/nombre d’accompagnants à vérifier/)).toBeInTheDocument();
   });
 });

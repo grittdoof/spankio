@@ -13,8 +13,8 @@ function op(partial: Partial<PendingOp> = {}): PendingOp {
   return {
     opId: 'op-1',
     responseId: 'r1',
+    seat: 0,
     arrived: true,
-    peopleIn: null,
     attempts: 0,
     status: 'queued',
     error: null,

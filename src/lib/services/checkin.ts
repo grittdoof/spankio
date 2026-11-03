@@ -38,8 +38,8 @@ interface RawAssignment {
 
 interface RawCheckin {
   response_id: string;
+  seat: number;
   arrived_at: string | Date | null;
-  people_in: number | null;
   version: number;
   updated_at: string | Date;
 }
@@ -47,8 +47,8 @@ interface RawCheckin {
 function toState(row: RawCheckin): CheckinState {
   return {
     responseId: row.response_id,
+    seat: row.seat,
     arrivedAt: row.arrived_at === null ? null : toIsoString(row.arrived_at),
-    peopleIn: row.people_in,
     version: row.version,
     updatedAt: toIsoString(row.updated_at),
   };
@@ -168,7 +168,7 @@ export async function readCheckins(
 
   const rows = await context.port.select<RawCheckin>({
     table: 'event_checkins',
-    columns: 'response_id, arrived_at, people_in, version, updated_at',
+    columns: 'response_id, seat, arrived_at, version, updated_at',
     where,
     order: { column: 'updated_at', ascending: true },
     limit: EXPORT_LIMIT,
@@ -180,16 +180,16 @@ export async function readCheckins(
 
 export interface CheckinInput {
   readonly responseId: string;
+  readonly seat: number;
   readonly arrived: boolean;
   readonly opId: string;
   readonly expectedVersion: number | null;
-  readonly peopleIn: number | null;
 }
 
 interface RawRpcResult {
   response_id: string;
+  seat: number;
   arrived_at: string | null;
-  people_in: number | null;
   version: number;
   replayed: boolean;
 }
@@ -218,10 +218,10 @@ export async function recordCheckin(
 ): Promise<SurveyOutcome<CheckinResult>> {
   const result = await context.port.rpc<RawRpcResult>('set_checkin', {
     p_response_id: input.responseId,
+    p_seat: input.seat,
     p_arrived: input.arrived,
     p_op_id: input.opId,
     p_expected_version: input.expectedVersion,
-    p_people_in: input.peopleIn,
   });
   if (result.error) return { ok: false, error: result.error };
 
@@ -230,8 +230,8 @@ export async function recordCheckin(
     ok: true,
     value: {
       responseId: row.response_id,
+      seat: row.seat,
       arrivedAt: row.arrived_at,
-      peopleIn: row.people_in,
       version: row.version,
       updatedAt: now.toISOString(),
       replayed: row.replayed,

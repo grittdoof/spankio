@@ -87,6 +87,23 @@ export const attendanceSettingsSchema = z.object({
     .array(z.string().trim().max(MAX_LENGTHS.identifier))
     .max(3)
     .optional(),
+  /**
+   * Questions qui NOMMENT l'accompagnant, dans l'ordre, comme `identityFields`.
+   *
+   * Un accompagnant est un invité à part entière : il franchit la porte, il
+   * mange, il compte pour la sécurité. Il a donc sa propre ligne à pointer, et
+   * cette ligne doit porter SON nom — « Jacqueline Martin », pas « invité de
+   * Jean Martin ». Chercher quelqu'un à une porte, c'est chercher le nom de la
+   * personne qui se présente, jamais celui de son hôte.
+   *
+   * Facultatif, et c'est la raison d'être du repli : beaucoup de formulaires
+   * ne demandent rien sur l'accompagnant. Sa ligne existe quand même — elle
+   * s'appelle alors « Invité de Jean Martin », ce qui reste pointable.
+   */
+  companionFields: z
+    .array(z.string().trim().max(MAX_LENGTHS.identifier))
+    .max(3)
+    .optional(),
   /** Seconde question affichée sous le nom dans la liste (société, e-mail…). */
   detailField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
 });
@@ -257,6 +274,22 @@ export function identityFieldsOf(
 ): readonly SurveyField[] {
   const fields: SurveyField[] = [];
   for (const id of identityFieldIds(settings)) {
+    const field = fieldById(schema, id);
+    if (field) fields.push(field);
+  }
+  return fields;
+}
+
+/** Les questions qui nomment l'accompagnant, résolues et sans doublon. */
+export function companionFieldsOf(
+  schema: SurveySchema,
+  settings: AttendanceSettings,
+): readonly SurveyField[] {
+  const ids = [...new Set((settings.companionFields ?? []).map((id) => id.trim()))].filter(
+    (id) => id !== '',
+  );
+  const fields: SurveyField[] = [];
+  for (const id of ids) {
     const field = fieldById(schema, id);
     if (field) fields.push(field);
   }

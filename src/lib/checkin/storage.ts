@@ -67,15 +67,20 @@ function toPendingOp(value: unknown): PendingOp | null {
   if (typeof raw['opId'] !== 'string' || typeof raw['responseId'] !== 'string') return null;
   if (typeof raw['arrived'] !== 'boolean') return null;
 
-  const peopleIn = raw['peopleIn'];
+  // Le siège est RECONSTRUIT, et une valeur douteuse fait rejeter l'opération
+  // entière plutôt que de retomber sur zéro : un siège par défaut pointerait
+  // l'hôte à la place de son accompagnant, en silence.
+  const seat = raw['seat'];
+  if (!Number.isInteger(seat) || (seat as number) < 0 || (seat as number) > 998) return null;
+
   const attempts = raw['attempts'];
   const error = raw['error'];
 
   return {
     opId: raw['opId'],
     responseId: raw['responseId'],
+    seat: seat as number,
     arrived: raw['arrived'],
-    peopleIn: typeof peopleIn === 'number' ? peopleIn : null,
     attempts: typeof attempts === 'number' ? attempts : 0,
     // Une opération reprise après un rechargement n'est plus « en vol » : elle
     // attend son tour. La laisser en `sending` figerait la file, puisque le

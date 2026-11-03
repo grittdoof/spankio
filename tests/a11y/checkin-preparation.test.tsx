@@ -138,6 +138,7 @@ describe('essai à blanc', () => {
       name: 'Élodie Marchand',
       initials: 'ÉM',
       detail: null,
+      companion: null,
       status: 'attending',
       people: 1,
       ambiguous: false,

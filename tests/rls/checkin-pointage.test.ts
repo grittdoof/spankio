@@ -20,8 +20,8 @@ import { assignStaff, insertResponse, seedTwoTenants, type Tenant } from '../hel
 
 interface CheckinState {
   response_id: string;
+  seat: number;
   arrived_at: string | null;
-  people_in: number | null;
   version: number;
   by_profile: string | null;
   replayed: boolean;
@@ -38,12 +38,12 @@ describe('pointage des arrivées', () => {
     responseId: string,
     arrived: boolean,
     expectedVersion: number | null,
-    opts: { opId?: string; peopleIn?: number | null } = {},
+    opts: { opId?: string; seat?: number } = {},
   ): Promise<CheckinState> {
     const row = await db.queryOne<{ etat: CheckinState }>(
       actor,
       'select public.set_checkin($1, $2, $3, $4, $5) as etat',
-      [responseId, arrived, opts.opId ?? randomUUID(), expectedVersion, opts.peopleIn ?? null],
+      [responseId, opts.seat ?? 0, arrived, opts.opId ?? randomUUID(), expectedVersion],
     );
     return row!.etat;
   }
@@ -53,12 +53,12 @@ describe('pointage des arrivées', () => {
     responseId: string,
     arrived: boolean,
     expectedVersion: number | null,
-    opts: { opId?: string; peopleIn?: number | null } = {},
+    opts: { opId?: string; seat?: number } = {},
   ): Promise<unknown> {
     return db.query(
       actor,
       'select public.set_checkin($1, $2, $3, $4, $5) as etat',
-      [responseId, arrived, opts.opId ?? randomUUID(), expectedVersion, opts.peopleIn ?? null],
+      [responseId, opts.seat ?? 0, arrived, opts.opId ?? randomUUID(), expectedVersion],
     );
   }
 
@@ -195,38 +195,77 @@ describe('pointage des arrivées', () => {
       expect(again.version).toBe(2);
     });
 
-    it('un dé-pointage efface l’effectif avec l’arrivée', async () => {
+    it('un dé-pointage efface l’heure d’arrivée', async () => {
       const response = await freshResponse();
-      await setCheckin(asUser(a.host), response, true, 0, { peopleIn: 3 });
+      await setCheckin(asUser(a.host), response, true, 0);
       const off = await setCheckin(asUser(a.host), response, false, 1);
 
       expect(off.arrived_at).toBeNull();
-      expect(off.people_in).toBeNull();
     });
 
-    it('l’effectif réellement entré est conservé tel quel', async () => {
+    it('deux sièges d’une même inscription se pointent séparément', async () => {
+      // C'est toute la raison d'être du siège : l'hôte peut arriver sans son
+      // accompagnant, et vingt minutes plus tôt.
       const response = await freshResponse();
-      const state = await setCheckin(asUser(a.host), response, true, 0, { peopleIn: 1 });
-      expect(state.people_in).toBe(1);
+      const host = await setCheckin(asUser(a.host), response, true, 0, { seat: 0 });
+      const guest = await setCheckin(asUser(a.host), response, true, 0, { seat: 1 });
+
+      expect(host.seat).toBe(0);
+      expect(guest.seat).toBe(1);
+      expect(host.arrived_at).not.toBeNull();
+      expect(guest.arrived_at).not.toBeNull();
+
+      const rows = await db.query<{ seat: number }>(
+        OWNER,
+        'select seat from public.event_checkins where response_id = $1 order by seat',
+        [response],
+      );
+      expect(rows.map((row) => row.seat)).toEqual([0, 1]);
     });
 
-    it('un effectif non précisé reste null, jamais zéro', async () => {
+    it('la version est portée par le SIÈGE, pas par l’inscription', async () => {
+      // Sans cela, pointer l'accompagnant périmerait la ligne de l'hôte et
+      // deux hôtesses travaillant la même inscription se refuseraient l'une
+      // l'autre sans raison.
       const response = await freshResponse();
-      const state = await setCheckin(asUser(a.host), response, true, 0);
-      expect(state.people_in).toBeNull();
+      await setCheckin(asUser(a.host), response, true, 0, { seat: 0 });
+      const guest = await setCheckin(asUser(a.host), response, true, 0, { seat: 1 });
+      expect(guest.version).toBe(1);
     });
 
-    it('la contrainte refuse un effectif sans arrivée, même au propriétaire', async () => {
+    it('un dé-pointage ne touche QUE son siège', async () => {
       const response = await freshResponse();
+      await setCheckin(asUser(a.host), response, true, 0, { seat: 0 });
+      await setCheckin(asUser(a.host), response, true, 0, { seat: 1 });
+      await setCheckin(asUser(a.host), response, false, 1, { seat: 1 });
+
+      const rows = await db.query<{ seat: number; arrived_at: string | null }>(
+        OWNER,
+        'select seat, arrived_at from public.event_checkins where response_id = $1 order by seat',
+        [response],
+      );
+      expect(rows[0]?.arrived_at).not.toBeNull();
+      expect(rows[1]?.arrived_at).toBeNull();
+    });
+
+    it('la clé primaire refuse deux lignes pour un même siège', async () => {
+      const response = await freshResponse();
+      await setCheckin(asUser(a.host), response, true, 0, { seat: 1 });
       const error = await expectError(
         db.query(
           OWNER,
-          `insert into public.event_checkins (response_id, survey_id, organisation_id, people_in)
-           values ($1, $2, $3, 2)`,
+          `insert into public.event_checkins (response_id, seat, survey_id, organisation_id)
+           values ($1, 1, $2, $3)`,
           [response, a.eventSurvey, a.organisationId],
         ),
       );
-      expect(sqlErrorCode(error)).toBe('23514');
+      expect(sqlErrorCode(error)).toBe('23505');
+    });
+
+    it('un siège hors bornes est refusé', async () => {
+      const response = await freshResponse();
+      const error = await expectError(call(asUser(a.host), response, true, 0, { seat: 999 }));
+      expect(sqlErrorCode(error)).toBe('22023');
     });
   });
 
@@ -431,7 +470,8 @@ describe('pointage des arrivées', () => {
      */
     it('le pointage suit la copie corrigée', async () => {
       const response = await insertResponse(db, a.eventSurvey, { nom: 'Mme Dupont' });
-      const before = await setCheckin(asUser(a.host), response, true, 0, { peopleIn: 2 });
+      const before = await setCheckin(asUser(a.host), response, true, 0);
+      await setCheckin(asUser(a.host), response, true, 0, { seat: 1 });
 
       const corrected = await db.queryOne<{ id: string }>(
         asUser(a.admin),
@@ -439,9 +479,9 @@ describe('pointage des arrivées', () => {
         [response, JSON.stringify({ nom: 'Mme Dupond' })],
       );
 
-      const moved = await db.queryOne<{ arrived_at: string; people_in: number }>(
+      const moved = await db.queryOne<{ arrived_at: string; seat: number }>(
         OWNER,
-        'select arrived_at, people_in from public.event_checkins where response_id = $1',
+        'select arrived_at, seat from public.event_checkins where response_id = $1 and seat = 0',
         [corrected!.id],
       );
       // Même INSTANT, pas même chaîne : le jsonb de la porte sérialise en UTC
@@ -451,7 +491,14 @@ describe('pointage des arrivées', () => {
       expect(new Date(moved!.arrived_at).getTime()).toBe(
         new Date(before.arrived_at!).getTime(),
       );
-      expect(moved?.people_in).toBe(2);
+      // Les DEUX sièges suivent la copie : l'accompagnant entré ne doit pas
+      // redevenir absent parce qu'on a corrigé une faute dans le nom de l'hôte.
+      const movedSeats = await db.query<{ seat: number }>(
+        OWNER,
+        'select seat from public.event_checkins where response_id = $1 order by seat',
+        [corrected!.id],
+      );
+      expect(movedSeats.map((row) => row.seat)).toEqual([0, 1]);
 
       // Et plus rien n'est accroché à l'originale.
       const left = await db.query(

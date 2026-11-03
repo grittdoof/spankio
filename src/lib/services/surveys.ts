@@ -79,7 +79,9 @@ const SURVEY_COLUMNS =
 
 const LIST_COLUMNS =
   'id, slug, title, kind, status, module_key, banner_path, published_at, closes_at, ' +
-  'updated_at, created_at';
+  // La date de l'événement : c'est elle qui distingue deux formulaires aux
+  // titres voisins, et l'écran de pointage en a besoin pour les classer.
+  'event_starts_at, event_timezone, event_all_day, updated_at, created_at';
 
 export interface SurveySummary {
   id: string;
@@ -92,6 +94,10 @@ export interface SurveySummary {
   banner_path: string | null;
   published_at: string | null;
   closes_at: string | null;
+  /** `null` pour un sondage, ou un événement dont la date n'est pas posée. */
+  event_starts_at: string | null;
+  event_timezone: string;
+  event_all_day: boolean;
   updated_at: string;
   created_at: string;
 }

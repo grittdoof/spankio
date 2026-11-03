@@ -6,30 +6,49 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { loadAdminSession } from '@/lib/admin/session';
 import { resolveRequestContext } from '@/lib/data/context';
 import { listAssignments } from '@/lib/services/checkin';
-import { listSurveys } from '@/lib/services/surveys';
+import { listSurveys, type SurveySummary } from '@/lib/services/surveys';
+import { eventWhen } from '@/lib/event/display';
 import { openDeskAction } from './actions';
 
 /**
  * « Pointage » — l'entrée directe de l'organisateur vers la porte.
  *
- * Le poste d'accueil (`/accueil`) est fait pour une personne engagée une
- * soirée : il ne liste que SES affectations, et redirige quand il n'y en a
- * qu'une. L'organisateur, lui, n'est pas affecté à ses propres événements —
- * il administre, il ne tient pas la porte. Cliquer « Pointage » l'envoyait
- * donc sur un écran vide, ce qui est exactement ce que ce projet évite
- * partout ailleurs.
+ * Première version jugée illisible par le client, et il avait raison sur les
+ * deux points. Les leçons sont écrites ici parce qu'elles valent au-delà de
+ * cet écran.
  *
- * D'où cet écran : il liste les ÉVÉNEMENTS de l'organisation et ouvre le
- * poste. Quand l'organisateur est déjà affecté à un seul d'entre eux, il n'y
- * a rien à choisir et on l'y envoie directement — même raisonnement que le
- * sélecteur du poste.
+ * **Le vocabulaire interne ne franchit pas l'écran.** « Ouvrir le poste » et
+ * « M'affecter et ouvrir le poste » décrivaient la mécanique — une ligne dans
+ * `checkin_staff` — et non ce que la personne vient faire. Les deux boutons
+ * portent donc le MÊME libellé, « Pointer les arrivées », parce que c'est le
+ * même geste vu de l'utilisateur ; que l'un crée une affectation au passage
+ * ne le regarde pas. Deux libellés différents pour une même intention font
+ * chercher la différence, et il n'y en a pas.
  *
- * L'ouverture passe par une affectation réelle, écrite sous RLS. Rien n'est
- * contourné : la règle du module reste « l'affectation ouvre », et le journal
- * des arrivées dira que c'est l'organisateur qui pointait.
+ * **Une liste de titres ne suffit pas à choisir.** « 180 ans Spie
+ * batignolles » et « Spie batignolles célèbre ses 180 ans… » sont deux
+ * formulaires distincts : sans la date ni le nombre d'inscrits, rien ne dit
+ * lequel est la vraie soirée. Chaque rangée porte donc sa date, son état et
+ * son effectif, et les événements datés passent devant, le plus proche en
+ * tête — c'est celui qu'on vient tenir.
  */
 
 export const dynamic = 'force-dynamic';
+
+const DRAFT_LABEL: Readonly<Record<string, string>> = {
+  draft: 'Brouillon',
+  closed: 'Clôturé',
+};
+
+/** Les événements datés d'abord, le plus proche en tête ; les autres ensuite. */
+function byDate(left: SurveySummary, right: SurveySummary): number {
+  if (left.event_starts_at && right.event_starts_at) {
+    return left.event_starts_at.localeCompare(right.event_starts_at);
+  }
+  if (left.event_starts_at) return -1;
+  if (right.event_starts_at) return 1;
+  return right.updated_at.localeCompare(left.updated_at);
+}
 
 export default async function AdminCheckinPage({
   searchParams,
@@ -50,14 +69,14 @@ export default async function AdminCheckinPage({
     listAssignments(context),
   ]);
 
-  const events = surveys.ok
-    ? surveys.value.filter((survey) => survey.kind === 'event')
-    : [];
+  const events = (surveys.ok ? surveys.value.filter((survey) => survey.kind === 'event') : [])
+    .slice()
+    .sort(byDate);
   const staffed = new Set(
     assignments.ok ? assignments.value.map((assignment) => assignment.surveyId) : [],
   );
 
-  // Rien à choisir : on va droit au poste, comme le sélecteur de l'accueil.
+  // Rien à choisir : on va droit à la liste, comme le sélecteur de l'accueil.
   const mine = events.filter((event) => staffed.has(event.id));
   if (mine.length === 1) redirect(`/accueil/${mine[0]!.id}`);
 
@@ -65,12 +84,12 @@ export default async function AdminCheckinPage({
     <div className="sp-stack">
       <PageHeader
         title="Pointage"
-        lead="Ouvrir le poste d’accueil d’un de vos événements, et pointer les arrivées."
+        lead="Choisissez l’événement dont vous tenez la porte."
       />
 
       {query['erreur'] ? (
         <Alert tone="error">
-          Le poste n’a pas pu s’ouvrir. Vérifiez que le module Accueil est
+          Le pointage n’a pas pu démarrer. Vérifiez que le module Accueil est
           autorisé pour votre organisation.
         </Alert>
       ) : null}
@@ -78,7 +97,7 @@ export default async function AdminCheckinPage({
       {!granted ? (
         <Alert tone="info">
           Le module Accueil n’est pas autorisé pour votre organisation. Seule la
-          plateforme peut le concéder — les écrans ci-dessous resteront sans
+          plateforme peut le concéder — les boutons ci-dessous resteront sans
           effet tant que ce n’est pas fait.
         </Alert>
       ) : null}
@@ -89,30 +108,52 @@ export default async function AdminCheckinPage({
           title="Aucun événement"
         />
       ) : (
-        <ul className="sp-desk__picker">
-          {events.map((event) => (
-            <li key={event.id}>
-              <span className="sp-desk__picker-title">{event.title}</span>
-              {staffed.has(event.id) ? (
-                <Link className="sp-btn sp-btn--primary" href={`/accueil/${event.id}`}>
-                  Ouvrir le poste
-                </Link>
-              ) : (
-                <form action={openDeskAction}>
-                  <input name="surveyId" type="hidden" value={event.id} />
-                  <button className="sp-btn sp-btn--outline" type="submit">
-                    M’affecter et ouvrir le poste
-                  </button>
-                </form>
-              )}
-              <Link
-                className="sp-btn sp-btn--ghost sp-btn--sm"
-                href={`/admin/sondages/${event.id}/accueil`}
-              >
-                Préparer
-              </Link>
-            </li>
-          ))}
+        <ul className="sp-eventpick">
+          {events.map((event) => {
+            const when = eventWhen({
+              startsAt: event.event_starts_at,
+              endsAt: null,
+              allDay: event.event_all_day,
+              timeZone: event.event_timezone,
+            });
+            const state = DRAFT_LABEL[event.status];
+
+            return (
+              <li className="sp-eventpick__item" key={event.id}>
+                <div className="sp-eventpick__text">
+                  <span className="sp-eventpick__name">{event.title}</span>
+                  <span className="sp-eventpick__meta">
+                    {when ?? 'Date non renseignée'}
+                    {state ? ` · ${state}` : ''}
+                  </span>
+                </div>
+
+                <div className="sp-eventpick__actions">
+                  {/* Le MÊME libellé des deux côtés : créer l'affectation au
+                      passage est de la plomberie, pas une autre intention. */}
+                  {staffed.has(event.id) ? (
+                    <Link className="sp-btn sp-btn--primary" href={`/accueil/${event.id}`}>
+                      Pointer les arrivées
+                    </Link>
+                  ) : (
+                    <form action={openDeskAction}>
+                      <input name="surveyId" type="hidden" value={event.id} />
+                      <button className="sp-btn sp-btn--primary" type="submit">
+                        Pointer les arrivées
+                      </button>
+                    </form>
+                  )}
+
+                  <Link
+                    className="sp-btn sp-btn--ghost sp-btn--sm"
+                    href={`/admin/sondages/${event.id}/accueil`}
+                  >
+                    Préparer
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

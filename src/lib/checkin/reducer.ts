@@ -1,3 +1,5 @@
+import { seatKey } from './seats';
+
 /**
  * Ce qu'une hôtesse VOIT — état serveur plus file locale, composés ici et
  * nulle part ailleurs.
@@ -20,11 +22,18 @@
  *     secondes est une erreur que personne n'a vue.
  */
 
-/** État d'arrivée tel que la base le porte. Absence = pas arrivé, version 0. */
+/**
+ * État d'arrivée tel que la base le porte. Absence = pas arrivé, version 0.
+ *
+ * L'état est porté par une PERSONNE, pas par une inscription : le couple
+ * `(réponse, siège)` l'identifie, et `seatKey` en fait la clé de ce réducteur.
+ * Un état par inscription n'aurait pas su dire LEQUEL des deux invités d'une
+ * même ligne est entré.
+ */
 export interface CheckinState {
   readonly responseId: string;
+  readonly seat: number;
   readonly arrivedAt: string | null;
-  readonly peopleIn: number | null;
   readonly version: number;
   /** Horodatage de la dernière écriture, qui sert de curseur au delta. */
   readonly updatedAt: string;
@@ -41,8 +50,8 @@ export interface PendingOp {
   /** Généré par le client : c'est lui qui porte l'idempotence. */
   readonly opId: string;
   readonly responseId: string;
+  readonly seat: number;
   readonly arrived: boolean;
-  readonly peopleIn: number | null;
   readonly attempts: number;
   readonly status: PendingStatus;
   /** Message du refus, destiné à être lu sur la rangée. */
@@ -74,8 +83,8 @@ export type DeskAction =
       readonly type: 'tap';
       readonly opId: string;
       readonly responseId: string;
+      readonly seat: number;
       readonly arrived: boolean;
-      readonly peopleIn: number | null;
     }
   | { readonly type: 'sending'; readonly opId: string }
   | { readonly type: 'applied'; readonly opId: string; readonly state: CheckinState }
@@ -89,11 +98,12 @@ function mergeStates(
 ): Readonly<Record<string, CheckinState>> {
   const next: Record<string, CheckinState> = { ...current };
   for (const state of incoming) {
-    const known = next[state.responseId];
+    const key = seatKey(state.responseId, state.seat);
+    const known = next[key];
     // Une version PLUS BASSE n'écrase pas : le delta et la réponse d'une
     // écriture peuvent se croiser, et la plus récente des deux gagne.
     if (known && known.version > state.version) continue;
-    next[state.responseId] = state;
+    next[key] = state;
   }
   return next;
 }
@@ -113,7 +123,7 @@ export function deskReducer(state: DeskState, action: DeskAction): DeskState {
   switch (action.type) {
     case 'hydrate': {
       const states: Record<string, CheckinState> = {};
-      for (const one of action.states) states[one.responseId] = one;
+      for (const one of action.states) states[seatKey(one.responseId, one.seat)] = one;
       return {
         ...state,
         states,
@@ -136,14 +146,21 @@ export function deskReducer(state: DeskState, action: DeskAction): DeskState {
         queue: [
           // Un refus NON LU sur la même rangée est remplacé : on vient de
           // reprendre la main dessus, le message précédent n'a plus d'objet.
+          // « La même rangée » est ici une PERSONNE : le refus posé sur
+          // l'accompagnant ne doit pas disparaître parce qu'on repointe l'hôte.
           ...state.queue.filter(
-            (op) => !(op.responseId === action.responseId && op.status === 'failed'),
+            (op) =>
+              !(
+                op.responseId === action.responseId &&
+                op.seat === action.seat &&
+                op.status === 'failed'
+              ),
           ),
           {
             opId: action.opId,
             responseId: action.responseId,
+            seat: action.seat,
             arrived: action.arrived,
-            peopleIn: action.peopleIn,
             attempts: 0,
             status: 'queued',
             error: null,
@@ -212,14 +229,20 @@ export function nextOp(state: DeskState): PendingOp | null {
 }
 
 /**
- * Version à annoncer au serveur pour cette réponse.
+ * Version à annoncer au serveur pour cette PERSONNE.
  *
  * Lue à l'ENVOI, jamais à la saisie : entre les deux, l'opération précédente a
  * pu incrémenter la version, et une valeur figée au doigt ferait échouer en
- * `PT409` un simple double appui.
+ * `PT409` un simple double appui. Par siège, parce que la base l'incrémente
+ * par siège : annoncer la version de l'hôte en pointant l'accompagnant ferait
+ * refuser un geste parfaitement légitime.
  */
-export function expectedVersionOf(state: DeskState, responseId: string): number {
-  return state.states[responseId]?.version ?? 0;
+export function expectedVersionOf(
+  state: DeskState,
+  responseId: string,
+  seat: number,
+): number {
+  return state.states[seatKey(responseId, seat)]?.version ?? 0;
 }
 
 /** Délai avant reprise, plafonné. Le réseau d'une salle revient par à-coups. */

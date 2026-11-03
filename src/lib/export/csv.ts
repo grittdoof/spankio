@@ -120,7 +120,7 @@ const ARRIVAL_COLUMNS: readonly ExportColumn[] = [
 export interface ArrivalExport {
   readonly arrivedAt: string | null;
   /** `null` : non précisé à l'entrée. Jamais zéro par défaut. */
-  readonly peopleIn: number | null;
+  readonly entered: number;
 }
 
 /** Jeu de métadonnées : complet pour un fichier, réduit pour un écran. */
@@ -278,7 +278,12 @@ export function responseRows(
           case '__arrived_at':
             return (response.id ? arrivals?.get(response.id)?.arrivedAt : null) ?? '';
           case '__people_in': {
-            const entered = response.id ? arrivals?.get(response.id)?.peopleIn : undefined;
+            // Zéro entré ET aucune arrivée : la case reste VIDE. Un « 0 »
+            // dans un tableur s'additionne, et personne n'a dit que ce groupe
+            // s'était présenté à zéro.
+            const record = response.id ? arrivals?.get(response.id) : undefined;
+            const entered =
+              record && record.arrivedAt !== null ? record.entered : undefined;
             // `null` reste VIDE, jamais « 0 » : un effectif non précisé n'est
             // pas un effectif nul, et un tableur additionnerait les zéros.
             return entered === null || entered === undefined ? '' : String(entered);

@@ -83,7 +83,9 @@ export default async function CheckinPrintPage({
 
         <dl className="sp-print__facts">
           <div>
-            <dt>Inscriptions</dt>
+            {/* Des PERSONNES, pas des inscriptions : une case à cocher par
+                personne, donc un total qui se compte au stylo. */}
+            <dt>Personnes</dt>
             <dd>{printed.rows.length}</dd>
           </div>
           {counting ? (
@@ -112,23 +114,20 @@ export default async function CheckinPrintPage({
             <th scope="col">Nom</th>
             {printed.sortColumn ? <th scope="col">{printed.sortColumn}</th> : null}
             <th scope="col">Précision</th>
-            {counting ? <th scope="col">Annoncé</th> : null}
             {counting ? <th scope="col">Statut</th> : null}
-            <th scope="col">Entrés</th>
           </tr>
         </thead>
         <tbody>
           {printed.rows.map(({ row, sortValue }) => (
-            <tr key={row.id}>
+            <tr key={row.key}>
               <td>
                 <span aria-hidden="true" className="sp-print__box" />
               </td>
               <td className="sp-print__name">{row.name ?? 'Sans nom'}</td>
               {printed.sortColumn ? <td>{sortValue ?? ''}</td> : null}
               <td>{row.detail ?? ''}</td>
-              {counting ? <td>{row.people}</td> : null}
+
               {counting ? <td>{ATTENDANCE_STATUS_LABELS[row.status]}</td> : null}
-              <td />
             </tr>
           ))}
         </tbody>
