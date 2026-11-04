@@ -248,7 +248,7 @@ export type StaffAccountState =
 export const IDLE_ACCOUNT_STATE: StaffAccountState = { status: 'idle' };
 
 /**
- * Peut-on remettre le mot de passe de ce compte ?
+ * Peut-on reprendre la main sur ce compte — mot de passe ou désactivation ?
  *
  * C'est LA barrière que le moteur n'applique pas. Partout ailleurs dans cette
  * plateforme, un refus vient du RLS ; ici l'appel se fait avec la clé de
@@ -270,7 +270,7 @@ export type ResetVerdict =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: string; readonly message: string };
 
-export function mayResetPassword(
+export function mayManageStaffAccount(
   target: {
     readonly organisationId: string | null;
     readonly role: string;
@@ -291,7 +291,7 @@ export function mayResetPassword(
       ok: false,
       code: 'PT403',
       message:
-        'Ce compte a été créé par son titulaire : son mot de passe ne se remet pas à zéro depuis cet écran.',
+        'Ce compte a été créé par son titulaire : il ne se gère pas depuis cet écran.',
     };
   }
   return { ok: true };

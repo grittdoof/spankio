@@ -50,6 +50,7 @@ export interface CheckinStaffProps {
   deskUrl: string;
   suggestedPassword: string;
   resetAction: (state: StaffAccountState, formData: FormData) => Promise<StaffAccountState>;
+  deactivateAction: (formData: FormData) => void | Promise<void>;
 }
 
 export function CheckinStaff({
@@ -63,6 +64,7 @@ export function CheckinStaff({
   deskUrl,
   suggestedPassword,
   resetAction,
+  deactivateAction,
 }: CheckinStaffProps) {
   return (
     <section className="sp-card">
@@ -147,6 +149,34 @@ export function CheckinStaff({
                     suggestedPassword={suggestedPassword}
                     surveyId={surveyId}
                   />
+
+                  {/* Derrière un dépliant, comme le bouton « Supprimer » des
+                      rangées de réponses a disparu : un geste irréversible ne
+                      doit pas tenir à un clic mal placé. `<details>` ne
+                      demande aucun JavaScript. */}
+                  <details className="sp-staff__reset">
+                    <summary>Désactiver ce compte</summary>
+                    <p className="sp-hint">
+                      Ses accès cessent immédiatement et son identifiant ne
+                      rouvrira plus de session. Le compte n’est pas supprimé :
+                      le journal de la porte continue de dire qui a pointé qui,
+                      et c’est pour cela qu’il existe. Il n’y a pas de retour
+                      en arrière depuis cet écran.
+                    </p>
+                    <form action={deactivateAction}>
+                      <input name="surveyId" type="hidden" value={surveyId} />
+                      <input name="profileId" type="hidden" value={member.profileId} />
+                      <button
+                        className="sp-btn sp-btn--ghost sp-btn--danger-text sp-btn--sm"
+                        type="submit"
+                      >
+                        <span aria-hidden="true">Désactiver définitivement</span>
+                        <span className="sp-visually-hidden">
+                          Désactiver définitivement le compte de {nameOf(member)}
+                        </span>
+                      </button>
+                    </form>
+                  </details>
                 </div>
               ) : null}
             </li>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CheckinReadiness } from '@/components/admin/CheckinReadiness';
 import { CheckinInvitations } from '@/components/admin/CheckinInvitations';
@@ -85,6 +85,7 @@ describe('personnes affectées', () => {
             role: 'host',
           },
         ]}
+        deactivateAction={() => undefined}
         deskUrl="https://exemple.test/accueil/abc"
         eventTitle="Soirée des 180 ans"
         identifierHost="accueil.exemple.test"
@@ -379,5 +380,80 @@ describe('partage et listing', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Imprimer le listing' })).toBeDisabled();
+  });
+});
+
+describe('désactiver un compte de pointage', () => {
+  const HOST = 'accueil.exemple.test';
+
+  /** Un compte FABRIQUÉ : c'est le seul cas où la gestion est proposée. */
+  const FABRIQUE: StaffMember[] = [
+    {
+      profileId: '44444444-4444-4444-4444-444444444444',
+      name: 'Marie',
+      email: `marie@${HOST}`,
+      expiresAt: null,
+      firstSeenAt: null,
+      lastSeenAt: null,
+    },
+  ];
+
+  function renderWith(staff: StaffMember[]) {
+    return render(
+      <CheckinStaff
+        assignAction={() => undefined}
+        assignable={[]}
+        deactivateAction={() => undefined}
+        deskUrl="https://exemple.test/accueil/abc"
+        eventTitle="Soirée des 180 ans"
+        identifierHost={HOST}
+        resetAction={() => Promise.resolve({ status: 'idle' as const })}
+        revokeAction={() => undefined}
+        staff={staff}
+        suggestedPassword="bako-tire-muso-47"
+        surveyId="abc"
+      />,
+    );
+  }
+
+  it('garde le geste DANS un dépliant, fermé au départ', async () => {
+    // Même raisonnement que la disparition du bouton « Supprimer » des
+    // rangées de réponses : un geste irréversible ne doit pas tenir à un
+    // clic mal placé.
+    //
+    // On vérifie la STRUCTURE, pas la visibilité : jsdom ne masque pas le
+    // contenu d'un `<details>` fermé, et une assertion sur « absent de
+    // l'écran » passerait pour la mauvaise raison — ou échouerait alors que
+    // le navigateur fait ce qu'il faut.
+    renderWith(FABRIQUE);
+    const bouton = screen.getByRole('button', { name: /Désactiver définitivement/ });
+    const depliant = bouton.closest('details');
+
+    expect(depliant).not.toBeNull();
+    expect(depliant).not.toHaveAttribute('open');
+    expect(within(depliant!).getByText('Désactiver ce compte')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Désactiver ce compte'));
+    expect(depliant).toHaveAttribute('open');
+  });
+
+  it('dit que le compte n’est PAS supprimé, et pourquoi', () => {
+    // La promesse compte : un organisateur qui croirait tout effacer
+    // s'étonnerait de retrouver le nom dans le journal.
+    renderWith(FABRIQUE);
+    expect(screen.getByText(/Le compte n’est pas supprimé/)).toBeInTheDocument();
+    expect(screen.getByText(/journal de la porte/)).toBeInTheDocument();
+  });
+
+  it('n’offre rien de tel sur un compte créé par son titulaire', () => {
+    // Un éditeur affecté à la porte garde son compte : le désactiver depuis
+    // cet écran serait une prise de contrôle, et le service le refuse déjà.
+    renderWith(STAFF);
+    expect(screen.queryByText('Désactiver ce compte')).toBeNull();
+  });
+
+  it('ne présente aucune violation détectable', async () => {
+    const { container } = renderWith(FABRIQUE);
+    await expectNoA11yViolations(container);
   });
 });

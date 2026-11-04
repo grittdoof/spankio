@@ -25,6 +25,7 @@ import { surveySettingsSchema } from '@/lib/survey/settings';
 import {
   assignStaffAction,
   createStaffAccountAction,
+  deactivateStaffAccountAction,
   inviteStaffAction,
   resetStaffPasswordAction,
   revokeInvitationAction,
@@ -50,6 +51,9 @@ const MESSAGES: Readonly<Record<string, string>> = {
   refus:
     'L’affectation a été refusée. Vérifiez que le module Accueil est autorisé pour votre organisation.',
   adresse: 'Cette adresse électronique n’a pas été comprise.',
+  compte: 'L’opération sur ce compte a échoué. Réessayez.',
+  'compte-interdit':
+    'Ce compte a été créé par son titulaire : il ne se gère pas depuis cet écran.',
 };
 
 const FAITS: Readonly<Record<string, string>> = {
@@ -57,6 +61,7 @@ const FAITS: Readonly<Record<string, string>> = {
   retrait: 'Affectation retirée.',
   invitation: 'Invitation envoyée.',
   'invitation-retiree': 'Invitation retirée.',
+  'compte-desactive': 'Compte désactivé. Son historique de pointage est conservé.',
 };
 
 /**
@@ -190,6 +195,7 @@ export default async function CheckinPreparationPage({
         deskUrl={url}
         eventTitle={survey.value.title}
         identifierHost={host}
+        deactivateAction={deactivateStaffAccountAction}
         resetAction={resetStaffPasswordAction}
         revokeAction={revokeStaffAction}
         staff={staff.value}

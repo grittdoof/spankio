@@ -6,7 +6,7 @@ import {
   isPasswordAcceptable,
   isStaffIdentifier,
   isStaffLabelShape,
-  mayResetPassword,
+  mayManageStaffAccount,
   resolveSignInIdentifier,
   slugifyLabel,
   staffIdentifier,
@@ -237,7 +237,7 @@ describe('deskUrl', () => {
   });
 });
 
-describe('mayResetPassword', () => {
+describe('mayManageStaffAccount', () => {
   const HOST = 'accueil.spankio.example';
   const ORG = 'org-a';
   const fabricated = {
@@ -247,25 +247,25 @@ describe('mayResetPassword', () => {
   };
 
   it('laisse passer un compte fabriqué de sa propre organisation', () => {
-    expect(mayResetPassword(fabricated, ORG, HOST).ok).toBe(true);
+    expect(mayManageStaffAccount(fabricated, ORG, HOST).ok).toBe(true);
   });
 
   it('refuse un compte d’une autre organisation', () => {
     // La clé de service contourne le RLS : sans ce refus, l'écran d'un tenant
     // atteindrait les comptes d'un autre.
-    const verdict = mayResetPassword({ ...fabricated, organisationId: 'org-b' }, ORG, HOST);
+    const verdict = mayManageStaffAccount({ ...fabricated, organisationId: 'org-b' }, ORG, HOST);
     expect(verdict).toMatchObject({ ok: false, code: 'PT403' });
   });
 
   it('refuse un compte sans rattachement', () => {
-    const verdict = mayResetPassword({ ...fabricated, organisationId: null }, ORG, HOST);
+    const verdict = mayManageStaffAccount({ ...fabricated, organisationId: null }, ORG, HOST);
     expect(verdict.ok).toBe(false);
   });
 
   it('refuse un éditeur, même affecté à la porte', () => {
     // Affecter un éditeur au poste est permis ; lui prendre son mot de passe
     // ne l'est pas — il ouvre son espace, pas seulement une liste d'invités.
-    const verdict = mayResetPassword(
+    const verdict = mayManageStaffAccount(
       { organisationId: ORG, role: 'editor', email: 'ines@spankio.example' },
       ORG,
       HOST,
@@ -276,7 +276,7 @@ describe('mayResetPassword', () => {
   it('refuse un super-administrateur de la même organisation', () => {
     // Le cas le plus grave : l'éditeur de la plateforme est souvent aussi
     // l'administrateur de la première organisation cliente.
-    const verdict = mayResetPassword(
+    const verdict = mayManageStaffAccount(
       { organisationId: ORG, role: 'super_admin', email: 'admin@spankio.example' },
       ORG,
       HOST,
@@ -287,7 +287,7 @@ describe('mayResetPassword', () => {
   it('refuse un host dont le compte N’EST PAS fabriqué', () => {
     // Quelqu'un entré par une invitation du lot 4b, avec sa vraie adresse :
     // le compte est le sien, et son mot de passe ouvre peut-être autre chose.
-    const verdict = mayResetPassword(
+    const verdict = mayManageStaffAccount(
       { organisationId: ORG, role: 'host', email: 'marie@exemple.fr' },
       ORG,
       HOST,
@@ -297,6 +297,6 @@ describe('mayResetPassword', () => {
 
   it('refuse un compte sans adresse', () => {
     // Fail-closed : on ne peut pas prouver qu'il est fabriqué, donc non.
-    expect(mayResetPassword({ ...fabricated, email: null }, ORG, HOST).ok).toBe(false);
+    expect(mayManageStaffAccount({ ...fabricated, email: null }, ORG, HOST).ok).toBe(false);
   });
 });
