@@ -930,6 +930,19 @@ changer.
   moteur — `host` ne donne rien sans `checkin_staff`, et les clés étrangères
   composites refusent une affectation qui croiserait deux organisations.
   Voir R16.
+- **Un compte de pointage se DÉSACTIVE, il ne se supprime pas.** L'écran ne
+  savait que retirer une affectation, si bien que les comptes s'accumulaient.
+  Supprimer pour de bon était tentant et c'était le mauvais choix : le journal
+  attribue chaque pointage à son auteur, et cette clé étrangère est
+  `on delete set null` — effacer le profil remplacerait des dizaines de lignes
+  d'historique par « Auteur inconnu ». On détruirait, pour faire du ménage,
+  exactement ce que le journal existe pour conserver. La désactivation retire
+  donc les affectations, passe le profil en `suspended` — il quitte la liste
+  des affectables — et ferme la connexion côté authentification. L'ORDRE
+  compte : l'accès aux invités part en premier, pour que l'échec d'un geste
+  suivant laisse un compte sans accès, jamais l'inverse. Le bouton vit
+  derrière un `<details>`, comme le « Supprimer » des rangées de réponses a
+  disparu : un geste irréversible ne tient pas à un clic mal placé.
 - **La reprise en main d'un compte existant est la seule barrière que le
   moteur n'applique pas.** Avec la clé de service, rien n'empêche
   techniquement de réécrire le mot de passe de n'importe qui.
@@ -1597,9 +1610,34 @@ npm run build       # build de production
       test de rejouabilité repassait dessus après la suppression de la
       colonne — ce commentaire est désormais gardé par une condition
       d'existence, l'alternative étant de conserver une colonne morte.
-      1976 tests. **Migration NON appliquée** : elle doit l'être AVANT la
-      fusion, puisqu'elle retire la signature que le code en production
-      appelle encore.
+      1976 tests. **Déployée le 3 novembre 2026**, en version
+      `20261103090000` — posée à la main comme les précédentes, et APPLIQUÉE
+      AVANT la fusion puisqu'elle retire la signature que le code en
+      production appelait encore. Vérifiée sur le vrai moteur dans une
+      transaction annulée : sièges aux versions indépendantes, deux lignes
+      pour une inscription, rejeu d'`op_id` idempotent, dé-pointage qui ne
+      touche que son siège, siège hors bornes refusé en `22023`. Une réserve
+      à connaître : les commentaires INTERNES de la fonction n'ont pas été
+      appliqués — le corps a été envoyé sans eux pour limiter le risque de
+      faute de frappe en recopiant 225 lignes dans une base de production.
+      Le comportement est identique, et le fichier du dépôt reste la source.
+- [x] Module « Accueil », lot 8 — l'usage réel (3-4 novembre 2026) : la
+      série de corrections nées du premier vrai essai, et c'est elle qui a le
+      plus appris. **Une variable facultative vide faisait échouer la
+      création de compte en 500** — défaut dormant depuis l'étape 1, trouvé au
+      premier essai réel et par aucun des 1976 tests. **Les arrivées
+      disparaissaient au rechargement** : l'état initial du poste était indexé
+      par réponse seule là où tout le reste cherchait par `réponse#siège`, et
+      la clé s'écrivait à trois endroits — elle n'en a plus qu'un
+      (`indexStates`). **L'identifiant est devenu court** et la connexion
+      accepte l'identifiant nu, sans quoi le raccourcir ne servait à rien.
+      **La liste se classe A → Z**, ordre réglable. **Le journal de la porte**
+      devient la cinquième vue des statistiques — les données existaient
+      depuis le lot 2, rien ne les montrait. **Les accompagnants** sont
+      décalés et nommés à l'écran comme sur le papier, le poste porte le logo
+      de l'organisation, et un compte de pointage se DÉSACTIVE depuis
+      l'écran — sans être supprimé, pour que le journal continue de dire qui a
+      pointé qui. Aucune migration sur cette série. 2014 tests.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

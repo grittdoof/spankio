@@ -15,7 +15,11 @@ import {
   isStaffLabelShape,
   type StaffAccountState,
 } from '@/lib/checkin/account';
-import { createStaffAccount, resetStaffPassword } from '@/lib/services/checkin-accounts';
+import {
+  createStaffAccount,
+  deactivateStaffAccount,
+  resetStaffPassword,
+} from '@/lib/services/checkin-accounts';
 import { publicEnv } from '@/lib/config/env';
 
 /**
@@ -331,4 +335,42 @@ export async function resetStaffPasswordAction(
 
   revalidatePath(`/admin/sondages/${surveyId.data}/accueil`);
   return { status: 'reset', identifier: reset.value.identifier, password };
+}
+
+/**
+ * Désactive un compte de pointage.
+ *
+ * Redirection classique, contrairement aux deux actions voisines : il n'y a
+ * aucun secret à rendre, donc rien qui doive éviter l'URL.
+ *
+ * Le geste est irréversible depuis l'écran — il n'existe pas de bouton pour
+ * rouvrir un compte — et c'est pourquoi il vit derrière un dépliant : la même
+ * raison qui a fait disparaître le bouton « Supprimer » des rangées de
+ * réponses.
+ */
+export async function deactivateStaffAccountAction(formData: FormData): Promise<void> {
+  const surveyId = idSchema.safeParse(trimmedField(formData, 'surveyId'));
+  const profileId = idSchema.safeParse(trimmedField(formData, 'profileId'));
+  if (!surveyId.success) redirect('/admin/sondages');
+  const back = `/admin/sondages/${surveyId.data}/accueil`;
+  if (!profileId.success) redirect(`${back}?erreur=personne`);
+
+  const { organisationId, userId } = await requireOrganisation();
+
+  const done = await deactivateStaffAccount({
+    profileId: profileId.data,
+    organisationId,
+    siteUrl: publicEnv().NEXT_PUBLIC_SITE_URL,
+    actorId: userId,
+  });
+
+  if (!done.ok) {
+    logger.warn('checkin.deactivate_refused', 'Désactivation refusée.', {
+      code: done.error.code,
+    });
+    redirect(`${back}?erreur=${done.error.code === 'PT403' ? 'compte-interdit' : 'compte'}`);
+  }
+
+  revalidatePath(back);
+  redirect(`${back}?fait=compte-desactive`);
 }

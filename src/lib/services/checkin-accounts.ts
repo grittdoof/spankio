@@ -1,6 +1,6 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import {
-  mayResetPassword,
+  mayManageStaffAccount,
   staffIdentifier,
   staffIdentifierHost,
 } from '@/lib/checkin/account';
@@ -210,7 +210,7 @@ export async function resetStaffPassword(
   const target = profile.data;
   // La décision elle-même est pure et testée pour elle-même : c'est la seule
   // barrière de ce module que le moteur n'applique pas.
-  const verdict = mayResetPassword(
+  const verdict = mayManageStaffAccount(
     {
       organisationId: target.organisation_id,
       role: target.role,
@@ -237,6 +237,117 @@ export async function resetStaffPassword(
     organisation_id: input.organisationId,
     actor_id: input.actorId,
     action: 'checkin.account_password_reset',
+    target_table: 'profiles',
+    target_id: input.profileId,
+    meta: { identifier: target.email },
+  });
+
+  return { ok: true, value: { identifier: target.email ?? '' } };
+}
+
+export interface DeactivateInput {
+  readonly profileId: string;
+  readonly organisationId: string;
+  readonly siteUrl: string;
+  readonly actorId: string;
+}
+
+/**
+ * Retire définitivement un compte de pointage — sans le SUPPRIMER.
+ *
+ * L'écran ne savait que retirer une affectation, si bien que les comptes
+ * s'accumulaient : au bout de quelques soirées, une organisation garde une
+ * dizaine de `host` dont plus personne ne sait à quoi ils servaient.
+ *
+ * Supprimer pour de bon était tentant, et c'est le mauvais choix. Le journal
+ * de la porte attribue chaque pointage à son auteur
+ * (`event_checkin_log.by_profile`), et cette clé étrangère est
+ * `on delete set null` : effacer le profil remplacerait des dizaines de
+ * lignes d'historique par « Auteur inconnu ». On détruirait donc, pour faire
+ * du ménage, exactement ce que le journal existe pour conserver.
+ *
+ * Le compte est donc DÉSACTIVÉ, en trois gestes dont l'ordre compte :
+ *
+ *  1. les affectations partent — l'accès aux invités cesse immédiatement,
+ *     puisque c'est l'affectation qui ouvre et rien d'autre ;
+ *  2. le profil passe en `suspended` — il quitte la liste des personnes
+ *     affectables, qui ne retient que les profils actifs ;
+ *  3. la connexion est fermée côté authentification, pour qu'un identifiant
+ *     distribué un soir ne rouvre plus jamais une session, fût-elle vide.
+ *
+ * L'ordre met l'accès aux données en premier : si l'un des gestes suivants
+ * échoue, ce qui reste est un compte sans accès, jamais l'inverse.
+ */
+export async function deactivateStaffAccount(
+  input: DeactivateInput,
+): Promise<SurveyOutcome<{ identifier: string }>> {
+  const admin = createSupabaseServiceClient();
+  const host = staffIdentifierHost(input.siteUrl);
+
+  const profile = await admin
+    .from('profiles')
+    .select('id, email, role, organisation_id')
+    .eq('id', input.profileId)
+    .maybeSingle<ProfileRow>();
+
+  if (profile.error || !profile.data) {
+    return failure('PT404', 'Ce compte est introuvable.');
+  }
+
+  const target = profile.data;
+  const verdict = mayManageStaffAccount(
+    {
+      organisationId: target.organisation_id,
+      role: target.role,
+      email: target.email,
+    },
+    input.organisationId,
+    host,
+  );
+  if (!verdict.ok) {
+    logger.warn('checkin.deactivate_refused', 'Désactivation refusée.', {
+      profileId: input.profileId,
+    });
+    return failure(verdict.code, verdict.message);
+  }
+
+  const unassigned = await admin
+    .from('checkin_staff')
+    .delete()
+    .eq('profile_id', input.profileId);
+  if (unassigned.error) {
+    return failure('PT500', 'Les affectations de ce compte n’ont pas pu être retirées.');
+  }
+
+  const suspended = await admin
+    .from('profiles')
+    .update({ status: 'suspended' })
+    .eq('id', input.profileId);
+  if (suspended.error) {
+    return failure('PT500', 'Le compte n’a pas pu être désactivé.');
+  }
+
+  // Cent ans : Supabase n'a pas de bannissement « définitif », et une durée
+  // qu'on devrait renouveler serait une bombe à retardement silencieuse.
+  const banned = await admin.auth.admin.updateUserById(input.profileId, {
+    ban_duration: '876000h',
+  });
+  if (banned.error) {
+    logger.warn('checkin.deactivate_ban_failed', 'Connexion non fermée.', {
+      message: banned.error.message,
+    });
+    // L'accès aux invités EST coupé : le compte n'a plus d'affectation et
+    // n'est plus actif. On le dit plutôt que de prétendre l'inverse.
+    return failure(
+      'PT500',
+      'Le compte a perdu ses accès, mais sa connexion n’a pas pu être fermée. Réessayez.',
+    );
+  }
+
+  await admin.from('audit_log').insert({
+    organisation_id: input.organisationId,
+    actor_id: input.actorId,
+    action: 'checkin.account_deactivated',
     target_table: 'profiles',
     target_id: input.profileId,
     meta: { identifier: target.email },
