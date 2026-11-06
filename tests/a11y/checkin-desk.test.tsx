@@ -612,3 +612,62 @@ describe('invité de dernière minute', () => {
     expect(within(row).getByText('Arrivé')).toBeInTheDocument();
   });
 });
+
+describe('l’ajout fige l’écran', () => {
+  it('couvre la liste, efface la recherche, et bloque le défilement de la page', async () => {
+    const { container } = renderFullDesk();
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+
+    expect(container.querySelector('.sp-desk__dock--open')).not.toBeNull();
+    expect(screen.queryByLabelText('Rechercher un invité')).not.toBeInTheDocument();
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    expect(document.body.style.overflow).toBe('hidden');
+    await expectNoA11yViolations(container);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+    // La page redevient défilable, et la recherche revient AVEC sa saisie.
+    expect(document.documentElement.style.overflow).toBe('');
+    expect(document.body.style.overflow).toBe('');
+    expect(screen.getByLabelText('Rechercher un invité')).toBeInTheDocument();
+  });
+
+  it('garde la saisie de la recherche à travers un ajout annulé', async () => {
+    renderFullDesk();
+    await userEvent.type(screen.getByLabelText('Rechercher un invité'), 'Kar');
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+    expect(screen.getByLabelText('Rechercher un invité')).toHaveValue('Kar');
+  });
+});
+
+describe('la barre suit la zone visible, clavier compris', () => {
+  it('se relève de ce que le clavier recouvre, et suit un défilement', () => {
+    // Une zone visible simulée, comme Safari en expose une : c'est elle qui
+    // dit où s'arrête l'écran quand le clavier est posé PAR-DESSUS la page.
+    const viewport = Object.assign(new EventTarget(), { height: 812, offsetTop: 0 });
+    vi.stubGlobal('visualViewport', viewport);
+    // Exécutée sur-le-champ. Elle rend 0, l'identifiant « aucune image en
+    // attente » : un vrai navigateur rend la main AVANT d'exécuter l'image,
+    // et c'est l'ordre que le composant suppose.
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(812);
+
+    const { container } = renderFullDesk();
+    const dock = container.querySelector<HTMLElement>('.sp-desk__dock')!;
+    expect(dock.style.getPropertyValue('--sp-dock-lift')).toBe('0px');
+    expect(dock.dataset['keyboard']).toBe('false');
+
+    viewport.height = 476;
+    viewport.dispatchEvent(new Event('resize'));
+    expect(dock.style.getPropertyValue('--sp-dock-lift')).toBe('336px');
+    expect(dock.dataset['keyboard']).toBe('true');
+
+    viewport.offsetTop = 200;
+    viewport.dispatchEvent(new Event('scroll'));
+    expect(dock.style.getPropertyValue('--sp-dock-lift')).toBe('136px');
+    expect(dock.style.getPropertyValue('--sp-vv-top')).toBe('200px');
+  });
+});

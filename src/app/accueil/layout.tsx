@@ -37,8 +37,17 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: 'Accueil', statusBarStyle: 'black-translucent' },
 };
 
-/** Barre système à la couleur de la charte, une fois installée. */
-export const viewport: Viewport = { themeColor: '#042F64' };
+/**
+ * Barre système à la couleur de la charte, une fois installée.
+ *
+ * `resizes-content` : sur Android, le clavier RÉTRÉCIT la page au lieu de se
+ * poser dessus, et la barre du bas remonte d'elle-même au-dessus de lui.
+ * Safari l'ignore — d'où `viewportMetrics`, qui couvre l'iPhone.
+ */
+export const viewport: Viewport = {
+  themeColor: '#042F64',
+  interactiveWidget: 'resizes-content',
+};
 
 export default async function CheckinLayout({ children }: { children: React.ReactNode }) {
   const context = await resolveRequestContext();

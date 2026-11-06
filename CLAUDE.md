@@ -785,6 +785,25 @@ changer.
   promettrait un piège à focus qu'on ne fournit pas. Les libellés du mode
   « Départs » sont COURTS — un statut long écrasait le nom, mesuré —, et
   « non pointé à l'entrée » passe dans la ligne de précision.
+- **Sur iPhone, `position: fixed` n'accroche PAS une barre au-dessus du
+  clavier.** Défaut réel, signalé au premier essai sur téléphone : Safari pose
+  le clavier PAR-DESSUS la page sans la rétrécir. La barre restait au bas de
+  la page — une bande de liste transparente apparaissait entre elle et le
+  clavier, et un défilement vers le haut l'emportait hors de l'écran. Elle
+  est donc accrochée à la zone VISIBLE (`window.visualViewport`) : relevée de
+  ce que le clavier recouvre, repositionnée à chaque défilement. Le calcul est
+  une fonction pure (`viewportMetrics`) ; l'écriture se fait sur l'élément,
+  hors de React, une fois par image — un rendu de deux cents rangées à chaque
+  image de défilement saccaderait. Android, lui, rétrécit la page si on le
+  lui demande (`interactive-widget=resizes-content`). Jsdom et un navigateur
+  de bureau ne montrent rien de tout cela : ce défaut ne se voit QUE sur un
+  téléphone, c'est la cinquième fois que « vérifié » voulait dire « vérifié
+  là où le défaut ne se produit pas ».
+- **L'ajout d'un invité FIGE l'écran.** Le formulaire occupe toute la zone
+  visible, opaque, la page ne défile plus, et la recherche s'efface le temps
+  de l'ajout (sa saisie est gardée). Demande du client : on ne doit rien voir
+  derrière. Le panneau épouse la zone visible et non la page, pour que le
+  bouton d'ajout reste au-dessus du clavier ; il défile en interne.
 - **`/atelier/poste` montre le poste sans session**, hors production, en
   essai à blanc : la barre du bas ne se juge qu'à 375 px, et le vrai poste
   exige un compte affecté.
@@ -1732,6 +1751,11 @@ npm run build       # build de production
       mêmes verdicts, plus l'origine refusée en `42501` à la réécriture. Les
       290 réponses existantes sont toutes `form`. Contrairement au lot 7, les
       corps de fonction ont été appliqués AVEC leurs commentaires internes.
+- [x] Module « Accueil », lot 9 bis — le clavier (6 novembre 2026) : la
+      barre du bas est accrochée à la zone visible et non à la page, et
+      l'ajout d'un invité devient un écran plein et opaque qui bloque le
+      défilement. Défaut vu sur iPhone, invisible en jsdom comme sur un
+      navigateur de bureau. Aucune migration. 2103 tests.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

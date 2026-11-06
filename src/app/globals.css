@@ -5219,6 +5219,46 @@ summary.sp-btn::-webkit-details-marker {
   border-top: 1px solid var(--sp-border);
   background: var(--sp-surface);
   box-shadow: var(--sp-shadow-lg);
+  /* Relevée de ce que le clavier recouvre (`viewportMetrics`) : sur iPhone,
+     le clavier se pose PAR-DESSUS la page, et une barre restée au bas de la
+     page laissait voir une bande de liste entre elle et lui. */
+  transform: translateY(calc(-1 * var(--sp-dock-lift, 0px)));
+}
+
+/* Clavier ouvert : la barre touche le clavier, l'encoche n'est plus en
+   dessous — sa marge ne ferait qu'ouvrir un vide. */
+.sp-desk__dock[data-keyboard='true'] .sp-desk__dockbar {
+  padding-bottom: var(--sp-space-3);
+}
+
+/* L'ajout d'un invité occupe TOUTE la zone visible, opaque : on ne voit ni
+   ne fait défiler la liste derrière. Le panneau épouse la zone visible et non
+   la page, pour que le bouton d'ajout reste au-dessus du clavier. */
+.sp-desk__dock--open {
+  top: 0;
+  bottom: auto;
+  display: flex;
+  height: var(--sp-vv-height, 100dvh);
+  flex-direction: column;
+  border-top: 0;
+  box-shadow: none;
+  overscroll-behavior: contain;
+  transform: translateY(var(--sp-vv-top, 0px));
+}
+
+.sp-desk__dock--open .sp-desk__sheet {
+  flex: 1;
+  /* Sans `min-height: 0`, un enfant flex refuse de rétrécir sous son contenu
+     et le panneau déborderait sous le clavier au lieu de défiler. */
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+  overscroll-behavior: contain;
+  padding-top: max(var(--sp-space-4), env(safe-area-inset-top));
+}
+
+.sp-desk__dock--open .sp-desk__dockbar {
+  justify-content: flex-end;
 }
 
 .sp-desk__dockbar,
