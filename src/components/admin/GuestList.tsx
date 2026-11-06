@@ -219,7 +219,12 @@ export function GuestList({
                     {row.name ? `de ${row.name}` : `du ${moment(row.submittedAt)}`}
                   </span>
                 </Link>
-                {counting ? (
+                {/* Une personne ajoutée à la porte n'a rien annoncé : sans
+                    cette mention, « Sans réponse » laisserait croire à une
+                    inscription incomplète. */}
+                {row.walkIn ? (
+                  <span className="sp-badge">ajoutée à l’entrée</span>
+                ) : counting ? (
                   <span className={STATUS_PILL[row.status]}>
                     {ATTENDANCE_STATUS_LABELS[row.status]}
                   </span>

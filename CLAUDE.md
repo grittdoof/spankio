@@ -724,6 +724,70 @@ changer.
   lorsqu'elle est demandée : cinq cents lignes et deux requêtes de plus pour
   un écran qu'on ouvre rarement. Un compte d'accueil ne la voit pas —
   `event_checkin_log_select` exige un membre actif.
+- **Un invité de dernière minute est une INSCRIPTION, écrite par la porte et
+  marquée comme telle** (`survey_responses.origin = 'desk'`), pas une table
+  parallèle. Une table à part aurait dédoublé tout ce qui compte des
+  personnes — l'arrivée (dont la clé étrangère composite vise
+  `survey_responses`), le cadeau, le journal, le rapport, l'export, la
+  recherche — et cinq lectures auraient divergé au premier ajustement. Ce qui
+  la distingue honnêtement : aucun consentement prétendu (`consent_given`
+  faux, `consent_text` nul — l'écrire serait fabriquer une preuve), aucune
+  réponse inventée (la question de présence reste vide, donc « sans
+  réponse », ce qui est vrai), et une origine IMMUABLE que la correction
+  d'une réponse PRÉSERVE — portée par le trigger d'insertion et non par
+  `correct_survey_response`, pour que le moteur la garantisse quel que soit
+  le chemin. `add_walkin`, treizième fonction exposée, est idempotente sur
+  `op_id` (un réessai après coupure ne crée pas d'homonyme) et borne le
+  contenu elle aussi : clés du schéma, textes courts, six au plus.
+- **On demande à un invité de dernière minute ce que l'organisation a
+  DÉSIGNÉ**, jamais « nom, prénom, société » écrits en dur : les questions qui
+  nomment une rangée, dans leur ordre, puis celle qui la précise, avec leurs
+  propres intitulés (`walkinFields`). Il s'affiche donc exactement comme un
+  inscrit, au poste, sur le papier et dans l'export. Seules les questions à
+  saisie LIBRE sont proposées — une liste fermée stocke une valeur d'option,
+  et y écrire un libellé donnerait une réponse qu'aucun écran ne relirait.
+  Sans question qui nomme, le (+) explique au lieu de proposer un formulaire.
+- **Un ajout de porte compte dans la salle, pas parmi les RÉPONSES.** Les
+  agrégats, l'effectif annoncé, le rythme d'inscription et le nombre de
+  réponses passent par `formResponses` : sinon un pic de « réponses »
+  apparaîtrait le soir même, et le nombre de « sans réponse » gonflerait.
+  La liste des invités, le journal, le rapport d'arrivées et l'export le
+  gardent, avec sa mention « ajoutée à l'entrée » — sans elle, son « Non » au
+  consentement dans l'export passerait pour une inscription refusée.
+- **Le cadeau est PAR PERSONNE et se pointe dans un MODE, pas avec un second
+  bouton.** Demande du client : savoir qui a reçu son cadeau au départ. Viser
+  le bon de deux boutons par rangée, debout, d'une main, serait une source
+  d'erreur ; tout l'écran bascule donc en « Départs », où un appui enregistre
+  le cadeau. Le mode vit dans l'URL (`?mode=departs`) : une hôtesse passée à
+  la sortie qui recharge sa page doit y RESTER, sinon ses appuis suivants
+  deviendraient des dé-pointages de gens en train de partir. Il est écrit en
+  toutes lettres sous le sélecteur, sur fond d'avertissement. Le cadeau
+  (`event_checkins.gift_at`) partage la file, l'idempotence et la VERSION de
+  l'arrivée — deux hôtesses, l'une à l'entrée et l'autre à la sortie, se
+  départagent comme deux arrivées concurrentes — mais pas sa valeur : un
+  cadeau ne fait arriver personne, et un dé-pointage ne reprend pas le
+  cadeau. Un cadeau remis à quelqu'un que la porte avait oublié est
+  enregistré tel quel, sans inventer d'arrivée, et le rapport le dit.
+- **`set_checkin` a pris un geste sans couper le poste en service.** Le
+  paramètre `p_kind` a une valeur par défaut et `p_arrived` garde son nom
+  (il porte désormais la VALEUR du geste) : un appel nommé à cinq arguments
+  — celui du code déjà déployé — résout vers la nouvelle fonction. La
+  migration peut donc précéder le déploiement sans fenêtre d'indisponibilité,
+  et la route accepte toujours un corps sans `kind`. La file locale écrite
+  par l'ancienne version se relit comme une file d'arrivées.
+- **La recherche et l'ajout sont dans une barre FIXÉE en bas**, sous le
+  pouce : debout, téléphone dans une main, le haut de l'écran est hors de
+  portée, et on y montait à chaque invité. C'est la SEULE barre fixée du
+  poste, et le poste réserve sa hauteur — mesuré à 375 px, la dernière
+  rangée et le pied de liste restent au-dessus. Le formulaire d'ajout s'ouvre
+  DANS cette barre, au-dessus de la recherche : un panneau dévoilé
+  (`aria-expanded`, Échap, focus rendu au bouton), pas une modale qui
+  promettrait un piège à focus qu'on ne fournit pas. Les libellés du mode
+  « Départs » sont COURTS — un statut long écrasait le nom, mesuré —, et
+  « non pointé à l'entrée » passe dans la ligne de précision.
+- **`/atelier/poste` montre le poste sans session**, hors production, en
+  essai à blanc : la barre du bas ne se juge qu'à 375 px, et le vrai poste
+  exige un compte affecté.
 - **Sur le papier, un accompagnant se distingue par la POSITION, jamais par
   la couleur.** Une imprimante de bureau sort en noir et blanc : la rangée
   est donc décalée et soulignée d'un filet, et le texte
@@ -1183,7 +1247,7 @@ changer.
   exécuter, et Supabase accorde `EXECUTE` à `anon`/`authenticated` sur toute
   nouvelle fonction via ses *default privileges* — un `revoke ... from public`
   ne suffit pas. Les fonctions internes vivent donc dans le schéma **`app`**,
-  hors de la liste exposée par l'API. `public` ne contient que les 12 fonctions
+  hors de la liste exposée par l'API. `public` ne contient que les 13 fonctions
   réellement appelées par le réseau, et un test échoue si une treizième
   apparaît (`tests/rls/exposed-surface.test.ts`).
 - **Tout nouvel objet naît sans droits.** Les *default privileges* de Supabase
@@ -1366,6 +1430,13 @@ ce que le code collecte.**
   `consent_text` (snapshot du texte affiché — preuve auditable). Ce texte
   mentionne le courriel de confirmation dès que l'organisation l'active : un
   envoi non annoncé serait un usage tacite de l'adresse collectée.
+- **Un invité ajouté à l'entrée ne porte AUCUN consentement**, et c'est la
+  vérité : il n'a rien lu ni coché. Sa ligne le dit (`origin = 'desk'`,
+  `consent_given` faux, `consent_text` nul) plutôt que d'emprunter le texte
+  du formulaire. Seuls son nom et sa précision sont enregistrés — rien
+  d'autre ne lui est demandé. L'organisation doit couvrir cette collecte à
+  la porte dans sa propre information : la plateforme ne peut pas l'afficher
+  à quelqu'un qui n'ouvre jamais la page.
 - Anti-doublon : appliqué par une contrainte d'unicité réelle
   (`survey_responses_dedup_uniq`), jamais une colonne décorative. La clé stockée
   est une empreinte SHA-256 salée par sondage (`public.dedup_hash`) : l'unicité
@@ -1394,7 +1465,7 @@ figure, avec sa raison et sa condition de lever.
 | R8 | **Hors périmètre MVP** : i18n (interface en français uniquement, chaînes centralisées), champs d'upload de fichiers dans les sondages, webhooks, SSO, multi-région, et **registre d'invités** — donc pas de « non-répondants », pas de relance, pas de taux de complétion. La plateforme connaît les réponses REÇUES par un lien public ; elle ne connaît pas la population invitée, et un « 142 sans réponse » serait un chiffre sans source. | Périmètre MVP. Un registre suppose l'import d'une liste nominative, des liens personnels, un canal d'envoi et une base légale par destinataire : c'est un module, pas un écran. | Sur demande client, avec sa propre analyse RGPD. |
 | R9 | **Tests d'intégration sur PGlite** et non sur un vrai Supabase : `auth.uid()`, les rôles `anon`/`authenticated`/`service_role` et le schéma `auth` sont émulés par le harnais. **Partiellement levé** : les 31 migrations ont été appliquées sur le projet Supabase réel et 70 contrôles y ont été rejoués (isolation, escalade, modules, soumission, purges, rattachement). Cette campagne a révélé deux failles que PGlite ne pouvait pas montrer (voir R10). Reste non couvert en CI : les *default privileges* et le comportement de PostgREST. | Aucune dépendance à Docker : la CI reste rapide et hermétique. | Ajouter un job de préproduction rejouant les migrations sur un vrai Supabase à chaque merge. |
 | R10 | **Deux vues en droits du propriétaire** (`public_surveys`, `organisation_directory`) — signalées `ERROR` par le linter Supabase. C'est délibéré : `public_surveys` est le seul accès public aux sondages et n'expose qu'un sous-ensemble de colonnes de sondages publiés ; `organisation_directory` permet à un compte non encore rattaché de désigner son organisation, ce que le RLS de `organisations` interdit par construction. Les deux sont restreintes par `grant` explicite. | L'alternative (policy `anon` sur `surveys` + grants colonne par colonne) déplace la complexité sans réduire l'exposition. | Si un audit externe l'exige. |
-| R11 | **12 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée, marque d'ouverture d'un poste, réclamation d'une invitation, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
+| R11 | **13 fonctions `SECURITY DEFINER` exposées par l'API** (soumission, correction d'une réponse, pointage d'une arrivée ou d'un cadeau, ajout d'un invité à l'entrée, marque d'ouverture d'un poste, réclamation d'une invitation, effacement, décisions de rattachement, purges, `my_modules`) — signalées `WARN` par le linter. C'est leur raison d'être : elles remplacent l'usage du `service role` et revérifient elles-mêmes les droits de l'appelant. Leur liste et leurs droits par rôle sont figés par un test. | Le `service role` dans le chemin par défaut serait bien plus dangereux. | N/A (choix d'architecture). |
 | R12 | **Verrou global du géocodage : dégradation par instance.** Si le store KV est injoignable, chaque instance retombe sur son garde-fou mémoire : le plafond réel devient « une requête par seconde et PAR INSTANCE » au lieu d'une pour l'application entière. Le code le fait et le dit ; il n'annonce pas un fail-closed qu'il ne tient pas. | Fermer complètement rendrait la recherche d'adresse indisponible à chaque hoquet de KV, pour une fonction d'administration peu fréquentée. | Si OpenStreetMap signale un abus, ou si le nombre d'instances devient significatif. |
 | R13 | **`sp-btn--sm` à 38px de haut** sur pointeur fin, alors que la consigne du projet est 44px. Sous `pointer: coarse` — donc au toucher, où la précision manque réellement — il repasse à 44px. Les cibles concernées sont des actions secondaires de rangée (« Modifier », « Réponses »), jamais une action principale. Le déclencheur d'aide contextuelle dessine 28px mais offre 44px de zone cliquable. | Des boutons de 44px dans une rangée de liste écrasent le contenu qu'ils accompagnent. | Si un client soumis au RGAA l'exige, ou si un usage tablette significatif apparaît. |
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
@@ -1638,6 +1709,29 @@ npm run build       # build de production
       de l'organisation, et un compte de pointage se DÉSACTIVE depuis
       l'écran — sans être supprimé, pour que le journal continue de dire qui a
       pointé qui. Aucune migration sur cette série. 2014 tests.
+- [x] Module « Accueil », lot 9 — la sortie et la porte ouverte (6 novembre
+      2026) : barre de recherche FIXÉE en bas avec un bouton (+) ; invité de
+      dernière minute, inscription marquée `origin = 'desk'`, nommée par les
+      désignations de l'organisation et pointée du même geste ; cadeau au
+      départ PAR PERSONNE, dans un mode « Départs » qui vit dans l'URL ;
+      rapport, export, journal et liste d'administration qui disent l'un et
+      l'autre. Trente-troisième migration, `20261106090000` : `origin`,
+      `gift_at`, `action` au journal, `set_checkin` à six paramètres dont un
+      par défaut, et `add_walkin`, treizième fonction exposée. **Essai à blanc
+      sur le vrai moteur le 6 novembre 2026**, migration ENTIÈRE comprise, dans
+      un bloc qui se termine par une exception — puis contrôle que rien n'est
+      resté : ajout pointé en version 1, rejeu du même `op_id` rendant la même
+      personne, origine `desk` sans consentement, cadeau posé sans toucher à
+      l'arrivée, appel à CINQ arguments nommés — celui du code en production —
+      qui fonctionne encore, clé hors schéma refusée en `22023`, une seule
+      signature de `set_checkin`, `add_walkin` refusée à `anon`. 2094 tests.
+      **Déployée le 6 novembre 2026**, en version `20261106090000` — posée à
+      la main comme les précédentes, et AVANT la fusion : le nouveau code lit
+      `origin` et `gift_at`, alors que l'ancien code continue de pointer sur
+      la base migrée. Rejouée ensuite sur le moteur, dans un bloc annulé :
+      mêmes verdicts, plus l'origine refusée en `42501` à la réécriture. Les
+      290 réponses existantes sont toutes `form`. Contrairement au lot 7, les
+      corps de fonction ont été appliqués AVEC leurs commentaires internes.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

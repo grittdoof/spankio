@@ -48,6 +48,11 @@ const SURFACE_ATTENDUE: Readonly<Record<string, { anon: boolean; authenticated: 
   // qu'aucune policy ne peut tenir ensemble, et dont l'autorité est
   // l'invitation elle-même, pas l'appelant.
   claim_checkin_invitation: { anon: false, authenticated: true },
+  // Ajoute à l'entrée une personne non inscrite et la pointe du même geste.
+  // Elle remplace une insertion directe dans `survey_responses`, qu'aucune
+  // policy n'autorise : l'ouvrir aux comptes d'accueil leur permettrait
+  // d'écrire n'importe quoi dans `data`.
+  add_walkin: { anon: false, authenticated: true },
   purge_expired_responses: { anon: false, authenticated: true },
   purge_deleted_surveys: { anon: false, authenticated: true },
   my_modules: { anon: false, authenticated: true },

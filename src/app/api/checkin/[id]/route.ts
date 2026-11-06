@@ -3,7 +3,7 @@ import { guard } from '@/lib/api/guard';
 import { readJsonBody } from '@/lib/api/read-json';
 import { jsonOk, mapDbError } from '@/lib/api/respond';
 import { parseWith } from '@/lib/api/validate';
-import { readCheckins, recordCheckin } from '@/lib/services/checkin';
+import { readCheckins, readWalkins, recordCheckin } from '@/lib/services/checkin';
 
 /**
  * Poste d'accueil : lecture du delta et pointage d'une arrivée.
@@ -35,7 +35,14 @@ const querySchema = z.object({
 
 const bodySchema = z.object({
   responseId: z.string().uuid(),
+  /**
+   * VALEUR du geste : arrivé, ou cadeau remis. Le nom date d'avant le
+   * cadeau, et il est gardé : un poste resté ouvert pendant un déploiement
+   * envoie encore l'ancien corps, et il doit continuer de pointer.
+   */
   arrived: z.boolean(),
+  /** Absent : une arrivée — c'est ce qu'envoie un poste antérieur au cadeau. */
+  kind: z.enum(['arrival', 'gift']).default('arrival'),
   /** Généré par le client : c'est lui qui porte l'idempotence. */
   opId: z.string().uuid(),
   /**
@@ -44,7 +51,7 @@ const bodySchema = z.object({
    * n'a aucune concurrence à craindre.
    */
   expectedVersion: z.number().int().min(0).max(1_000_000).nullable(),
-  /** Effectif réellement entré. `null` : non précisé, jamais zéro. */
+  /** La personne pointée : 0 pour l'inscrit, 1..n pour ses accompagnants. */
   seat: z.number().int().min(0).max(998),
 });
 
@@ -78,9 +85,22 @@ export async function GET(
   );
   if (!states.ok) return mapDbError(states.error, 'checkin.delta_failed');
 
+  // Les personnes ajoutées à l'entrée voyagent avec le delta : sans elles,
+  // le poste d'à côté compterait une arrivée sans rangée pour la montrer.
+  const guests = await readWalkins(
+    guarded.context,
+    parsedParams.value.id,
+    parsedQuery.value.depuis,
+  );
+  if (!guests.ok) return mapDbError(guests.error, 'checkin.delta_failed');
+
   // `at` est l'instant du SERVEUR. Le client s'en sert pour dire la fraîcheur,
   // et une horloge de téléphone mal réglée ne doit pas la fausser.
-  return jsonOk({ states: states.value, at: new Date().toISOString() });
+  return jsonOk({
+    states: states.value,
+    guests: guests.value,
+    at: new Date().toISOString(),
+  });
 }
 
 export async function POST(
@@ -111,7 +131,8 @@ export async function POST(
    */
   const recorded = await recordCheckin(guarded.context, {
     responseId: parsed.value.responseId,
-    arrived: parsed.value.arrived,
+    kind: parsed.value.kind,
+    value: parsed.value.arrived,
     opId: parsed.value.opId,
     expectedVersion: parsed.value.expectedVersion,
     seat: parsed.value.seat,

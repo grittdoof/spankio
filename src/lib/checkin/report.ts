@@ -35,6 +35,12 @@ export interface ArrivalRow {
    * d'être, et le chiffre est toujours exact.
    */
   readonly entered: number;
+  /** Ajoutée à l'entrée, sans inscription préalable. */
+  readonly walkIn: boolean;
+  /** Cadeaux remis aux personnes de cette inscription : un par siège. */
+  readonly gifts: number;
+  /** Dont remis à une personne que la porte n'avait pas pointée. */
+  readonly giftsWithoutArrival: number;
 }
 
 /** Compose les rangées du rapport depuis la liste et l'état des arrivées. */
@@ -52,9 +58,9 @@ export function arrivalRows(
   }
 
   return guests.map((guest) => {
-    const arrived = (bySurvey.get(guest.id) ?? []).filter(
-      (state) => state.arrivedAt !== null,
-    );
+    const seats = bySurvey.get(guest.id) ?? [];
+    const arrived = seats.filter((state) => state.arrivedAt !== null);
+    const gifted = seats.filter((state) => state.giftAt != null);
     // La PREMIÈRE arrivée date l'inscription : c'est l'instant où ce groupe a
     // franchi la porte, et c'est lui que la courbe d'affluence doit placer.
     let first: string | null = null;
@@ -69,6 +75,9 @@ export function arrivalRows(
       announced: guest.people,
       arrivedAt: first,
       entered: arrived.length,
+      walkIn: guest.walkIn,
+      gifts: gifted.length,
+      giftsWithoutArrival: gifted.filter((state) => state.arrivedAt === null).length,
     };
   });
 }
@@ -117,6 +126,12 @@ export interface ArrivalReport {
   readonly peopleExpected: number;
   /** Rangées dont l'effectif entré a été corrigé à la main. */
   readonly corrected: number;
+  /** Personnes ajoutées à l'entrée et pointées — un sous-ensemble de `unexpected`. */
+  readonly walkIns: number;
+  /** Cadeaux remis au départ, un par personne. */
+  readonly gifts: number;
+  /** Dont remis à des personnes que la porte n'avait pas pointées. */
+  readonly giftsWithoutArrival: number;
   /** Largeur retenue, en minutes. */
   readonly sliceMinutes: number;
   readonly slices: readonly ArrivalSlice[];
@@ -160,10 +175,19 @@ export function arrivalReport(
   let peopleIn = 0;
   let peopleExpected = 0;
   let corrected = 0;
+  let walkIns = 0;
+  let gifts = 0;
+  let giftsWithoutArrival = 0;
 
   const instants: number[] = [];
 
   for (const row of rows) {
+    // Le cadeau se compte indépendamment de l'arrivée : quelqu'un qu'on a
+    // oublié de pointer à l'entrée et qui repart avec son cadeau a bien reçu
+    // un cadeau. Le rapport le dit, il ne l'efface pas.
+    gifts += row.gifts;
+    giftsWithoutArrival += row.giftsWithoutArrival;
+
     // Le rétrécissement de type sur `row.arrivedAt` suffit : l'assertion que
     // j'avais écrite ici ne changeait rien et ESLint avait raison de la
     // refuser.
@@ -187,7 +211,10 @@ export function arrivalReport(
       // différent de l'annoncé » — un invité annoncé accompagné venu seul, ou
       // l'inverse. C'est le chiffre qui sert à dimensionner la soirée
       // suivante, et il est désormais exact au lieu d'être déclaratif.
-      if (row.entered !== Math.max(1, row.announced)) corrected += 1;
+      // Une personne ajoutée à la porte n'a rien annoncé : la compter comme
+      // « effectif corrigé » mêlerait deux faits que le rapport sépare.
+      if (row.walkIn) walkIns += 1;
+      else if (row.entered !== Math.max(1, row.announced)) corrected += 1;
       if (!Number.isNaN(at)) instants.push(at);
     }
   }
@@ -205,6 +232,9 @@ export function arrivalReport(
       peopleIn,
       peopleExpected,
       corrected,
+      walkIns,
+      gifts,
+      giftsWithoutArrival,
       sliceMinutes: SLICE_MINUTES[0],
       slices: [],
       busiest: null,
@@ -259,6 +289,9 @@ export function arrivalReport(
     peopleIn,
     peopleExpected,
     corrected,
+    walkIns,
+    gifts,
+    giftsWithoutArrival,
     sliceMinutes: minutes,
     slices,
     busiest,
@@ -317,6 +350,26 @@ export function arrivalFacts(report: ArrivalReport, timeZone: string): string[] 
       `${report.unexpected} ${
         report.unexpected > 1 ? 'personnes sont venues' : 'personne est venue'
       } sans avoir annoncé sa présence.`,
+    );
+  }
+
+  if (report.walkIns > 0) {
+    facts.push(
+      `${report.walkIns} ${
+        report.walkIns > 1 ? 'personnes ont été ajoutées' : 'personne a été ajoutée'
+      } à l’entrée, sans inscription.`,
+    );
+  }
+
+  if (report.gifts > 0) {
+    facts.push(
+      `${report.gifts} cadeau${report.gifts > 1 ? 'x' : ''} remis au départ${
+        report.giftsWithoutArrival > 0
+          ? `, dont ${report.giftsWithoutArrival} à ${
+              report.giftsWithoutArrival > 1 ? 'des personnes' : 'une personne'
+            } que la porte n’avait pas pointée${report.giftsWithoutArrival > 1 ? 's' : ''}`
+          : ''
+      }.`,
     );
   }
 

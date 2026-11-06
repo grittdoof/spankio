@@ -34,6 +34,8 @@ export interface CheckinState {
   readonly responseId: string;
   readonly seat: number;
   readonly arrivedAt: string | null;
+  /** Remise du cadeau au départ. Indépendante de l'arrivée. */
+  readonly giftAt: string | null;
   readonly version: number;
   /** Horodatage de la dernière écriture, qui sert de curseur au delta. */
   readonly updatedAt: string;
@@ -46,12 +48,25 @@ export interface CheckinState {
  */
 export type PendingStatus = 'queued' | 'sending' | 'failed';
 
+/**
+ * Les deux gestes du poste : l'arrivée à l'entrée, le cadeau à la sortie.
+ *
+ * Ils partagent la file, la version et l'idempotence — ce sont deux écritures
+ * sur la MÊME personne, et deux hôtesses qui touchent la même rangée, l'une à
+ * l'entrée et l'autre à la sortie, doivent se départager comme deux arrivées
+ * concurrentes. Ils ne partagent PAS leur valeur : remettre un cadeau ne fait
+ * arriver personne, et dé-pointer une arrivée ne reprend pas le cadeau.
+ */
+export type CheckinKind = 'arrival' | 'gift';
+
 export interface PendingOp {
   /** Généré par le client : c'est lui qui porte l'idempotence. */
   readonly opId: string;
   readonly responseId: string;
   readonly seat: number;
-  readonly arrived: boolean;
+  readonly kind: CheckinKind;
+  /** Valeur du geste : arrivé, ou cadeau remis. */
+  readonly value: boolean;
   readonly attempts: number;
   readonly status: PendingStatus;
   /** Message du refus, destiné à être lu sur la rangée. */
@@ -84,7 +99,8 @@ export type DeskAction =
       readonly opId: string;
       readonly responseId: string;
       readonly seat: number;
-      readonly arrived: boolean;
+      readonly kind: CheckinKind;
+      readonly value: boolean;
     }
   | { readonly type: 'sending'; readonly opId: string }
   | { readonly type: 'applied'; readonly opId: string; readonly state: CheckinState }
@@ -168,12 +184,14 @@ export function deskReducer(state: DeskState, action: DeskAction): DeskState {
           // Un refus NON LU sur la même rangée est remplacé : on vient de
           // reprendre la main dessus, le message précédent n'a plus d'objet.
           // « La même rangée » est ici une PERSONNE : le refus posé sur
-          // l'accompagnant ne doit pas disparaître parce qu'on repointe l'hôte.
+          // l'accompagnant ne doit pas disparaître parce qu'on repointe l'hôte,
+          // ni le refus d'une arrivée parce qu'on remet un cadeau.
           ...state.queue.filter(
             (op) =>
               !(
                 op.responseId === action.responseId &&
                 op.seat === action.seat &&
+                op.kind === action.kind &&
                 op.status === 'failed'
               ),
           ),
@@ -181,7 +199,8 @@ export function deskReducer(state: DeskState, action: DeskAction): DeskState {
             opId: action.opId,
             responseId: action.responseId,
             seat: action.seat,
-            arrived: action.arrived,
+            kind: action.kind,
+            value: action.value,
             attempts: 0,
             status: 'queued',
             error: null,

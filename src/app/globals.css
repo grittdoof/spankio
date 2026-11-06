@@ -5195,6 +5195,190 @@ summary.sp-btn::-webkit-details-marker {
 }
 
 /* ---------------------------------------------------------------------------
+   Barre du bas du poste : la recherche et l'ajout, sous le pouce
+   ---------------------------------------------------------------------------
+   Debout, téléphone dans une main, le haut de l'écran est hors de portée — on
+   y montait pourtant à chaque invité. La barre est FIXÉE en bas, sur toute
+   largeur ; son contenu reprend la largeur du poste pour que, sur un écran de
+   bureau, la recherche reste alignée sur la liste qu'elle filtre.
+
+   C'est la SEULE barre fixée de l'écran (règle déjà posée pour le parcours
+   public) : le poste réserve donc sa hauteur en bas, sans quoi les dernières
+   rangées passeraient dessous et ne se pointeraient jamais.
+   --------------------------------------------------------------------------- */
+.sp-desk {
+  padding-bottom: calc(var(--sp-tap) + var(--sp-space-7) + env(safe-area-inset-bottom));
+}
+
+.sp-desk__dock {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 20;
+  border-top: 1px solid var(--sp-border);
+  background: var(--sp-surface);
+  box-shadow: var(--sp-shadow-lg);
+}
+
+.sp-desk__dockbar,
+.sp-desk__sheet {
+  margin: 0 auto;
+  max-width: 46rem;
+  padding: var(--sp-space-3) var(--sp-space-4);
+}
+
+.sp-desk__dockbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-space-3);
+  /* L'encoche du bas d'un iPhone ne doit pas mordre sur la recherche. */
+  padding-bottom: max(var(--sp-space-3), env(safe-area-inset-bottom));
+}
+
+.sp-desk__search {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--sp-tap);
+}
+
+/* Le (+) : rond, plein, à portée de pouce. Blanc sur marine, paire déjà
+   vérifiée par `CONTRAST_REQUIREMENTS`. */
+.sp-desk__add {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 0;
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-marine);
+  color: var(--sp-on-accent);
+  cursor: pointer;
+  transition: transform var(--sp-motion) var(--sp-ease);
+}
+
+.sp-desk__add[aria-expanded='true'] {
+  transform: rotate(45deg);
+}
+
+.sp-desk__add:focus-visible {
+  outline: 3px solid var(--sp-accent);
+  outline-offset: 2px;
+}
+
+/* Le formulaire s'ouvre AU-DESSUS de la recherche, dans la même barre : là
+   où était le pouce. Il défile s'il le faut — sur un petit téléphone, avec
+   le clavier ouvert, trois champs ne tiennent pas toujours. */
+.sp-desk__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-3);
+  max-height: 60dvh;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--sp-border);
+}
+
+.sp-desk__sheet-title {
+  margin: 0;
+  color: var(--sp-marine);
+  font-size: var(--sp-text-lg);
+}
+
+.sp-desk__sheet-note {
+  margin: 0;
+  color: var(--sp-text-muted);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-desk__sheet-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-space-3);
+  margin: var(--sp-space-3) 0;
+}
+
+/* Le rythme du formulaire est porté par l'écart ci-dessus : la marge basse
+   d'un champ ordinaire (24px) y doublerait l'espace et repousserait le
+   bouton d'ajout sous le clavier d'un téléphone. */
+.sp-desk__sheet-fields .sp-field {
+  margin-bottom: 0;
+}
+
+.sp-desk__sheet-error {
+  margin: 0 0 var(--sp-space-3);
+  padding: var(--sp-space-2) var(--sp-space-3);
+  border-radius: var(--sp-radius);
+  background: var(--sp-danger-light);
+  color: var(--sp-danger-text);
+  font-size: var(--sp-text-sm);
+}
+
+.sp-desk__sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-space-3);
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Mode du poste : Arrivées / Départs
+   ---------------------------------------------------------------------------
+   Deux boutons à bascule sur toute la largeur — le mode décide de ce que
+   fait CHAQUE appui, il doit se voir de loin. Et le mode « Départs » change
+   la teinte de sa phrase d'explication : on ne doit pas pouvoir croire
+   pointer une arrivée quand on enregistre un cadeau.
+   --------------------------------------------------------------------------- */
+.sp-desk__modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-space-1);
+  padding: var(--sp-space-1);
+  border-radius: var(--sp-radius-pill);
+  background: var(--sp-surface-muted);
+}
+
+.sp-desk__mode {
+  min-height: var(--sp-tap);
+  padding: var(--sp-space-2) var(--sp-space-3);
+  border: 0;
+  border-radius: var(--sp-radius-pill);
+  background: transparent;
+  color: var(--sp-marine);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sp-desk__mode[aria-pressed='true'] {
+  background: var(--sp-marine);
+  color: var(--sp-on-accent);
+}
+
+.sp-desk__note {
+  margin: 0;
+  font-size: var(--sp-text-sm);
+}
+
+.sp-desk__note--arrivals {
+  color: var(--sp-text-muted);
+}
+
+.sp-desk__note--departures {
+  padding: var(--sp-space-2) var(--sp-space-3);
+  border-radius: var(--sp-radius);
+  background: var(--sp-warning-light);
+  color: var(--sp-warning-text);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-desk__add {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Journal de la porte
    ---------------------------------------------------------------------------
    Écran de recours : on l'ouvre quand un chiffre surprend. Il se lit donc en

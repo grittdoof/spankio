@@ -1,7 +1,8 @@
 import { toIsoString } from '@/lib/export/csv';
 import { eq, gte, inList, isNull, type DbError } from '@/lib/data/port';
 import type { RequestContext } from '@/lib/data/context';
-import type { CheckinState } from '@/lib/checkin/reducer';
+import type { CheckinKind, CheckinState } from '@/lib/checkin/reducer';
+import { guestList, type GuestRow } from '@/lib/survey/guests';
 import type { StaffMember } from '@/lib/checkin/readiness';
 import { generateInvitationToken, invitationLink, normaliseEmail } from '@/lib/checkin/invitation';
 import { sendEmail } from '@/lib/email/resend';
@@ -40,6 +41,7 @@ interface RawCheckin {
   response_id: string;
   seat: number;
   arrived_at: string | Date | null;
+  gift_at: string | Date | null;
   version: number;
   updated_at: string | Date;
 }
@@ -49,6 +51,7 @@ function toState(row: RawCheckin): CheckinState {
     responseId: row.response_id,
     seat: row.seat,
     arrivedAt: row.arrived_at === null ? null : toIsoString(row.arrived_at),
+    giftAt: row.gift_at == null ? null : toIsoString(row.gift_at),
     version: row.version,
     updatedAt: toIsoString(row.updated_at),
   };
@@ -97,6 +100,29 @@ export async function listAssignments(
   }
 
   return { ok: true, value: assignments };
+}
+
+/**
+ * Schéma et désignations d'un événement — ce qu'il faut pour nommer une
+ * rangée. Des réglages illisibles retombent sur un comptage non configuré,
+ * comme partout ailleurs : l'écran ne doit pas se vider pour autant.
+ */
+export async function deskSettings(
+  context: RequestContext,
+  surveyId: string,
+): Promise<SurveyOutcome<{ survey: SurveyRow; schema: SurveySchema; attendance: AttendanceSettings }>> {
+  const survey = await getSurvey(context, surveyId);
+  if (!survey.ok) return survey;
+
+  const schema = parseSurveySchema(survey.value);
+  if (!schema.ok) return schema;
+
+  const parsed = surveySettingsSchema.safeParse(survey.value.settings ?? {});
+  const attendance: AttendanceSettings = parsed.success
+    ? (parsed.data.attendance ?? {})
+    : {};
+
+  return { ok: true, value: { survey: survey.value, schema: schema.value, attendance } };
 }
 
 export interface DeskData {
@@ -168,7 +194,7 @@ export async function readCheckins(
 
   const rows = await context.port.select<RawCheckin>({
     table: 'event_checkins',
-    columns: 'response_id, seat, arrived_at, version, updated_at',
+    columns: 'response_id, seat, arrived_at, gift_at, version, updated_at',
     where,
     order: { column: 'updated_at', ascending: true },
     limit: EXPORT_LIMIT,
@@ -181,7 +207,9 @@ export async function readCheckins(
 export interface CheckinInput {
   readonly responseId: string;
   readonly seat: number;
-  readonly arrived: boolean;
+  readonly kind: CheckinKind;
+  /** Valeur du geste : arrivé, ou cadeau remis. */
+  readonly value: boolean;
   readonly opId: string;
   readonly expectedVersion: number | null;
 }
@@ -190,6 +218,7 @@ interface RawRpcResult {
   response_id: string;
   seat: number;
   arrived_at: string | null;
+  gift_at?: string | null;
   version: number;
   replayed: boolean;
 }
@@ -219,9 +248,10 @@ export async function recordCheckin(
   const result = await context.port.rpc<RawRpcResult>('set_checkin', {
     p_response_id: input.responseId,
     p_seat: input.seat,
-    p_arrived: input.arrived,
+    p_arrived: input.value,
     p_op_id: input.opId,
     p_expected_version: input.expectedVersion,
+    p_kind: input.kind,
   });
   if (result.error) return { ok: false, error: result.error };
 
@@ -232,11 +262,145 @@ export async function recordCheckin(
       responseId: row.response_id,
       seat: row.seat,
       arrivedAt: row.arrived_at,
+      giftAt: row.gift_at ?? null,
       version: row.version,
       updatedAt: now.toISOString(),
       replayed: row.replayed,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// L'invité de dernière minute
+// ---------------------------------------------------------------------------
+
+interface RawWalkinResult {
+  response_id: string;
+  submitted_at: string;
+  data: Record<string, unknown>;
+  seat: number;
+  arrived_at: string | null;
+  gift_at: string | null;
+  version: number;
+  replayed: boolean;
+}
+
+export interface WalkinResult {
+  readonly state: CheckinState;
+  /** La rangée telle que la liste la montre, composée comme toutes les autres. */
+  readonly guest: GuestRow;
+  readonly replayed: boolean;
+}
+
+/**
+ * Ajoute à l'entrée une personne non inscrite, et la pointe du même geste.
+ *
+ * Le contenu a déjà été reconstruit par `walkinData` ; la fonction SQL le
+ * borne une seconde fois, parce qu'une route n'est pas la seule à pouvoir
+ * l'appeler. La rangée renvoyée est composée par `guestList`, la MÊME
+ * fonction que la liste entière : une personne ajoutée à la porte doit
+ * s'appeler exactement comme si elle s'était inscrite.
+ */
+export async function addWalkin(
+  context: RequestContext,
+  input: {
+    readonly surveyId: string;
+    readonly data: Readonly<Record<string, string>>;
+    readonly opId: string;
+    readonly schema: SurveySchema;
+    readonly attendance: AttendanceSettings;
+  },
+  now: Date = new Date(),
+): Promise<SurveyOutcome<WalkinResult>> {
+  const result = await context.port.rpc<RawWalkinResult>('add_walkin', {
+    p_survey_id: input.surveyId,
+    p_data: input.data,
+    p_op_id: input.opId,
+  });
+  if (result.error) return { ok: false, error: result.error };
+
+  const row = result.data;
+  const list = guestList(input.schema, input.attendance, [
+    {
+      id: row.response_id,
+      submitted_at: toIsoString(row.submitted_at),
+      data: row.data,
+      origin: 'desk',
+    },
+  ]);
+  const guest = list.rows[0];
+  if (!guest) {
+    return { ok: false, error: { code: 'PT500', message: 'Rangée introuvable' } };
+  }
+
+  return {
+    ok: true,
+    value: {
+      guest,
+      replayed: row.replayed,
+      state: {
+        responseId: row.response_id,
+        seat: 0,
+        arrivedAt: row.arrived_at,
+        giftAt: row.gift_at,
+        version: row.version,
+        updatedAt: now.toISOString(),
+      },
+    },
+  };
+}
+
+interface RawWalkinRow {
+  id: string;
+  submitted_at: string | Date;
+  data: Record<string, unknown>;
+}
+
+/**
+ * Les personnes ajoutées à l'entrée depuis le curseur.
+ *
+ * Le delta ne transportait que des ÉTATS : une personne ajoutée sur le poste
+ * d'à côté aurait été pointée dans la base sans apparaître ici avant un
+ * rechargement — un compteur de salle qui monte sans rangée pour le justifier.
+ * Le curseur est le même que celui des états, borne incluse : l'insertion et
+ * l'arrivée partagent la même transaction, donc le même `now()`.
+ */
+export async function readWalkins(
+  context: RequestContext,
+  surveyId: string,
+  since?: string,
+): Promise<SurveyOutcome<GuestRow[]>> {
+  const where = [eq('survey_id', surveyId), eq('origin', 'desk'), isNull('deleted_at')];
+  if (since) where.push(gte('submitted_at', since));
+
+  const rows = await context.port.select<RawWalkinRow>({
+    table: 'survey_responses',
+    columns: 'id, submitted_at, data',
+    where,
+    order: { column: 'submitted_at', ascending: true },
+    limit: EXPORT_LIMIT,
+  });
+  if (rows.error) return { ok: false, error: rows.error };
+
+  // Le cas courant — personne n'a été ajouté depuis le dernier delta — ne
+  // coûte qu'une requête. Le schéma n'est relu que s'il y a quelqu'un à
+  // nommer : ce chemin tourne toutes les cinq secondes sur chaque poste.
+  if (rows.data.length === 0) return { ok: true, value: [] };
+
+  const desk = await deskSettings(context, surveyId);
+  if (!desk.ok) return desk;
+
+  const list = guestList(
+    desk.value.schema,
+    desk.value.attendance,
+    rows.data.map((row) => ({
+      id: row.id,
+      submitted_at: toIsoString(row.submitted_at),
+      data: row.data,
+      origin: 'desk',
+    })),
+  );
+  return { ok: true, value: [...list.rows] };
 }
 
 
@@ -666,8 +830,12 @@ interface RawLogRow {
   at: string | Date;
   by_profile: string | null;
   arrived: boolean;
+  action?: string | null;
   source: string;
 }
+
+/** Le geste journalisé : arrivée, cadeau, ou personne ajoutée à l'entrée. */
+export type CheckinLogAction = 'arrival' | 'gift' | 'walkin';
 
 export interface CheckinLogRow {
   readonly opId: string;
@@ -675,7 +843,9 @@ export interface CheckinLogRow {
   readonly seat: number;
   readonly at: string;
   readonly byProfile: string | null;
+  /** VALEUR du geste : arrivé, ou cadeau remis. */
   readonly arrived: boolean;
+  readonly action: CheckinLogAction;
   readonly source: 'desk' | 'admin';
 }
 
@@ -697,7 +867,7 @@ export async function listCheckinLog(
 ): Promise<SurveyOutcome<CheckinLogRow[]>> {
   const rows = await context.port.select<RawLogRow>({
     table: 'event_checkin_log',
-    columns: 'op_id, response_id, seat, at, by_profile, arrived, source',
+    columns: 'op_id, response_id, seat, at, by_profile, arrived, action, source',
     where: [eq('survey_id', surveyId)],
     order: { column: 'at', ascending: false },
     limit,
@@ -713,6 +883,9 @@ export async function listCheckinLog(
       at: toIsoString(row.at),
       byProfile: row.by_profile,
       arrived: row.arrived,
+      // Une valeur inconnue se lit comme une arrivée — c'est ce qu'étaient
+      // toutes les lignes écrites avant que le cadeau existe.
+      action: row.action === 'gift' || row.action === 'walkin' ? row.action : 'arrival',
       source: row.source === 'desk' ? 'desk' : 'admin',
     })),
   };

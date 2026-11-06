@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GET as readDelta, POST as setCheckin } from '@/app/api/checkin/[id]/route';
-import { createTestDb, type TestDb } from '../helpers/db';
+import { POST as addWalkin } from '@/app/api/checkin/[id]/invite/route';
+import { OWNER, createTestDb, type TestDb } from '../helpers/db';
 import {
   createRouteHarness,
   jsonRequest,
@@ -300,6 +301,159 @@ describe('routes du poste d’accueil', () => {
         expectedVersion: null,
       });
       expect(status).toBe(400);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  describe('cadeau et invité de dernière minute', () => {
+    const SCHEMA = {
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            { id: 'nom', type: 'text', label: 'Quel est votre nom ?', required: true },
+            { id: 'prenom', type: 'text', label: 'Quel est votre prénom ?', required: false },
+            { id: 'societe', type: 'text', label: 'Société', required: false },
+          ],
+        },
+      ],
+    };
+
+    beforeAll(async () => {
+      await db.query(OWNER, 'update public.surveys set schema = $1, settings = $2 where id = $3', [
+        JSON.stringify(SCHEMA),
+        JSON.stringify({
+          attendance: { identityFields: ['prenom', 'nom'], detailField: 'societe' },
+        }),
+        a.eventSurvey,
+      ]);
+    });
+
+    async function invite(surveyId: string, body: Record<string, unknown>) {
+      return readJson(
+        await addWalkin(
+          jsonRequest('POST', `/api/checkin/${surveyId}/invite`, body),
+          params(surveyId),
+        ),
+      );
+    }
+
+    interface WalkinBody {
+      guest: { id: string; name: string | null; detail: string | null; walkIn: boolean };
+      state: { responseId: string; seat: number; arrivedAt: string | null; version: number };
+      replayed: boolean;
+    }
+
+    it('remet un cadeau par la même route, sans toucher à l’arrivée', async () => {
+      api.actAs(a.host);
+      const response = await insertResponse(db, a.eventSurvey, { nom: 'Cadeau' });
+      const { status, body } = await post(a.eventSurvey, {
+        responseId: response,
+        arrived: true,
+        kind: 'gift',
+        opId: randomUUID(),
+        expectedVersion: 0,
+        seat: 0,
+      });
+      expect(status).toBe(200);
+      const state = body as StateBody & { giftAt: string | null };
+      expect(state.giftAt).not.toBeNull();
+      expect(state.arrivedAt).toBeNull();
+    });
+
+    it('un corps SANS geste reste une arrivée — un poste resté ouvert pendant le déploiement', async () => {
+      api.actAs(a.host);
+      const response = await insertResponse(db, a.eventSurvey, { nom: 'Ancien poste' });
+      const { status, body } = await post(a.eventSurvey, {
+        responseId: response,
+        arrived: true,
+        opId: randomUUID(),
+        expectedVersion: 0,
+        seat: 0,
+      });
+      expect(status).toBe(200);
+      expect((body as StateBody).arrivedAt).not.toBeNull();
+    });
+
+    it('refuse un geste inconnu', async () => {
+      api.actAs(a.host);
+      const { status } = await post(a.eventSurvey, {
+        responseId: a.eventResponse,
+        arrived: true,
+        kind: 'depart',
+        opId: randomUUID(),
+        expectedVersion: null,
+        seat: 0,
+      });
+      expect(status).toBe(400);
+    });
+
+    it('ajoute une personne, nommée comme la liste la nomme, et la pointe', async () => {
+      api.actAs(a.host);
+      const { status, body } = await invite(a.eventSurvey, {
+        opId: randomUUID(),
+        values: { nom: 'Martin', prenom: 'Lucie', societe: 'Atelier Martin', presence: 'oui' },
+      });
+      expect(status).toBe(200);
+      const added = body as WalkinBody;
+      expect(added.guest).toMatchObject({
+        name: 'Lucie Martin',
+        detail: 'Atelier Martin',
+        walkIn: true,
+      });
+      expect(added.state.responseId).toBe(added.guest.id);
+      expect(added.state.arrivedAt).not.toBeNull();
+
+      // La clé non proposée (`presence`) n'a PAS été écrite : la personne n'a
+      // rien annoncé, et la liste blanche vaut ici comme ailleurs.
+      const row = await db.queryOne<{ data: Record<string, string>; origin: string }>(
+        OWNER,
+        'select data, origin from public.survey_responses where id = $1',
+        [added.guest.id],
+      );
+      expect(row).toEqual({
+        data: { nom: 'Martin', prenom: 'Lucie', societe: 'Atelier Martin' },
+        origin: 'desk',
+      });
+    });
+
+    it('le delta d’un autre poste transporte la personne ajoutée', async () => {
+      api.actAs(a.host);
+      const before = new Date(Date.now() - 1000).toISOString();
+      const { body } = await invite(a.eventSurvey, {
+        opId: randomUUID(),
+        values: { nom: 'Arnaud', prenom: 'Paul' },
+      });
+      const added = body as WalkinBody;
+
+      const delta = await readJson(
+        await readDelta(
+          jsonRequest('GET', `/api/checkin/${a.eventSurvey}?depuis=${encodeURIComponent(before)}`),
+          params(a.eventSurvey),
+        ),
+      );
+      const payload = delta.body as { guests: { id: string; name: string }[] };
+      expect(payload.guests.map((guest) => guest.id)).toContain(added.guest.id);
+    });
+
+    it('refuse un ajout sans nom, avec un message qui nomme la question', async () => {
+      api.actAs(a.host);
+      const { status, body } = await invite(a.eventSurvey, {
+        opId: randomUUID(),
+        values: { societe: 'Seule' },
+      });
+      expect(status).toBe(400);
+      expect((body as ApiError).error.message).toBe('Remplissez au moins « Quel est votre prénom ? ».');
+    });
+
+    it('un host de B ne voit pas l’événement de A : 404', async () => {
+      api.actAs(b.host);
+      const { status } = await invite(a.eventSurvey, {
+        opId: randomUUID(),
+        values: { nom: 'Intrus' },
+      });
+      expect(status).toBe(404);
     });
   });
 });

@@ -29,6 +29,7 @@ function guest(partial: Partial<GuestRow> = {}): GuestRow {
     status: 'attending',
     people: 1,
     ambiguous: false,
+    walkIn: false,
     ...partial,
   };
 }

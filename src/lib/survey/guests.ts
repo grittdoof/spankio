@@ -34,6 +34,8 @@ export interface GuestResponse {
   readonly id: string;
   readonly submitted_at: string;
   readonly data: Readonly<Record<string, unknown>>;
+  /** `desk` : ajoutée à l'entrée. Absente : inscription du formulaire. */
+  readonly origin?: string;
 }
 
 export interface GuestRow {
@@ -57,6 +59,12 @@ export interface GuestRow {
   readonly status: AttendanceStatus;
   readonly people: number;
   readonly ambiguous: boolean;
+  /**
+   * Ajouté à l'entrée par le poste d'accueil, sans inscription préalable.
+   * L'écran le DIT : sans cela, on prendrait cette rangée pour une inscription
+   * dont la présence n'a pas été renseignée.
+   */
+  readonly walkIn: boolean;
 }
 
 /** Filtres proposés au-dessus de la liste. */
@@ -206,6 +214,7 @@ export function guestList(
       status: attendance.status,
       people: attendance.people,
       ambiguous: attendance.ambiguous,
+      walkIn: response.origin === 'desk',
     });
   }
 

@@ -1,4 +1,4 @@
-import type { CheckinLogRow } from '@/lib/services/checkin';
+import type { CheckinLogAction, CheckinLogRow } from '@/lib/services/checkin';
 import { seatKey, type SeatRow } from './seats';
 
 /**
@@ -29,7 +29,9 @@ export interface JournalEntry {
   /** `op_id` : unique par geste, y compris après un réessai réseau. */
   readonly id: string;
   readonly at: string;
-  /** Vrai : la personne est entrée. Faux : on l'a retirée des arrivées. */
+  /** Le geste : arrivée, cadeau, ou personne ajoutée à l'entrée. */
+  readonly action: CheckinLogAction;
+  /** Vrai : le geste est fait (entrée, cadeau remis). Faux : il est retiré. */
   readonly arrived: boolean;
   /** Nom de la personne pointée, ou `null` si elle n'est plus identifiable. */
   readonly who: string | null;
@@ -64,6 +66,7 @@ export function journalEntries(
     return {
       id: row.opId,
       at: row.at,
+      action: row.action,
       arrived: row.arrived,
       who: seat?.name ?? null,
       isCompanion: seat?.isCompanion ?? false,
@@ -75,7 +78,14 @@ export function journalEntries(
 
 /** Ce qui s'est passé, en toutes lettres. */
 export function journalActionLabel(entry: JournalEntry): string {
+  if (entry.action === 'walkin') return 'Ajouté à l’entrée';
+  if (entry.action === 'gift') return entry.arrived ? 'Cadeau remis' : 'Cadeau retiré';
   return entry.arrived ? 'Arrivée pointée' : 'Arrivée retirée';
+}
+
+/** Un geste qui DÉFAIT : l'écran le distingue, par le mot puis par la teinte. */
+export function journalIsUndo(entry: JournalEntry): boolean {
+  return entry.action !== 'walkin' && !entry.arrived;
 }
 
 /**
@@ -87,20 +97,34 @@ export function journalActionLabel(entry: JournalEntry): string {
  */
 export function journalSummary(entries: readonly JournalEntry[]): {
   readonly total: number;
+  /** Arrivées pointées, ajouts à l'entrée compris : chacun fait entrer quelqu'un. */
   readonly arrivals: number;
+  /** Gestes défaits : une arrivée ou un cadeau retiré. */
   readonly removals: number;
+  readonly walkIns: number;
+  readonly gifts: number;
   readonly actors: number;
 } {
   const actors = new Set<string>();
   let arrivals = 0;
+  let removals = 0;
+  let walkIns = 0;
+  let gifts = 0;
   for (const entry of entries) {
-    if (entry.arrived) arrivals += 1;
+    if (journalIsUndo(entry)) removals += 1;
+    else if (entry.action === 'gift') gifts += 1;
+    else {
+      arrivals += 1;
+      if (entry.action === 'walkin') walkIns += 1;
+    }
     if (entry.by) actors.add(entry.by);
   }
   return {
     total: entries.length,
     arrivals,
-    removals: entries.length - arrivals,
+    removals,
+    walkIns,
+    gifts,
     actors: actors.size,
   };
 }

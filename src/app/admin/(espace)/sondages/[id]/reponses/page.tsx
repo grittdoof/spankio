@@ -43,6 +43,7 @@ import {
   isAttendanceConfigured,
 } from '@/lib/survey/attendance';
 import { guestList } from '@/lib/survey/guests';
+import { formResponses } from '@/lib/checkin/walkin';
 import { eventInsights } from '@/lib/survey/insights';
 import { recentResponses, responsePace } from '@/lib/survey/pace';
 import { validateSurveySettings } from '@/lib/survey/settings';
@@ -138,7 +139,11 @@ export default async function SurveyStatisticsPage({
   const responses = await listResponses(context, parsedId.data, EXPORT_LIMIT);
   if (!responses.ok) return <Alert tone="error">{fr.errors.unexpected}</Alert>;
 
-  const statistics = computeStatistics(schema.value, responses.value);
+  // Les agrégats, le comptage annoncé et le rythme portent sur les réponses
+  // AU FORMULAIRE. Une personne ajoutée à la porte n'a rien répondu : elle
+  // reste dans la liste des invités, le journal et le rapport d'arrivées.
+  const submitted = formResponses(responses.value);
+  const statistics = computeStatistics(schema.value, submitted);
 
   // Comptage des présents : uniquement si l'organisation a désigné la question
   // qui dit « je viens ». Sans cela on compte des réponses, ce qui est exact
@@ -147,7 +152,7 @@ export default async function SurveyStatisticsPage({
   const attendance = settings.ok ? (settings.settings.attendance ?? {}) : {};
   const counting = survey.value.kind === 'event' && isAttendanceConfigured(attendance);
   const totals = counting
-    ? countAttendance(schema.value, attendance, responses.value)
+    ? countAttendance(schema.value, attendance, submitted)
     : null;
 
   // `new Date()` une seule fois, passé ensuite en paramètre : deux horloges
@@ -192,8 +197,8 @@ export default async function SurveyStatisticsPage({
       ? countdown(survey.value.event_starts_at, { now, timeZone })
       : null;
 
-  const pace = responsePace(responses.value, { now, window: view.period, timeZone });
-  const recent = recentResponses(responses.value, { now, days: DELTA_DAYS, timeZone });
+  const pace = responsePace(submitted, { now, window: view.period, timeZone });
+  const recent = recentResponses(submitted, { now, days: DELTA_DAYS, timeZone });
   const delta = {
     responses: recent.length,
     people: counting ? countAttendance(schema.value, attendance, recent).people : 0,
@@ -202,7 +207,7 @@ export default async function SurveyStatisticsPage({
   const capacity = attendance.capacity ?? null;
   const insights = eventInsights({
     totals,
-    responseCount: responses.value.length,
+    responseCount: submitted.length,
     capacity,
     pace,
     countdown: clock,
@@ -338,7 +343,7 @@ export default async function SurveyStatisticsPage({
                 insights={insights}
                 pace={pace}
                 party={party}
-                responseCount={responses.value.length}
+                responseCount={submitted.length}
                 settingsHref={settingsHref}
                 surveyId={survey.value.id}
                 totals={totals}

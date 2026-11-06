@@ -28,7 +28,15 @@ const TZ = 'Europe/Paris';
  * en passant `entered` explicitement.
  */
 function row(partial: Partial<ArrivalRow> & { id: string }): ArrivalRow {
-  const base = { expected: 'attending' as const, announced: 1, arrivedAt: null, ...partial };
+  const base = {
+    expected: 'attending' as const,
+    announced: 1,
+    arrivedAt: null,
+    walkIn: false,
+    gifts: 0,
+    giftsWithoutArrival: 0,
+    ...partial,
+  };
   return {
     ...base,
     entered: partial.entered ?? (base.arrivedAt ? Math.max(1, base.announced) : 0),
@@ -213,6 +221,7 @@ describe('la composition des rangées', () => {
         status: 'attending',
         people: 2,
         ambiguous: false,
+        walkIn: false,
       },
       {
         id: 'r2',
@@ -224,6 +233,7 @@ describe('la composition des rangées', () => {
         status: 'declined',
         people: 0,
         ambiguous: false,
+        walkIn: false,
       },
     ];
     const states: CheckinState[] = [
@@ -231,6 +241,7 @@ describe('la composition des rangées', () => {
         responseId: 'r1',
         seat: 0,
         arrivedAt: '2026-11-18T19:00:00.000Z',
+        giftAt: null,
         version: 1,
         updatedAt: '2026-11-18T19:00:00.000Z',
       },
@@ -240,6 +251,7 @@ describe('la composition des rangées', () => {
         responseId: 'r1',
         seat: 1,
         arrivedAt: '2026-11-18T19:04:00.000Z',
+        giftAt: null,
         version: 1,
         updatedAt: '2026-11-18T19:04:00.000Z',
       },
@@ -296,16 +308,48 @@ describe('les colonnes d’arrivée de l’export', () => {
     expect(rows[0]).not.toContain('Personnes entrées');
   });
 
-  it('ajoute les deux colonnes dès qu’une arrivée est fournie, pour TOUTES les lignes', () => {
+  it('ajoute les colonnes d’arrivée dès qu’une arrivée est fournie, pour TOUTES les lignes', () => {
     const rows = responseRows(schema, responses, {
       arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', entered: 2 }]]),
     });
 
-    expect(rows[0]!.slice(-2)).toEqual(['Arrivée', 'Personnes entrées']);
-    expect(rows[1]!.slice(-2)).toEqual(['2026-11-18T19:00:00.000Z', '2']);
+    expect(rows[0]!.slice(-4)).toEqual(['Arrivée', 'Personnes entrées', 'Cadeaux remis', 'Origine']);
+    expect(rows[1]!.slice(-4)).toEqual(['2026-11-18T19:00:00.000Z', '2', '', '']);
     // La réponse non pointée garde ses colonnes, vides : des colonnes qui
     // apparaîtraient ligne par ligne casseraient le fichier.
-    expect(rows[2]!.slice(-2)).toEqual(['', '']);
+    expect(rows[2]!.slice(-4)).toEqual(['', '', '', '']);
+  });
+
+  it('compte les cadeaux, et laisse VIDE un groupe qui n’en a reçu aucun', () => {
+    const rows = responseRows(schema, responses, {
+      arrivals: new Map([
+        ['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', entered: 2, gifts: 2 }],
+        ['r2', { arrivedAt: '2026-11-18T19:05:00.000Z', entered: 1, gifts: 0 }],
+      ]),
+    });
+    expect(rows[1]![rows[0]!.indexOf('Cadeaux remis')]).toBe('2');
+    expect(rows[2]![rows[0]!.indexOf('Cadeaux remis')]).toBe('');
+  });
+
+  it('dit l’origine d’une personne ajoutée à la porte — son « Non » au consentement s’explique', () => {
+    const rows = responseRows(
+      schema,
+      [
+        ...responses,
+        {
+          id: 'r3',
+          submitted_at: '2026-11-18T19:30:00.000Z',
+          consent_given: false,
+          consent_text: null,
+          data: { nom: 'Paul' },
+          origin: 'desk',
+        },
+      ],
+      { arrivals: new Map([['r3', { arrivedAt: '2026-11-18T19:30:00.000Z', entered: 1 }]]) },
+    );
+    const origin = rows[0]!.indexOf('Origine');
+    expect(rows[3]![origin]).toBe('Ajoutée à l’entrée');
+    expect(rows[1]![origin]).toBe('');
   });
 
   it('laisse VIDE l’effectif d’une inscription dont personne n’est venu', () => {
@@ -315,7 +359,7 @@ describe('les colonnes d’arrivée de l’export', () => {
     const rows = responseRows(schema, responses, {
       arrivals: new Map([['r1', { arrivedAt: null, entered: 0 }]]),
     });
-    expect(rows[1]!.slice(-1)).toEqual(['']);
+    expect(rows[1]![rows[0]!.indexOf('Personnes entrées')]).toBe('');
   });
 
   it('écrit le nombre de personnes réellement entrées', () => {
@@ -324,6 +368,104 @@ describe('les colonnes d’arrivée de l’export', () => {
     const rows = responseRows(schema, responses, {
       arrivals: new Map([['r1', { arrivedAt: '2026-11-18T19:00:00.000Z', entered: 2 }]]),
     });
-    expect(rows[1]!.slice(-1)).toEqual(['2']);
+    expect(rows[1]![rows[0]!.indexOf('Personnes entrées')]).toBe('2');
+  });
+});
+
+describe('les personnes ajoutées à l’entrée, et les cadeaux', () => {
+  it('compte une personne ajoutée à la porte parmi les venues sans annonce, jamais comme effectif corrigé', () => {
+    const report = arrivalReport(
+      [
+        row({ id: 'a', arrivedAt: '2026-11-18T19:00:00.000Z' }),
+        row({
+          id: 'w',
+          expected: 'unknown',
+          walkIn: true,
+          arrivedAt: '2026-11-18T19:30:00.000Z',
+          entered: 1,
+          announced: 0,
+        }),
+      ],
+      TZ,
+    );
+    expect(report.unexpected).toBe(1);
+    expect(report.walkIns).toBe(1);
+    expect(report.corrected).toBe(0);
+    expect(report.peopleIn).toBe(2);
+  });
+
+  it('compte les cadeaux, y compris ceux remis à quelqu’un que la porte avait oublié', () => {
+    const report = arrivalReport(
+      [
+        row({ id: 'a', arrivedAt: '2026-11-18T19:00:00.000Z', gifts: 2 }),
+        row({ id: 'b', gifts: 1, giftsWithoutArrival: 1 }),
+      ],
+      TZ,
+    );
+    expect(report.gifts).toBe(3);
+    expect(report.giftsWithoutArrival).toBe(1);
+    const facts = arrivalFacts(report, TZ);
+    expect(facts).toContain(
+      '3 cadeaux remis au départ, dont 1 à une personne que la porte n’avait pas pointée.',
+    );
+  });
+
+  it('ne dit rien des cadeaux quand aucun n’a été remis', () => {
+    const report = arrivalReport([row({ id: 'a', arrivedAt: '2026-11-18T19:00:00.000Z' })], TZ);
+    expect(arrivalFacts(report, TZ).join(' ')).not.toMatch(/cadeau/);
+  });
+
+  it('énonce les ajouts de porte comme un fait', () => {
+    const report = arrivalReport(
+      [
+        row({
+          id: 'w',
+          expected: 'unknown',
+          walkIn: true,
+          arrivedAt: '2026-11-18T19:30:00.000Z',
+          entered: 1,
+        }),
+      ],
+      TZ,
+    );
+    expect(arrivalFacts(report, TZ)).toContain('1 personne a été ajoutée à l’entrée, sans inscription.');
+  });
+
+  it('arrivalRows compte les cadeaux par siège et repère ceux remis sans arrivée', () => {
+    const rows = arrivalRows(
+      [
+        {
+          id: 'r1',
+          submittedAt: '2026-11-01T10:00:00.000Z',
+          name: 'Élodie',
+          initials: 'É',
+          detail: null,
+          companion: null,
+          status: 'attending',
+          people: 2,
+          ambiguous: false,
+          walkIn: false,
+        },
+      ],
+      [
+        {
+          responseId: 'r1',
+          seat: 0,
+          arrivedAt: '2026-11-18T19:00:00.000Z',
+          giftAt: '2026-11-18T23:00:00.000Z',
+          version: 2,
+          updatedAt: '2026-11-18T23:00:00.000Z',
+        },
+        {
+          responseId: 'r1',
+          seat: 1,
+          arrivedAt: null,
+          giftAt: '2026-11-18T23:01:00.000Z',
+          version: 1,
+          updatedAt: '2026-11-18T23:01:00.000Z',
+        },
+      ],
+    );
+    expect(rows[0]).toMatchObject({ entered: 1, gifts: 2, giftsWithoutArrival: 1, walkIn: false });
   });
 });

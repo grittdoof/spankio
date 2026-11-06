@@ -114,13 +114,21 @@ const SCREEN_META_COLUMNS: readonly ExportColumn[] = [
 const ARRIVAL_COLUMNS: readonly ExportColumn[] = [
   { key: '__arrived_at', header: 'Arrivée' },
   { key: '__people_in', header: 'Personnes entrées' },
+  { key: '__gifts', header: 'Cadeaux remis' },
+  // L'origine voyage avec les arrivées, puisqu'une personne ajoutée à la
+  // porte n'existe que par elles. Sans cette colonne, sa ligne afficherait
+  // « Non » au consentement sans dire pourquoi — et on la prendrait pour une
+  // inscription refusée.
+  { key: '__origin', header: 'Origine' },
 ];
 
 /** État d'arrivée d'une réponse, tel que l'export le reçoit. */
 export interface ArrivalExport {
   readonly arrivedAt: string | null;
-  /** `null` : non précisé à l'entrée. Jamais zéro par défaut. */
+  /** Personnes de l'inscription pointées à l'entrée. */
   readonly entered: number;
+  /** Cadeaux remis aux personnes de l'inscription. Facultatif : zéro. */
+  readonly gifts?: number;
 }
 
 /** Jeu de métadonnées : complet pour un fichier, réduit pour un écran. */
@@ -202,6 +210,8 @@ export interface ExportableResponse {
   readonly consent_given: boolean;
   readonly consent_text: string | null;
   readonly data: Readonly<Record<string, unknown>>;
+  /** `desk` : ajoutée à l'entrée par le poste d'accueil. */
+  readonly origin?: string;
   /**
    * Identifiant de la réponse. FACULTATIF, et seulement parce que le rendre
    * obligatoire casserait tous les appelants historiques, dont aucun n'en a
@@ -288,6 +298,15 @@ export function responseRows(
             // pas un effectif nul, et un tableur additionnerait les zéros.
             return entered === null || entered === undefined ? '' : String(entered);
           }
+          case '__gifts': {
+            // Même règle que l'effectif : zéro reste VIDE. Une soirée sans
+            // cadeau ne doit pas produire une colonne de zéros qu'un tableur
+            // additionnerait.
+            const gifts = response.id ? arrivals?.get(response.id)?.gifts : undefined;
+            return gifts ? String(gifts) : '';
+          }
+          case '__origin':
+            return response.origin === 'desk' ? 'Ajoutée à l’entrée' : '';
           default:
             break;
         }

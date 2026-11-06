@@ -9,17 +9,27 @@ import {
   nextOp,
   retryDelay,
   EMPTY_DESK,
+  type CheckinKind,
   type CheckinState,
   type DeskState,
 } from '@/lib/checkin/reducer';
-import { deskList, deskStatusLabel, type DeskRow } from '@/lib/checkin/rows';
+import { deskList, deskStatusLabel, giftStatusLabel, type DeskRow } from '@/lib/checkin/rows';
 import {
   DESK_ORDERS,
   expandSeats,
   parseDeskOrder,
+  seatKey,
   sortGuests,
   type DeskOrder,
 } from '@/lib/checkin/seats';
+import { DESK_MODES, deskModeHref, type DeskMode } from '@/lib/checkin/mode';
+import {
+  mergeGuests,
+  rehearsalGuest,
+  walkinData,
+  type WalkinField,
+} from '@/lib/checkin/walkin';
+import { WalkinSheet, type WalkinStatus } from './WalkinSheet';
 import { freshness, POLL_INTERVAL_MS } from '@/lib/checkin/freshness';
 import { loadQueue, saveQueue } from '@/lib/checkin/storage';
 import { normaliseSearch, type GuestRow } from '@/lib/survey/guests';
@@ -63,14 +73,28 @@ export interface DeskProps {
    * que le compte fonctionne.
    */
   readonly rehearsal?: boolean;
+  /**
+   * Les questions posées pour un invité de dernière minute — celles qui
+   * nomment et précisent une rangée. Vide : l'ajout explique pourquoi il
+   * n'est pas possible au lieu de disparaître.
+   */
+  readonly walkinFields?: readonly WalkinField[];
+  /** Mode au chargement, lu dans l'URL : un rechargement ne doit pas en changer. */
+  readonly initialMode?: DeskMode;
 }
 
 type Filter = 'all' | 'awaited' | 'arrived';
 
-const FILTER_LABELS: Readonly<Record<Filter, string>> = {
-  all: 'Tous',
-  awaited: 'À venir',
-  arrived: 'Arrivés',
+const FILTER_LABELS: Readonly<Record<DeskMode, Readonly<Record<Filter, string>>>> = {
+  arrivals: { all: 'Tous', awaited: 'À venir', arrived: 'Arrivés' },
+  // Courts : les trois puces tiennent sur une ligne à 375 px, comme à l'entrée.
+  departures: { all: 'Tous', awaited: 'À offrir', arrived: 'Remis' },
+};
+
+/** Ce qu'un appui signifie, selon le mode : c'est la ligne la plus lue du poste. */
+const MODE_NOTES: Readonly<Record<DeskMode, string>> = {
+  arrivals: 'Un appui sur une rangée pointe l’arrivée.',
+  departures: 'Mode départs : un appui sur une rangée enregistre la remise du cadeau.',
 };
 
 /**
@@ -105,10 +129,22 @@ export function Desk(props: DeskProps) {
     logoUrl = null,
     organisationName = null,
     rehearsal = false,
+    walkinFields = [],
+    initialMode = 'arrivals',
   } = props;
   const [state, dispatch] = useReducer(deskReducer, props, initial);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [mode, setMode] = useState<DeskMode>(initialMode);
+  /* Personnes ajoutées à l'entrée depuis le chargement — ici ou ailleurs. */
+  const [extraGuests, setExtraGuests] = useState<readonly GuestRow[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [walkinStatus, setWalkinStatus] = useState<WalkinStatus>({ kind: 'idle' });
+  /* L'opération d'ajout en cours. Gardée tant qu'elle n'a pas abouti : un
+     réessai après coupure doit porter le MÊME identifiant, sans quoi il
+     créerait un homonyme. */
+  const walkinOp = useRef<string | null>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
   /* Alphabétique par défaut : à une porte, on cherche un nom. */
   const [order, setOrder] = useState<DeskOrder>('name');
   const [online, setOnline] = useState(true);
@@ -120,19 +156,22 @@ export function Desk(props: DeskProps) {
   // Les inscriptions sont dépliées en PERSONNES avant toute chose : le poste
   // ne manipule plus que des sièges, et le compteur de salle en découle.
   // Classement PUIS dépliage : l'hôte et son accompagnant restent côte à côte.
-  const seats = useMemo(() => expandSeats(sortGuests(guests, order)), [guests, order]);
+  const allGuests = useMemo(() => mergeGuests(guests, extraGuests), [guests, extraGuests]);
+  const seats = useMemo(() => expandSeats(sortGuests(allGuests, order)), [allGuests, order]);
   const list = useMemo(() => deskList(seats, state), [seats, state]);
 
   const visible = useMemo(() => {
     const needle = normaliseSearch(search);
     return list.rows.filter((row) => {
-      if (filter === 'arrived' && !row.arrived) return false;
-      if (filter === 'awaited' && row.arrived) return false;
+      // Le filtre suit le MODE : à la sortie, « fait » veut dire « cadeau remis ».
+      const done = mode === 'departures' ? row.gift : row.arrived;
+      if (filter === 'arrived' && !done) return false;
+      if (filter === 'awaited' && done) return false;
       if (needle === '') return true;
       const haystack = normaliseSearch(`${row.name ?? ''} ${row.detail ?? ''}`);
       return haystack.includes(needle);
     });
-  }, [list.rows, search, filter, ]);
+  }, [list.rows, search, filter, mode]);
 
   // --- Reprise de la file laissée par une session précédente -----------------
   const restored = useRef(false);
@@ -153,7 +192,8 @@ export function Desk(props: DeskProps) {
         opId: op.opId,
         responseId: op.responseId,
         seat: op.seat,
-        arrived: op.arrived,
+        kind: op.kind,
+        value: op.value,
       });
     }
   }, [surveyId, rehearsal]);
@@ -191,8 +231,18 @@ export function Desk(props: DeskProps) {
         if (cursor) url.searchParams.set('depuis', cursor);
         const response = await fetch(url, { headers: { accept: 'application/json' } });
         if (!response.ok || cancelled) return;
-        const body = (await response.json()) as { states: CheckinState[]; at: string };
+        const body = (await response.json()) as {
+          states: CheckinState[];
+          guests?: GuestRow[];
+          at: string;
+        };
         if (cancelled) return;
+        // Les personnes ajoutées sur un autre poste d'abord : sinon leur
+        // arrivée serait comptée une seconde avant d'avoir une rangée.
+        if (body.guests && body.guests.length > 0) {
+          const incoming = body.guests;
+          setExtraGuests((current) => mergeGuests(current, incoming));
+        }
         dispatch({ type: 'delta', states: body.states, at: Date.parse(body.at) });
       } catch {
         /* Le réseau a hoqueté. La fraîcheur affichée dira d'elle-même que la
@@ -235,7 +285,10 @@ export function Desk(props: DeskProps) {
           body: JSON.stringify({
             responseId: op.responseId,
             seat: op.seat,
-            arrived: op.arrived,
+            // `arrived` porte la VALEUR du geste ; le nom est gardé pour que
+            // la route continue de comprendre un poste plus ancien.
+            arrived: op.value,
+            kind: op.kind,
             opId: op.opId,
             expectedVersion,
           }),
@@ -307,41 +360,168 @@ export function Desk(props: DeskProps) {
 
   const toggle = useCallback(
     (row: DeskRow) => {
-      const arrived = !row.arrived;
+      // Le MODE décide du geste : à l'entrée on pointe l'arrivée, à la sortie
+      // le cadeau. Aucune rangée ne porte deux boutons — viser le bon, debout,
+      // d'une main, serait une source d'erreur bien pire qu'un mode affiché.
+      const kind: CheckinKind = mode === 'departures' ? 'gift' : 'arrival';
+      const value = kind === 'gift' ? !row.gift : !row.arrived;
       const opId = crypto.randomUUID();
       dispatch({
         type: 'tap',
         opId,
         responseId: row.responseId,
         seat: row.seat,
-        arrived,
+        kind,
+        value,
       });
 
       if (rehearsal) {
         // Appliqué sur-le-champ, en local. Laisser l'opération en file
         // afficherait « envoi en cours » pour toujours, sur un envoi qui
-        // n'aura jamais lieu.
+        // n'aura jamais lieu. L'autre colonne est GARDÉE : remettre un cadeau
+        // ne doit pas effacer l'arrivée pointée un peu plus tôt.
+        const known = state.states[seatKey(row.responseId, row.seat)];
+        const now = new Date().toISOString();
         dispatch({
           type: 'applied',
           opId,
           state: {
             responseId: row.responseId,
             seat: row.seat,
-            arrivedAt: arrived ? new Date().toISOString() : null,
-            version: (row.pending ? 0 : 1) + 1,
-            updatedAt: new Date().toISOString(),
+            arrivedAt:
+              kind === 'arrival' ? (value ? now : null) : (known?.arrivedAt ?? null),
+            giftAt: kind === 'gift' ? (value ? now : null) : (known?.giftAt ?? null),
+            version: (known?.version ?? 0) + 1,
+            updatedAt: now,
           },
         });
       }
+      const who = row.name ?? 'Réponse';
       setAnnouncement(
-        `${row.name ?? 'Réponse'} — ${arrived ? 'arrivé' : 'retiré des arrivées'}`,
+        kind === 'gift'
+          ? `${who} — ${value ? 'cadeau remis' : 'cadeau retiré'}`
+          : `${who} — ${value ? 'arrivé' : 'retiré des arrivées'}`,
       );
     },
-    [rehearsal],
+    [rehearsal, mode, state.states],
+  );
+
+  /**
+   * Change de mode, et l'ÉCRIT dans l'URL.
+   *
+   * Une hôtesse passée à la sortie qui recharge sa page doit y rester : un
+   * retour silencieux au mode « Arrivées » transformerait ses appuis suivants
+   * en dé-pointages, sur des gens qui sont en train de partir.
+   */
+  const switchMode = useCallback(
+    (next: DeskMode) => {
+      setMode(next);
+      setFilter('all');
+      setAnnouncement(MODE_NOTES[next]);
+      try {
+        window.history.replaceState(
+          null,
+          '',
+          deskModeHref(window.location.pathname, window.location.search, next),
+        );
+      } catch {
+        /* Un navigateur qui refuse l'écriture de l'historique garde le mode
+           en mémoire : le poste continue, il ne survivra simplement pas à un
+           rechargement. */
+      }
+    },
+    [],
+  );
+
+  const closeWalkin = useCallback(() => {
+    setAdding(false);
+    setWalkinStatus({ kind: 'idle' });
+    // Le focus revient au bouton qui a ouvert : sans cela, il tomberait en
+    // haut de page, à deux cents rangées du pouce.
+    window.requestAnimationFrame(() => addButton.current?.focus());
+  }, []);
+
+  const submitWalkin = useCallback(
+    async (values: Readonly<Record<string, string>>): Promise<boolean> => {
+      const built = walkinData(walkinFields, values);
+      if (!built.ok) {
+        setWalkinStatus({ kind: 'error', message: built.message });
+        return false;
+      }
+
+      const opId = walkinOp.current ?? crypto.randomUUID();
+      walkinOp.current = opId;
+      setWalkinStatus({ kind: 'sending' });
+
+      let guest: GuestRow;
+      let applied: CheckinState;
+
+      if (rehearsal) {
+        // Rien ne part : la rangée et son arrivée n'existent que sur cet écran.
+        const now = new Date().toISOString();
+        guest = rehearsalGuest(opId, walkinFields, built.data, now);
+        applied = {
+          responseId: opId,
+          seat: 0,
+          arrivedAt: now,
+          giftAt: null,
+          version: 1,
+          updatedAt: now,
+        };
+      } else {
+        try {
+          const response = await fetch(`/api/checkin/${surveyId}/invite`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ opId, values: built.data }),
+          });
+          const body = (await response.json().catch(() => null)) as
+            | { guest?: GuestRow; state?: CheckinState; error?: { message?: string } }
+            | null;
+
+          // Même méfiance qu'au pointage : un portail captif répond `200` à
+          // tout. Sans rangée ni état cohérents, rien n'est tenu pour fait.
+          if (
+            !response.ok ||
+            !body?.guest ||
+            !body.state ||
+            body.state.responseId !== body.guest.id
+          ) {
+            setWalkinStatus({
+              kind: 'error',
+              message:
+                response.status === 400 && body?.error?.message
+                  ? body.error.message
+                  : 'La personne n’a pas été ajoutée. Réessayez — ou notez-la sur la liste papier si le réseau ne revient pas.',
+            });
+            return false;
+          }
+          guest = body.guest;
+          applied = body.state;
+        } catch {
+          setWalkinStatus({
+            kind: 'error',
+            message:
+              'Pas de réseau : la personne n’a pas été ajoutée. Réessayez dans un instant — rien ne sera créé en double.',
+          });
+          return false;
+        }
+      }
+
+      walkinOp.current = null;
+      setExtraGuests((current) => mergeGuests(current, [guest]));
+      dispatch({ type: 'applied', opId, state: applied });
+      setAnnouncement(`${guest.name ?? 'Invité'} — ajouté et pointé arrivé`);
+      setSearch('');
+      closeWalkin();
+      return true;
+    },
+    [walkinFields, rehearsal, surveyId, closeWalkin],
   );
 
   const fresh = freshness(state.syncedAt, tick, online);
   const { totals } = list;
+  const done = mode === 'departures' ? totals.gifts : totals.inRoom;
 
   return (
     <div className={`sp-desk${rehearsal ? ' sp-desk--rehearsal' : ''}`}>
@@ -391,13 +571,23 @@ export function Desk(props: DeskProps) {
             <span className="sp-desk__org">{organisationName}</span>
           ) : null}
         </p>
-        <p className="sp-desk__count">
-          <strong>{totals.inRoom}</strong>
-          <span>
-            {totals.inRoom > 1 ? 'personnes présentes' : 'personne présente'}
-            {counting ? ` sur ${totals.expectedPeople} attendues` : ''}
-          </span>
-        </p>
+        {mode === 'departures' ? (
+          <p className="sp-desk__count">
+            <strong>{totals.gifts}</strong>
+            <span>
+              {totals.gifts > 1 ? 'cadeaux remis' : 'cadeau remis'} · {totals.inRoom}{' '}
+              {totals.inRoom > 1 ? 'personnes pointées' : 'personne pointée'}
+            </span>
+          </p>
+        ) : (
+          <p className="sp-desk__count">
+            <strong>{totals.inRoom}</strong>
+            <span>
+              {totals.inRoom > 1 ? 'personnes présentes' : 'personne présente'}
+              {counting ? ` sur ${totals.expectedPeople} attendues` : ''}
+            </span>
+          </p>
+        )}
         {rehearsal ? null : (
           <p className={`sp-desk__fresh sp-desk__fresh--${fresh.tone}`}>{fresh.text}</p>
         )}
@@ -414,20 +604,24 @@ export function Desk(props: DeskProps) {
       </p>
 
       <div className="sp-desk__tools">
-        <label className="sp-visually-hidden" htmlFor="sp-desk-search">
-          Rechercher un invité
-        </label>
-        <input
-          autoComplete="off"
-          className="sp-input"
-          id="sp-desk-search"
-          inputMode="search"
-          maxLength={60}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Rechercher un nom…"
-          type="search"
-          value={search}
-        />
+        {/* Le mode : deux boutons à bascule, pas des onglets. Un
+            `role="tablist"` promettrait une navigation par flèches que deux
+            boutons ne fournissent pas — même raisonnement que les vues des
+            statistiques. */}
+        <div aria-label="Ce que pointe un appui" className="sp-desk__modes" role="group">
+          {DESK_MODES.map((option) => (
+            <button
+              aria-pressed={mode === option.value}
+              className="sp-desk__mode"
+              key={option.value}
+              onClick={() => switchMode(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <p className={`sp-desk__note sp-desk__note--${mode}`}>{MODE_NOTES[mode]}</p>
 
         {/* Le classement est un vrai `select` natif, comme partout : au doigt,
             debout, une liste déroulante du système bat n'importe quel menu
@@ -457,13 +651,13 @@ export function Desk(props: DeskProps) {
               onClick={() => setFilter(key)}
               type="button"
             >
-              {FILTER_LABELS[key]}
+              {FILTER_LABELS[mode][key]}
               <span className="sp-chip__count">
                 {key === 'all'
                   ? list.rows.length
                   : key === 'arrived'
-                    ? totals.inRoom
-                    : list.rows.length - totals.inRoom}
+                    ? done
+                    : list.rows.length - done}
               </span>
             </button>
           ))}
@@ -480,9 +674,11 @@ export function Desk(props: DeskProps) {
         <ul className="sp-desk__list">
           {visible.map((row) => (
             <li
-              className={`sp-desk__row${row.arrived ? ' sp-desk__row--in' : ''}${
-                row.pending ? ' sp-desk__row--sending' : ''
-              }${row.isCompanion ? ' sp-desk__row--companion' : ''}`}
+              className={`sp-desk__row${
+                (mode === 'departures' ? row.gift : row.arrived) ? ' sp-desk__row--in' : ''
+              }${(mode === 'departures' ? row.giftPending : row.pending) ? ' sp-desk__row--sending' : ''}${
+                row.isCompanion ? ' sp-desk__row--companion' : ''
+              }`}
               key={row.key}
             >
               <button
@@ -519,14 +715,21 @@ export function Desk(props: DeskProps) {
                   <span className="sp-desk__meta">
                     {[
                       row.detail,
+                      // Écrit, comme le reste : sans cette mention, on lirait
+                      // une inscription dont la présence n'a pas été dite.
+                      row.walkIn && !row.isCompanion ? 'ajouté à l’entrée' : null,
                       row.ambiguous ? 'nombre d’accompagnants à vérifier' : null,
+                      // À la sortie, on voit aussi qui la porte a OUBLIÉ.
+                      mode === 'departures' && !row.arrived ? 'non pointé à l’entrée' : null,
                     ]
                       .filter((part): part is string => Boolean(part))
                       .join(' · ')}
                   </span>
                 </span>
                 {/* Le statut est ÉCRIT. La couleur de la rangée le renforce. */}
-                <span className="sp-desk__status">{deskStatusLabel(row)}</span>
+                <span className="sp-desk__status">
+                  {mode === 'departures' ? giftStatusLabel(row) : deskStatusLabel(row)}
+                </span>
               </button>
 
               {row.refused ? (
@@ -548,9 +751,65 @@ export function Desk(props: DeskProps) {
 
       <footer className="sp-desk__foot">
         <span className="sp-muted">
-          {totals.inRoom} arrivé{totals.inRoom > 1 ? 's' : ''} sur {list.rows.length}
+          {mode === 'departures'
+            ? `${totals.gifts} cadeau${totals.gifts > 1 ? 'x' : ''} remis sur ${list.rows.length}`
+            : `${totals.inRoom} arrivé${totals.inRoom > 1 ? 's' : ''} sur ${list.rows.length}`}
         </span>
       </footer>
+
+      {/* La barre du bas : la recherche ET l'ajout, sous le pouce.
+          C'était la demande, et elle tient : debout, téléphone dans une
+          main, le haut de l'écran est hors de portée — on y allait pourtant
+          à chaque invité. C'est la SEULE barre fixée de l'écran : deux
+          barres collantes mangeraient un tiers de la hauteur utile d'un
+          téléphone, la règle déjà posée pour le parcours public. */}
+      <div className="sp-desk__dock">
+        {adding ? (
+          <WalkinSheet
+            fields={walkinFields}
+            id="sp-desk-walkin"
+            onCancel={closeWalkin}
+            onSubmit={submitWalkin}
+            rehearsal={rehearsal}
+            status={walkinStatus}
+          />
+        ) : null}
+        <div className="sp-desk__dockbar">
+          <label className="sp-visually-hidden" htmlFor="sp-desk-search">
+            Rechercher un invité
+          </label>
+          <input
+            autoComplete="off"
+            className="sp-input sp-desk__search"
+            enterKeyHint="search"
+            id="sp-desk-search"
+            inputMode="search"
+            maxLength={60}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Rechercher un nom…"
+            type="search"
+            value={search}
+          />
+          <button
+            aria-controls="sp-desk-walkin"
+            aria-expanded={adding}
+            className="sp-desk__add"
+            onClick={() => (adding ? closeWalkin() : setAdding(true))}
+            ref={addButton}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24">
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="2.4"
+              />
+            </svg>
+            <span className="sp-visually-hidden">Ajouter un invité de dernière minute</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

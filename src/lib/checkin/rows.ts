@@ -1,5 +1,5 @@
 import type { AttendanceStatus } from '@/lib/survey/attendance';
-import type { DeskState, PendingOp } from './reducer';
+import type { CheckinKind, DeskState, PendingOp } from './reducer';
 import { seatKey, type SeatRow } from './seats';
 
 /**
@@ -26,14 +26,20 @@ export interface DeskRow {
   readonly detail: string | null;
   /** Accompagnant : l'écran le marque discrètement sous le nom. */
   readonly isCompanion: boolean;
+  /** Ajouté à l'entrée, sans inscription préalable. */
+  readonly walkIn: boolean;
   /** Ce que l'inscription a ANNONCÉ : présent, décliné, sans réponse. */
   readonly expected: AttendanceStatus;
   /** Effectif annoncé douteux. Porté par le seul siège 0. */
   readonly ambiguous: boolean;
   /** Arrivé, tel qu'on l'affiche — file locale comprise. */
   readonly arrived: boolean;
-  /** Un geste part encore : la rangée est verte, mais pas encore un fait. */
+  /** Cadeau remis, tel qu'on l'affiche — file locale comprise. */
+  readonly gift: boolean;
+  /** Une arrivée part encore : la rangée est verte, mais pas encore un fait. */
   readonly pending: boolean;
+  /** Un cadeau part encore. */
+  readonly giftPending: boolean;
   /** Refus à lire. La rangée est revenue à l'état serveur. */
   readonly refused: { readonly opId: string; readonly message: string } | null;
 }
@@ -41,6 +47,8 @@ export interface DeskRow {
 export interface DeskTotals {
   /** Personnes dans la salle : une par siège pointé. */
   readonly inRoom: number;
+  /** Cadeaux remis : un par siège. */
+  readonly gifts: number;
   /** Personnes attendues, d'après les inscriptions qui annoncent venir. */
   readonly expectedPeople: number;
   /** Personnes listées, tous statuts confondus. */
@@ -56,11 +64,16 @@ export interface DeskList {
   readonly totals: DeskTotals;
 }
 
-/** Dernier geste non refusé portant sur cette personne. */
-function pendingFor(queue: readonly PendingOp[], responseId: string, seat: number): PendingOp | null {
+/** Dernier geste non refusé, de CE type, portant sur cette personne. */
+function pendingFor(
+  queue: readonly PendingOp[],
+  responseId: string,
+  seat: number,
+  kind: CheckinKind,
+): PendingOp | null {
   let found: PendingOp | null = null;
   for (const op of queue) {
-    if (op.responseId !== responseId || op.seat !== seat) continue;
+    if (op.responseId !== responseId || op.seat !== seat || op.kind !== kind) continue;
     if (op.status === 'failed') continue;
     found = op;
   }
@@ -82,23 +95,32 @@ function refusedFor(
 export function deskList(seats: readonly SeatRow[], state: DeskState): DeskList {
   const rows: DeskRow[] = [];
   let inRoom = 0;
+  let gifts = 0;
   let expectedPeople = 0;
   let pendingCount = 0;
   let refusedCount = 0;
 
   for (const seat of seats) {
     const server = state.states[seatKey(seat.responseId, seat.seat)];
-    const pending = pendingFor(state.queue, seat.responseId, seat.seat);
+    const pending = pendingFor(state.queue, seat.responseId, seat.seat, 'arrival');
+    const giftPending = pendingFor(state.queue, seat.responseId, seat.seat, 'gift');
     const refused = refusedFor(state.queue, seat.responseId, seat.seat);
 
-    // Le geste en vol l'emporte ; à défaut, l'état serveur fait foi.
+    // Le geste en vol l'emporte ; à défaut, l'état serveur fait foi. Chaque
+    // geste ne regarde QUE sa propre file : un cadeau en vol ne dit rien de
+    // l'arrivée.
     const arrived = pending
-      ? pending.arrived
+      ? pending.value
       : server !== undefined && server.arrivedAt !== null;
+    const gift = giftPending
+      ? giftPending.value
+      : server !== undefined && server.giftAt != null;
 
     if (seat.status === 'attending') expectedPeople += 1;
     if (arrived) inRoom += 1;
+    if (gift) gifts += 1;
     if (pending) pendingCount += 1;
+    if (giftPending) pendingCount += 1;
     if (refused) refusedCount += 1;
 
     rows.push({
@@ -109,10 +131,13 @@ export function deskList(seats: readonly SeatRow[], state: DeskState): DeskList 
       initials: seat.initials,
       detail: seat.detail,
       isCompanion: seat.isCompanion,
+      walkIn: seat.walkIn,
       expected: seat.status,
       ambiguous: seat.ambiguous,
       arrived,
+      gift,
       pending: pending !== null,
+      giftPending: giftPending !== null,
       refused: refused ? { opId: refused.opId, message: refused.error ?? 'Refusé' } : null,
     });
   }
@@ -121,6 +146,7 @@ export function deskList(seats: readonly SeatRow[], state: DeskState): DeskList 
     rows,
     totals: {
       inRoom,
+      gifts,
       expectedPeople,
       people: rows.length,
       pending: pendingCount,
@@ -140,7 +166,22 @@ export function deskList(seats: readonly SeatRow[], state: DeskState): DeskList 
  */
 export function deskStatusLabel(row: DeskRow): string {
   if (row.arrived) return row.pending ? 'Arrivé — envoi en cours' : 'Arrivé';
+  if (row.walkIn) return 'Ajouté à l’entrée';
   if (row.expected === 'declined') return 'A décliné';
   if (row.expected === 'unknown') return 'Sans réponse';
   return 'Attendu';
+}
+
+/**
+ * Statut ÉCRIT d'une rangée en mode « Départs ».
+ *
+ * Même règle que l'arrivée : le mot porte l'information, la couleur la
+ * redit. Il reste COURT — il tient dans une pastille à côté du nom, et un
+ * libellé long écrasait le nom sur un téléphone, mesuré à 375 px. Qu'une
+ * personne n'ait pas été pointée à l'entrée se dit dans la ligne de
+ * précision, pas ici.
+ */
+export function giftStatusLabel(row: DeskRow): string {
+  if (row.gift) return row.giftPending ? 'Cadeau remis — envoi en cours' : 'Cadeau remis';
+  return 'Sans cadeau';
 }

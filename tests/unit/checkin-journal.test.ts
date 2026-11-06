@@ -27,6 +27,7 @@ const guests: GuestRow[] = [
     status: 'attending',
     people: 2,
     ambiguous: false,
+    walkIn: false,
   },
 ];
 
@@ -40,6 +41,7 @@ function entry(partial: Partial<CheckinLogRow> = {}): CheckinLogRow {
     at: '2026-11-18T19:05:00.000Z',
     byProfile: 'p1',
     arrived: true,
+    action: 'arrival',
     source: 'desk',
     ...partial,
   };
@@ -99,6 +101,21 @@ describe('journalActionLabel', () => {
     expect(journalActionLabel(pointe!)).toBe('Arrivée pointée');
     expect(journalActionLabel(retire!)).toBe('Arrivée retirée');
   });
+
+  it('nomme le cadeau et l’ajout à l’entrée, jamais comme une arrivée', () => {
+    const [remis, retire, ajoute] = journalEntries(
+      [
+        entry({ opId: 'a', action: 'gift' }),
+        entry({ opId: 'b', action: 'gift', arrived: false }),
+        entry({ opId: 'c', action: 'walkin' }),
+      ],
+      seats,
+      actors,
+    );
+    expect(journalActionLabel(remis!)).toBe('Cadeau remis');
+    expect(journalActionLabel(retire!)).toBe('Cadeau retiré');
+    expect(journalActionLabel(ajoute!)).toBe('Ajouté à l’entrée');
+  });
 });
 
 describe('journalSummary', () => {
@@ -119,7 +136,28 @@ describe('journalSummary', () => {
       total: 3,
       arrivals: 2,
       removals: 1,
+      walkIns: 0,
+      gifts: 0,
       actors: 2,
+    });
+  });
+
+  it('un cadeau n’est pas une arrivée, un ajout à l’entrée en est une', () => {
+    const rows = journalEntries(
+      [
+        entry({ opId: 'a', action: 'walkin' }),
+        entry({ opId: 'b', action: 'gift' }),
+        entry({ opId: 'c', action: 'gift', arrived: false }),
+      ],
+      seats,
+      actors,
+    );
+    expect(journalSummary(rows)).toMatchObject({
+      total: 3,
+      arrivals: 1,
+      walkIns: 1,
+      gifts: 1,
+      removals: 1,
     });
   });
 
