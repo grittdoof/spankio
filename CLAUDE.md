@@ -1725,6 +1725,13 @@ npm run build       # build de production
       l'arrivée, appel à CINQ arguments nommés — celui du code en production —
       qui fonctionne encore, clé hors schéma refusée en `22023`, une seule
       signature de `set_checkin`, `add_walkin` refusée à `anon`. 2094 tests.
+      **Déployée le 6 novembre 2026**, en version `20261106090000` — posée à
+      la main comme les précédentes, et AVANT la fusion : le nouveau code lit
+      `origin` et `gift_at`, alors que l'ancien code continue de pointer sur
+      la base migrée. Rejouée ensuite sur le moteur, dans un bloc annulé :
+      mêmes verdicts, plus l'origine refusée en `42501` à la réécriture. Les
+      290 réponses existantes sont toutes `form`. Contrairement au lot 7, les
+      corps de fonction ont été appliqués AVEC leurs commentaires internes.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre
