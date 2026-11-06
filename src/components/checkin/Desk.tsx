@@ -23,6 +23,7 @@ import {
   type DeskOrder,
 } from '@/lib/checkin/seats';
 import { DESK_MODES, deskModeHref, type DeskMode } from '@/lib/checkin/mode';
+import { viewportMetrics } from '@/lib/checkin/viewport';
 import {
   mergeGuests,
   rehearsalGuest,
@@ -145,6 +146,7 @@ export function Desk(props: DeskProps) {
      créerait un homonyme. */
   const walkinOp = useRef<string | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+  const dock = useRef<HTMLDivElement>(null);
   /* Alphabétique par défaut : à une porte, on cherche un nom. */
   const [order, setOrder] = useState<DeskOrder>('name');
   const [online, setOnline] = useState(true);
@@ -202,6 +204,64 @@ export function Desk(props: DeskProps) {
     if (rehearsal) return;
     saveQueue(surveyId, state.queue);
   }, [surveyId, state.queue, rehearsal]);
+
+  // --- La barre du bas suit la zone VISIBLE, clavier compris ----------------
+  // Sur iPhone, le clavier se pose PAR-DESSUS la page sans la rétrécir : une
+  // barre accrochée au bas de la page resterait derrière lui, ou laisserait
+  // voir une bande de liste entre elle et le clavier. Elle est donc relevée
+  // de ce que le clavier recouvre, et repositionnée à chaque défilement.
+  // Écrit directement sur l'élément, hors de React : à chaque image de
+  // défilement, un rendu entier de deux cents rangées ferait saccader.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const element = dock.current;
+    if (!viewport || !element) return;
+
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      const metrics = viewportMetrics({
+        innerHeight: window.innerHeight,
+        height: viewport.height,
+        offsetTop: viewport.offsetTop,
+      });
+      element.style.setProperty('--sp-dock-lift', `${metrics.lift}px`);
+      element.style.setProperty('--sp-vv-top', `${metrics.top}px`);
+      element.style.setProperty('--sp-vv-height', `${metrics.height}px`);
+      element.dataset['keyboard'] = metrics.keyboard ? 'true' : 'false';
+    };
+    const schedule = () => {
+      if (frame === 0) frame = window.requestAnimationFrame(apply);
+    };
+
+    apply();
+    viewport.addEventListener('resize', schedule);
+    viewport.addEventListener('scroll', schedule);
+    window.addEventListener('scroll', schedule, { passive: true });
+    return () => {
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+      viewport.removeEventListener('resize', schedule);
+      viewport.removeEventListener('scroll', schedule);
+      window.removeEventListener('scroll', schedule);
+    };
+  }, []);
+
+  // --- L'ajout fige la page ---------------------------------------------------
+  // Le formulaire d'ajout couvre tout l'écran : on ne doit ni voir ni faire
+  // défiler la liste derrière. Bloquer le défilement de la page empêche aussi
+  // Safari de la faire glisser sous le panneau quand le clavier s'ouvre.
+  useEffect(() => {
+    if (!adding) return;
+    const root = document.documentElement;
+    const body = document.body;
+    const previous = [root.style.overflow, body.style.overflow];
+    root.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    return () => {
+      root.style.overflow = previous[0] ?? '';
+      body.style.overflow = previous[1] ?? '';
+    };
+  }, [adding]);
 
   // --- Le temps qui passe, et le réseau qui va et vient ----------------------
   useEffect(() => {
@@ -763,7 +823,11 @@ export function Desk(props: DeskProps) {
           à chaque invité. C'est la SEULE barre fixée de l'écran : deux
           barres collantes mangeraient un tiers de la hauteur utile d'un
           téléphone, la règle déjà posée pour le parcours public. */}
-      <div className="sp-desk__dock">
+      <div
+        className={`sp-desk__dock${adding ? ' sp-desk__dock--open' : ''}`}
+        data-keyboard="false"
+        ref={dock}
+      >
         {adding ? (
           <WalkinSheet
             fields={walkinFields}
@@ -775,21 +839,28 @@ export function Desk(props: DeskProps) {
           />
         ) : null}
         <div className="sp-desk__dockbar">
-          <label className="sp-visually-hidden" htmlFor="sp-desk-search">
-            Rechercher un invité
-          </label>
-          <input
-            autoComplete="off"
-            className="sp-input sp-desk__search"
-            enterKeyHint="search"
-            id="sp-desk-search"
-            inputMode="search"
-            maxLength={60}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Rechercher un nom…"
-            type="search"
-            value={search}
-          />
+          {/* Pendant un ajout, la recherche s'efface : elle filtrerait une
+              liste qu'on ne voit plus, et deux champs sous le pouce invitent
+              à taper dans le mauvais. Sa saisie, elle, est gardée. */}
+          {adding ? null : (
+            <>
+              <label className="sp-visually-hidden" htmlFor="sp-desk-search">
+                Rechercher un invité
+              </label>
+              <input
+                autoComplete="off"
+                className="sp-input sp-desk__search"
+                enterKeyHint="search"
+                id="sp-desk-search"
+                inputMode="search"
+                maxLength={60}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Rechercher un nom…"
+                type="search"
+                value={search}
+              />
+            </>
+          )}
           <button
             aria-controls="sp-desk-walkin"
             aria-expanded={adding}
