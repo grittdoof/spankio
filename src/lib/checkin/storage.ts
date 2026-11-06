@@ -61,11 +61,18 @@ function safeStorage(): Storage | null {
  * faire confiance à la forme — la même règle que la validation d'une
  * soumission publique.
  */
-function toPendingOp(value: unknown): PendingOp | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const raw = value as Record<string, unknown>;
+function toPendingOp(entry: unknown): PendingOp | null {
+  if (typeof entry !== 'object' || entry === null) return null;
+  const raw = entry as Record<string, unknown>;
   if (typeof raw['opId'] !== 'string' || typeof raw['responseId'] !== 'string') return null;
-  if (typeof raw['arrived'] !== 'boolean') return null;
+  // `value` a remplacé `arrived` quand le cadeau est apparu. Une file écrite
+  // par la version précédente ne contenait que des arrivées : elle se relit
+  // donc comme telle, plutôt que d'être perdue au déploiement — ce serait
+  // perdre des pointages faits hors ligne, la panne même que la file couvre.
+  const value = typeof raw['value'] === 'boolean' ? raw['value'] : raw['arrived'];
+  if (typeof value !== 'boolean') return null;
+  const kind = raw['kind'] === undefined ? 'arrival' : raw['kind'];
+  if (kind !== 'arrival' && kind !== 'gift') return null;
 
   // Le siège est RECONSTRUIT, et une valeur douteuse fait rejeter l'opération
   // entière plutôt que de retomber sur zéro : un siège par défaut pointerait
@@ -80,7 +87,8 @@ function toPendingOp(value: unknown): PendingOp | null {
     opId: raw['opId'],
     responseId: raw['responseId'],
     seat: seat as number,
-    arrived: raw['arrived'],
+    kind,
+    value,
     attempts: typeof attempts === 'number' ? attempts : 0,
     // Une opération reprise après un rechargement n'est plus « en vol » : elle
     // attend son tour. La laisser en `sending` figerait la file, puisque le

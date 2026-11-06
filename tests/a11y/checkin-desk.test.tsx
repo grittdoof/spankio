@@ -26,6 +26,7 @@ const GUESTS: GuestRow[] = [
     status: 'attending',
     people: 2,
     ambiguous: false,
+    walkIn: false,
   },
   {
     id: '22222222-2222-2222-2222-222222222222',
@@ -37,6 +38,7 @@ const GUESTS: GuestRow[] = [
     status: 'declined',
     people: 0,
     ambiguous: false,
+    walkIn: false,
   },
   {
     id: '33333333-3333-3333-3333-333333333333',
@@ -48,6 +50,7 @@ const GUESTS: GuestRow[] = [
     status: 'unknown',
     people: 1,
     ambiguous: true,
+    walkIn: false,
   },
 ];
 
@@ -88,6 +91,7 @@ beforeEach(() => {
           responseId: sent.responseId ?? '',
           seat: sent.seat ?? 0,
           arrivedAt: new Date().toISOString(),
+          giftAt: null,
           version: 1,
           updatedAt: new Date().toISOString(),
         });
@@ -256,6 +260,7 @@ describe('ce que le poste retrouve au rechargement', () => {
           responseId,
           seat,
           arrivedAt: '2026-11-18T19:05:00.000Z',
+          giftAt: null,
           version: 1,
           updatedAt: '2026-11-18T19:05:00.000Z',
         }))}
@@ -292,5 +297,318 @@ describe('ce que le poste retrouve au rechargement', () => {
     // apparaît à plusieurs endroits de l'écran.
     const counter = screen.getByText(/personnes présentes/).closest('p');
     expect(counter?.textContent).toMatch(/^2\s*personnes présentes/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// La barre du bas, le mode « Départs » et l'invité de dernière minute
+// ---------------------------------------------------------------------------
+
+
+/** Adresse d'une requête simulée, quelle que soit sa forme. */
+function urlOf(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input;
+  return input instanceof URL ? input.href : input.url;
+}
+
+/** Corps JSON d'une requête simulée — toujours une chaîne dans ce composant. */
+function bodyOf<T>(init: RequestInit | undefined): T {
+  return JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as T;
+}
+
+const WALKIN_FIELDS = [
+  { id: 'nom', label: 'Quel est votre nom ?', type: 'text', role: 'identity' },
+  { id: 'prenom', label: 'Quel est votre prénom ?', type: 'text', role: 'identity' },
+  { id: 'societe', label: 'Société', type: 'text', role: 'detail' },
+] as const;
+
+function renderFullDesk(extra: Partial<Parameters<typeof Desk>[0]> = {}) {
+  return render(
+    <Desk
+      counting
+      guests={GUESTS}
+      initialStates={[]}
+      printHref="/accueil/abc/impression"
+      surveyId="abc"
+      title="Soirée des 180 ans"
+      walkinFields={WALKIN_FIELDS}
+      {...extra}
+    />,
+  );
+}
+
+describe('barre du bas', () => {
+  it('porte la recherche ET le bouton d’ajout, nommé', () => {
+    const { container } = renderFullDesk();
+    const dock = container.querySelector('.sp-desk__dock')!;
+    expect(within(dock as HTMLElement).getByLabelText('Rechercher un invité')).toBeInTheDocument();
+    expect(
+      within(dock as HTMLElement).getByRole('button', {
+        name: 'Ajouter un invité de dernière minute',
+      }),
+    ).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+describe('mode « Départs »', () => {
+  it('ne présente aucune violation détectable', async () => {
+    const { container } = renderFullDesk({ initialMode: 'departures' });
+    await expectNoA11yViolations(container);
+  });
+
+  it('dit en toutes lettres ce que fait un appui, et le bouton du mode est enfoncé', () => {
+    renderFullDesk({ initialMode: 'departures' });
+    expect(screen.getByRole('button', { name: 'Départs · cadeau' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(
+      screen.getByText(/un appui sur une rangée enregistre la remise du cadeau/),
+    ).toBeInTheDocument();
+  });
+
+  it('un appui remet le cadeau, et n’enregistre AUCUNE arrivée', async () => {
+    const sent: unknown[] = [];
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((_input, init) => {
+      if (init?.method === 'POST') {
+        const body = bodyOf<{ responseId: string; seat: number }>(init);
+        sent.push(body);
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              responseId: body.responseId,
+              seat: body.seat,
+              arrivedAt: null,
+              giftAt: new Date().toISOString(),
+              version: 1,
+              updatedAt: new Date().toISOString(),
+            }),
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ states: [], at: new Date().toISOString() })),
+      );
+    });
+
+    renderFullDesk({ initialMode: 'departures' });
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
+
+    const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
+    expect(within(row).getByText('Cadeau remis')).toBeInTheDocument();
+    expect(sent).toEqual([expect.objectContaining({ kind: 'gift', arrived: true, seat: 0 })]);
+    // La personne n'avait pas été pointée à l'entrée : la sortie le dit.
+    expect(within(row).getByText(/non pointé à l’entrée/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Élodie Marchand — cadeau remis');
+  });
+
+  it('basculer de mode le dit, et réécrit l’URL sans perdre l’essai à blanc', async () => {
+    window.history.replaceState(null, '', '/accueil/abc?essai=1');
+    renderFullDesk({ rehearsal: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Départs · cadeau' }));
+
+    expect(window.location.search).toBe('?essai=1&mode=departs');
+    expect(screen.getByRole('status')).toHaveTextContent(/remise du cadeau/);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Arrivées' }));
+    expect(window.location.search).toBe('?essai=1');
+  });
+
+  it('en essai à blanc, remettre un cadeau GARDE l’arrivée pointée avant', async () => {
+    renderFullDesk({ rehearsal: true });
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Départs · cadeau' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
+
+    const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
+    expect(within(row).getByText('Cadeau remis')).toBeInTheDocument();
+    expect(within(row).queryByText(/non pointé à l’entrée/)).not.toBeInTheDocument();
+  });
+});
+
+describe('invité de dernière minute', () => {
+  it('le (+) ouvre un formulaire nommé, aux intitulés de l’organisation', async () => {
+    const { container } = renderFullDesk();
+    const add = screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' });
+    await userEvent.click(add);
+
+    expect(add).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: 'Invité de dernière minute' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Quel est votre nom ?')).toHaveFocus();
+    expect(screen.getByLabelText('Quel est votre prénom ?')).toBeInTheDocument();
+    expect(screen.getByLabelText('Société')).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it('Échap referme, et le focus revient au (+)', async () => {
+    renderFullDesk();
+    const add = screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' });
+    await userEvent.click(add);
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('region', { name: 'Invité de dernière minute' })).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(add).toHaveFocus());
+  });
+
+  it('refuse un ajout sans nom, en nommant la question', async () => {
+    renderFullDesk();
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+    await userEvent.type(screen.getByLabelText('Société'), 'Atelier Martin');
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter et pointer' }));
+
+    expect(screen.getByText('Remplissez au moins « Quel est votre nom ? ».')).toBeInTheDocument();
+  });
+
+  it('ajoute la personne à la liste, arrivée, et le dit', async () => {
+    const fetchMock = vi.mocked(fetch);
+    let posted: unknown = null;
+    fetchMock.mockImplementation((input, init) => {
+      if (init?.method === 'POST' && urlOf(input).endsWith('/invite')) {
+        posted = bodyOf<unknown>(init);
+        const id = '44444444-4444-4444-4444-444444444444';
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              replayed: false,
+              guest: {
+                id,
+                submittedAt: new Date().toISOString(),
+                name: 'Martin Lucie',
+                initials: 'ML',
+                detail: 'Atelier Martin',
+                companion: null,
+                status: 'unknown',
+                people: 1,
+                ambiguous: false,
+                walkIn: true,
+              },
+              state: {
+                responseId: id,
+                seat: 0,
+                arrivedAt: new Date().toISOString(),
+                giftAt: null,
+                version: 1,
+                updatedAt: new Date().toISOString(),
+              },
+            }),
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ states: [], at: new Date().toISOString() })),
+      );
+    });
+
+    renderFullDesk();
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+    await userEvent.type(screen.getByLabelText('Quel est votre nom ?'), 'Martin');
+    await userEvent.type(screen.getByLabelText('Quel est votre prénom ?'), 'Lucie');
+    await userEvent.type(screen.getByLabelText('Société'), 'Atelier Martin');
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter et pointer' }));
+
+    const row = await screen.findByRole('button', { name: /^Martin Lucie/ });
+    expect(within(row).getByText('Arrivé')).toBeInTheDocument();
+    expect(within(row).getByText(/ajouté à l’entrée/)).toBeInTheDocument();
+    const sent = posted as { opId: unknown; values: unknown } | null;
+    expect(typeof sent?.opId).toBe('string');
+    expect(sent?.values).toEqual({ nom: 'Martin', prenom: 'Lucie', societe: 'Atelier Martin' });
+    expect(screen.getByRole('status')).toHaveTextContent('Martin Lucie — ajouté et pointé arrivé');
+    expect(screen.queryByRole('region', { name: 'Invité de dernière minute' })).not.toBeInTheDocument();
+  });
+
+  it('un échec réseau garde la saisie, et le réessai porte le MÊME identifiant', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const opIds: string[] = [];
+    fetchMock.mockImplementation((input, init) => {
+      if (init?.method === 'POST' && urlOf(input).endsWith('/invite')) {
+        opIds.push(bodyOf<{ opId: string }>(init).opId);
+        return Promise.reject(new TypeError('Failed to fetch'));
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ states: [], at: new Date().toISOString() })),
+      );
+    });
+
+    renderFullDesk();
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+    await userEvent.type(screen.getByLabelText('Quel est votre nom ?'), 'Martin');
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter et pointer' }));
+
+    expect(await screen.findByText(/Pas de réseau/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Quel est votre nom ?')).toHaveValue('Martin');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter et pointer' }));
+    await vi.waitFor(() => expect(opIds).toHaveLength(2));
+    // Sans ce même identifiant, un réessai après coupure créerait un homonyme.
+    expect(opIds[1]).toBe(opIds[0]);
+  });
+
+  it('une réponse `200` sans rapport — un portail captif — n’ajoute personne', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation((input, init) =>
+      Promise.resolve(
+        init?.method === 'POST' && urlOf(input).endsWith('/invite')
+          ? new Response('<html>Connexion au wifi</html>')
+          : new Response(JSON.stringify({ states: [], at: new Date().toISOString() })),
+      ),
+    );
+
+    renderFullDesk();
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+    await userEvent.type(screen.getByLabelText('Quel est votre nom ?'), 'Martin');
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter et pointer' }));
+
+    expect(await screen.findByText(/n’a pas été ajoutée/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Martin/ })).not.toBeInTheDocument();
+  });
+
+  it('sans question qui nomme, le (+) explique au lieu de proposer un formulaire', async () => {
+    renderFullDesk({ walkinFields: [] });
+    await userEvent.click(screen.getByRole('button', { name: 'Ajouter un invité de dernière minute' }));
+    expect(screen.getByText(/Aucune question ne nomme les invités/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ajouter et pointer' })).not.toBeInTheDocument();
+  });
+
+  it('une personne ajoutée sur un AUTRE poste apparaît au delta suivant', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const id = '55555555-5555-5555-5555-555555555555';
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            states: [
+              {
+                responseId: id,
+                seat: 0,
+                arrivedAt: '2026-11-18T19:00:00.000Z',
+                giftAt: null,
+                version: 1,
+                updatedAt: '2026-11-18T19:00:00.000Z',
+              },
+            ],
+            guests: [
+              {
+                id,
+                submittedAt: '2026-11-18T19:00:00.000Z',
+                name: 'Paul Arnaud',
+                initials: 'PA',
+                detail: null,
+                companion: null,
+                status: 'unknown',
+                people: 1,
+                ambiguous: false,
+                walkIn: true,
+              },
+            ],
+            at: new Date().toISOString(),
+          }),
+        ),
+      ),
+    );
+
+    renderFullDesk();
+    const row = await screen.findByRole('button', { name: /^Paul Arnaud/ });
+    expect(within(row).getByText('Arrivé')).toBeInTheDocument();
   });
 });

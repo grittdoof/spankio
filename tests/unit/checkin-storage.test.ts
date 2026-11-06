@@ -14,7 +14,8 @@ function op(partial: Partial<PendingOp> = {}): PendingOp {
     opId: 'op-1',
     responseId: 'r1',
     seat: 0,
-    arrived: true,
+    kind: 'arrival',
+    value: true,
     attempts: 0,
     status: 'queued',
     error: null,
@@ -50,6 +51,40 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('la file écrite avant le cadeau', () => {
+  /**
+   * Un poste resté ouvert pendant le déploiement a pu garder des pointages
+   * hors ligne sous l'ANCIENNE forme. Les perdre au rechargement serait la
+   * panne même que la file existe pour couvrir.
+   */
+  it('une opération à l’ancienne forme se relit comme une arrivée', () => {
+    window.localStorage.setItem(
+      'spk.checkin.queue.s1',
+      JSON.stringify({
+        savedAt: 1000,
+        ops: [{ opId: 'op-1', responseId: 'r1', seat: 0, arrived: true, attempts: 2, status: 'sending', error: null }],
+      }),
+    );
+    expect(loadQueue('s1', 2000)).toEqual([op({ attempts: 2 })]);
+  });
+
+  it('un cadeau survit au rechargement', () => {
+    saveQueue('s1', [op({ kind: 'gift', value: false })], 1000);
+    expect(loadQueue('s1', 2000)).toEqual([op({ kind: 'gift', value: false })]);
+  });
+
+  it('un geste inconnu fait rejeter l’opération, sans retomber sur une arrivée', () => {
+    window.localStorage.setItem(
+      'spk.checkin.queue.s1',
+      JSON.stringify({
+        savedAt: 1000,
+        ops: [{ opId: 'op-1', responseId: 'r1', seat: 0, kind: 'depart', value: true }],
+      }),
+    );
+    expect(loadQueue('s1', 2000)).toEqual([]);
+  });
 });
 
 describe('la file survit, la liste d’invités non', () => {

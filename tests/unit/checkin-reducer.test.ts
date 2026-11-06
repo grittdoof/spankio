@@ -32,6 +32,7 @@ function guest(partial: Partial<GuestRow> & { id: string }): GuestRow {
     status: 'attending',
     people: 1,
     ambiguous: false,
+    walkIn: false,
     ...partial,
   };
 }
@@ -45,6 +46,7 @@ function serverState(partial: Partial<CheckinState> & { responseId: string }): C
   return {
     seat: 0,
     arrivedAt: null,
+    giftAt: null,
     version: 1,
     updatedAt: '2026-11-18T19:00:00.000Z',
     ...partial,
@@ -58,7 +60,7 @@ function tap(
   opId = 'op-1',
   seat = 0,
 ): DeskState {
-  return deskReducer(state, { type: 'tap', opId, responseId, seat, arrived });
+  return deskReducer(state, { type: 'tap', opId, responseId, seat, kind: 'arrival', value: arrived });
 }
 
 describe('ce que le geste fait AVANT le réseau', () => {

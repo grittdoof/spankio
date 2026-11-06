@@ -20,6 +20,9 @@ function row(partial: Partial<ArrivalRow> & { id: string }): ArrivalRow {
     announced: 1,
     arrivedAt: null,
     entered: 0,
+    walkIn: false,
+    gifts: 0,
+    giftsWithoutArrival: 0,
     ...partial,
   };
 }

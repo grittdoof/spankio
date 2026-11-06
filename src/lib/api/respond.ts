@@ -99,6 +99,11 @@ export function tooManyRequests(result: RateLimitResult): Response {
 export function mapDbError(error: DbError, event: string): Response {
   switch (error.code) {
     case 'PT400':
+    // Valeur de paramètre refusée par une fonction SQL (un siège hors bornes,
+    // une clé inconnue du schéma) : c'est l'entrée qui est en cause, pas le
+    // serveur. La rendre en `500` ferait réessayer un geste qui ne passera
+    // jamais.
+    case '22023':
       return jsonError('invalid_input');
     case 'PT403':
     case '42501':

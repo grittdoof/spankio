@@ -2,6 +2,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import {
   JOURNAL_SOURCE_LABELS,
   journalActionLabel,
+  journalIsUndo,
   journalSummary,
   type JournalEntry,
 } from '@/lib/checkin/journal';
@@ -69,6 +70,18 @@ export function ArrivalsJournal({ entries, capped }: ArrivalsJournalProps) {
           <dt>Retraits</dt>
           <dd>{summary.removals}</dd>
         </div>
+        {summary.walkIns > 0 ? (
+          <div>
+            <dt>Ajouts à l’entrée</dt>
+            <dd>{summary.walkIns}</dd>
+          </div>
+        ) : null}
+        {summary.gifts > 0 ? (
+          <div>
+            <dt>Cadeaux remis</dt>
+            <dd>{summary.gifts}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>{summary.actors > 1 ? 'Personnes à la porte' : 'Personne à la porte'}</dt>
           <dd>{summary.actors}</dd>
@@ -86,7 +99,7 @@ export function ArrivalsJournal({ entries, capped }: ArrivalsJournalProps) {
         {entries.map((entry) => (
           <li
             className={`sp-journal__row${
-              entry.arrived ? '' : ' sp-journal__row--undone'
+              journalIsUndo(entry) ? ' sp-journal__row--undone' : ''
             }`}
             key={entry.id}
           >

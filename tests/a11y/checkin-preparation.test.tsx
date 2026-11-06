@@ -143,6 +143,7 @@ describe('essai à blanc', () => {
       status: 'attending',
       people: 1,
       ambiguous: false,
+      walkIn: false,
     },
   ];
 

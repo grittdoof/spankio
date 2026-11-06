@@ -4,6 +4,8 @@ import { resolveRequestContext } from '@/lib/data/context';
 import { deskBrand, loadDesk, touchStaff } from '@/lib/services/checkin';
 import { guestList } from '@/lib/survey/guests';
 import { isAttendanceConfigured } from '@/lib/survey/attendance';
+import { parseDeskMode } from '@/lib/checkin/mode';
+import { walkinFields } from '@/lib/checkin/walkin';
 
 /**
  * Le poste de pointage.
@@ -58,6 +60,7 @@ export default async function CheckinDeskPage({
     <Desk
       counting={isAttendanceConfigured(attendance)}
       guests={list.rows}
+      initialMode={parseDeskMode(query['mode'])}
       initialStates={states}
       logoUrl={brand?.logoUrl ?? null}
       organisationName={brand?.name ?? null}
@@ -65,6 +68,7 @@ export default async function CheckinDeskPage({
       rehearsal={rehearsal}
       surveyId={id}
       title={survey.title}
+      walkinFields={walkinFields(schema, attendance)}
     />
   );
 }

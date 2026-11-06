@@ -70,6 +70,7 @@ export async function GET(
     consent_given: response.consent_given,
     consent_text: response.consent_text,
     data: response.data,
+    origin: response.origin,
   }));
 
   /*
@@ -97,6 +98,7 @@ export async function GET(
                   ? state.arrivedAt
                   : (seen?.arrivedAt ?? null),
               entered: (seen?.entered ?? 0) + (arrived ? 1 : 0),
+              gifts: (seen?.gifts ?? 0) + (state.giftAt != null ? 1 : 0),
             });
             return acc;
           }, new Map<string, ArrivalExport>())],

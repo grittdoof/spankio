@@ -40,6 +40,8 @@ export interface SeatRow {
   readonly status: AttendanceStatus;
   /** Vrai pour un accompagnant : l'écran et le papier le marquent. */
   readonly isCompanion: boolean;
+  /** Ajouté à l'entrée par le poste, sans inscription préalable. */
+  readonly walkIn: boolean;
   /** Effectif annoncé douteux. Porté par le seul siège 0, jamais répété. */
   readonly ambiguous: boolean;
   readonly submittedAt: string;
@@ -119,6 +121,7 @@ export function expandSeats(rows: readonly GuestRow[]): readonly SeatRow[] {
       detail: row.detail,
       status: row.status,
       isCompanion: false,
+      walkIn: row.walkIn,
       ambiguous: row.ambiguous,
       submittedAt: row.submittedAt,
     });
@@ -134,6 +137,7 @@ export function expandSeats(rows: readonly GuestRow[]): readonly SeatRow[] {
         detail,
         status: row.status,
         isCompanion: true,
+        walkIn: row.walkIn,
         // La réserve n'est portée qu'une fois, par le siège 0 : la répéter sur
         // chaque accompagnant ferait trois alertes pour un seul doute.
         ambiguous: false,

@@ -95,6 +95,21 @@ export function ArrivalsPanel({
             <dt>Effectifs corrigés à l’entrée</dt>
             <dd>{report.corrected}</dd>
           </div>
+          {report.walkIns > 0 ? (
+            <div>
+              <dt>Ajoutées à l’entrée</dt>
+              <dd>{report.walkIns}</dd>
+            </div>
+          ) : null}
+          {/* Le cadeau n'apparaît que s'il a été remis : une soirée sans
+              cadeau ne doit pas afficher « 0 cadeau », qui laisserait croire
+              qu'on en attendait. */}
+          {report.gifts > 0 ? (
+            <div>
+              <dt>Cadeaux remis au départ</dt>
+              <dd>{report.gifts}</dd>
+            </div>
+          ) : null}
         </dl>
       </section>
 

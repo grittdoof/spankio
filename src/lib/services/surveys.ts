@@ -474,6 +474,8 @@ export interface ResponseRow {
   consent_given: boolean;
   consent_text: string | null;
   data: Record<string, unknown>;
+  /** `form` ou `desk` (ajoutée à l'entrée). Facultative pour les appelants anciens. */
+  origin?: string;
 }
 
 /**
@@ -495,7 +497,7 @@ export async function listResponses(
 ): Promise<SurveyOutcome<ResponseRow[]>> {
   const result = await context.port.select<RawResponseRow>({
     table: 'survey_responses',
-    columns: 'id, submitted_at, consent_given, consent_text, data',
+    columns: 'id, submitted_at, consent_given, consent_text, data, origin',
     // `deleted_at is null` : TOUT agrégat et toute liste excluent la corbeille.
     where: [eq('survey_id', surveyId), isNull('deleted_at')],
     order: { column: 'submitted_at', ascending: false },
