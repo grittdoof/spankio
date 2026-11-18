@@ -394,3 +394,95 @@ describe('inscriptions déjà touchées par la porte', () => {
     expect(touched.has('r4')).toBe(true);
   });
 });
+
+/**
+ * Casse des noms, branchée pour de bon.
+ *
+ * `name-case.test.ts` prouve la fonction ; ces contrôles-ci prouvent que la
+ * LISTE l'appelle — pour l'invité comme pour son accompagnant. Un module pur
+ * vert dont personne n'appelle la fonction est exactement le genre de test qui
+ * passe pour une raison qui n'est pas celle qu'il annonce.
+ */
+describe('casse des noms dans la liste d’accueil', () => {
+  const casedSchema: SurveySchema = (() => {
+    const result = validateSurveySchema({
+      version: 1,
+      steps: [
+        {
+          id: 'etape_1',
+          fields: [
+            { id: 'nom', type: 'text', label: 'Nom' },
+            { id: 'prenom', type: 'text', label: 'Prénom' },
+            { id: 'acc_nom', type: 'text', label: 'Nom de l’accompagnant' },
+            { id: 'courriel', type: 'email', label: 'Adresse électronique' },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(`Schéma invalide : ${JSON.stringify(result.issues)}`);
+    return result.schema;
+  })();
+
+  const cased: AttendanceSettings = {
+    identityFields: ['nom', 'prenom'],
+    companionFields: ['acc_nom'],
+    nameCase: { nom: 'upper' },
+  };
+
+  const rowsFor = (data: Record<string, unknown>) =>
+    guestList(casedSchema, cased, [response('r1', data)]).rows;
+
+  it('met le nom DÉSIGNÉ en capitales et laisse le prénom en initiale majuscule', () => {
+    expect(rowsFor({ nom: 'dupont', prenom: 'MARIE' })[0]?.name).toBe('DUPONT Marie');
+  });
+
+  it('rend la MÊME forme quelle que soit la saisie — c’est la raison d’être', () => {
+    const rendus = [
+      { nom: 'dupont', prenom: 'marie' },
+      { nom: 'DUPONT', prenom: 'MARIE' },
+      { nom: 'Dupont', prenom: 'marie' },
+    ].map((data) => rowsFor(data)[0]?.name);
+    expect(new Set(rendus)).toEqual(new Set(['DUPONT Marie']));
+  });
+
+  it('nomme l’ACCOMPAGNANT avec la même règle', () => {
+    expect(rowsFor({ nom: 'dupont', acc_nom: 'jacqueline MARTIN' })[0]?.companion).toBe(
+      'Jacqueline Martin',
+    );
+  });
+
+  it('tire les initiales du nom MIS EN FORME, sans quoi la pastille jurerait', () => {
+    expect(rowsFor({ nom: 'dupont', prenom: 'marie' })[0]?.initials).toBe('DM');
+  });
+
+  it('uniformise sans AUCUN réglage : la liste est lisible dès la première soirée', () => {
+    const rows = guestList(
+      casedSchema,
+      { identityFields: ['prenom', 'nom'] },
+      [response('r1', { nom: 'DUPONT', prenom: 'marie' })],
+    ).rows;
+    expect(rows[0]?.name).toBe('Marie Dupont');
+  });
+
+  it('laisse une adresse électronique désignée comme nom parfaitement intacte', () => {
+    const rows = guestList(
+      casedSchema,
+      { identityFields: ['courriel'] },
+      [response('r1', { courriel: 'Jean.Dupont@exemple.fr' })],
+    ).rows;
+    expect(rows[0]?.name).toBe('Jean.Dupont@exemple.fr');
+  });
+
+  it('ne RÉÉCRIT pas la réponse : la donnée enregistrée reste la saisie', () => {
+    const data = { nom: 'dupont', prenom: 'MARIE' };
+    guestList(casedSchema, cased, [response('r1', data)]);
+    expect(data).toEqual({ nom: 'dupont', prenom: 'MARIE' });
+  });
+
+  it('trouve toujours la rangée en cherchant ce qui a été TAPÉ', () => {
+    const found = guestList(casedSchema, cased, [response('r1', { nom: 'DUPONT' })], {
+      search: 'dupont',
+    });
+    expect(found.rows).toHaveLength(1);
+  });
+});
