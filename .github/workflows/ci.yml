@@ -63,8 +63,19 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: npm audit (bloquant à partir de « high »)
-        run: npm audit --audit-level=high
+      # `--omit=dev` : l'audit ne porte QUE sur ce qui part en production.
+      #
+      # Choix du client, pris le 18 novembre 2026 contre l'avis donné ici, et
+      # son coût est écrit en R17 de CLAUDE.md : une faille dans la chaîne de
+      # BUILD n'est plus bloquante, alors que c'est un vecteur réel — R7 a
+      # d'ailleurs traité `postcss`, qui n'est lui aussi utilisé qu'au build.
+      #
+      # Ce qui l'a provoqué : GHSA-fc5q-39xc-vjpf (picomatch, « high »), sans
+      # aucune version corrigée publiée — `npm audit fix --force` ne proposait
+      # qu'une rétrogradation de vitest qui ne corrigeait rien et cassait la
+      # suite de tests. La CI de `main` était rouge sans rien à y faire.
+      - name: npm audit (production, bloquant à partir de « high »)
+        run: npm audit --audit-level=high --omit=dev
 
   secrets:
     name: Scan de secrets
