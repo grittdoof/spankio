@@ -1,5 +1,8 @@
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { Desk } from '@/components/checkin/Desk';
+import { DeskDenied } from '@/components/checkin/DeskDenied';
+import { signInLabel, staffIdentifierHost } from '@/lib/checkin/account';
+import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { deskBrand, loadDesk, touchStaff } from '@/lib/services/checkin';
 import { deskRows, guestList } from '@/lib/survey/guests';
@@ -16,8 +19,15 @@ import { walkinFields } from '@/lib/checkin/walkin';
  * l'espace d'administration, pour que l'invité s'appelle pareil des deux côtés.
  * Ce qui suit — le delta, la file, le pointage — est du confort posé par-dessus.
  *
- * Un sondage que le RLS masque est un `404`, jamais un `403` : un refus qui
- * confirmerait l'existence de l'événement en dirait déjà trop.
+ * **Un refus ne confirme toujours rien, mais il se LIT.** Le poste répondait
+ * `404` dès que la lecture échouait, ce qui était le bon code et le mauvais
+ * écran : une hôtesse portant la session d'un compte créé pour un autre
+ * événement lisait « 404 » sans savoir qu'il suffisait de se déconnecter —
+ * défaut réel, signalé au premier usage. `DeskDenied` dit la même chose que le
+ * code, c'est-à-dire rien de l'événement, en y ajoutant la seule information
+ * utile : avec quel compte on est connecté. Sans session, on part à la
+ * connexion AVEC la destination, pour revenir au poste visé et non au premier
+ * venu.
  */
 
 export const dynamic = 'force-dynamic';
@@ -34,8 +44,26 @@ export default async function CheckinDeskPage({
   const rehearsal = query['essai'] === '1';
   const context = await resolveRequestContext();
 
+  /*
+   * Le garde du `layout` fait déjà cette redirection, et le middleware la fait
+   * avant lui. Celui-ci est le troisième, et il n'est pas superflu : layout et
+   * page sont rendus de FRONT, si bien qu'un `notFound()` lancé ici pouvait
+   * devancer la redirection du parent. Ici le départ est décidé avant toute
+   * lecture, donc il n'y a plus de course à arbitrer.
+   */
+  if (!context.userId) redirect(`/connexion?suite=${encodeURIComponent(`/accueil/${id}`)}`);
+
   const desk = await loadDesk(context, id);
-  if (!desk.ok) notFound();
+  if (!desk.ok) {
+    return (
+      <DeskDenied
+        identifier={signInLabel(
+          context.email,
+          staffIdentifierHost(publicEnv().NEXT_PUBLIC_SITE_URL),
+        )}
+      />
+    );
+  }
 
   /*
    * « Cette personne a ouvert son poste », écrit au RENDU et donc sans

@@ -1,4 +1,7 @@
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
+import { DeskDenied } from '@/components/checkin/DeskDenied';
+import { signInLabel, staffIdentifierHost } from '@/lib/checkin/account';
+import { publicEnv } from '@/lib/config/env';
 import { resolveRequestContext } from '@/lib/data/context';
 import { deskBrand, loadDesk } from '@/lib/services/checkin';
 import { deskRows, guestList } from '@/lib/survey/guests';
@@ -45,8 +48,24 @@ export default async function CheckinPrintPage({
   const query = await searchParams;
   const context = await resolveRequestContext();
 
+  // Même porte que le poste, mêmes refus : voir `DeskDenied`. Une liste de
+  // secours qui répondrait autrement que l'écran serait une liste de plus à
+  // comprendre, la veille, quand on prépare.
+  if (!context.userId) {
+    redirect(`/connexion?suite=${encodeURIComponent(`/accueil/${id}`)}`);
+  }
+
   const desk = await loadDesk(context, id);
-  if (!desk.ok) notFound();
+  if (!desk.ok) {
+    return (
+      <DeskDenied
+        identifier={signInLabel(
+          context.email,
+          staffIdentifierHost(publicEnv().NEXT_PUBLIC_SITE_URL),
+        )}
+      />
+    );
+  }
 
   const { survey, schema, attendance, responses, states } = desk.value;
   const counting = isAttendanceConfigured(attendance);

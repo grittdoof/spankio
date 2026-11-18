@@ -134,6 +134,23 @@ export function identifierLocalPart(email: string): string {
   return at === -1 ? email : email.slice(0, at);
 }
 
+/**
+ * Comment NOMMER à l'écran le compte avec lequel on est connecté.
+ *
+ * Même règle que le message à transmettre : on écrit ce que la personne TAPE,
+ * pas ce que la base stocke. Afficher
+ * `veronique@accueil.spankio.vpstrat.com` à quelqu'un à qui l'on a dicté
+ * « veronique » lui ferait croire qu'il s'agit d'un autre compte — c'est-à-dire
+ * exactement l'inverse de ce que cet écran doit lever. Une adresse qui n'est
+ * PAS fabriquée reste entière : c'est alors la vraie adresse de la personne.
+ */
+export function signInLabel(email: string | null, host: string): string | null {
+  if (email === null) return null;
+  const trimmed = email.trim();
+  if (trimmed === '') return null;
+  return isStaffIdentifier(trimmed, host) ? identifierLocalPart(trimmed) : trimmed;
+}
+
 export function isStaffLabelShape(value: string): boolean {
   const trimmed = value.trim();
   return trimmed.length > 0 && trimmed.length <= STAFF_LABEL_MAX && /\p{L}|\d/u.test(trimmed);

@@ -966,6 +966,48 @@ changer.
   besoin était formulé en vert et rouge : tel quel, c'est inutilisable pour une
   partie des gens et muet pour un lecteur d'écran. Même règle que « un
   graphique est un renfort ». Et UNE seule zone d'annonce pour tout l'écran.
+- **Le middleware vit dans `src/`, et un test fige son emplacement.** Avec un
+  répertoire `src/`, Next ne lit QUE `src/middleware.ts` : le fichier a vécu
+  des mois à la racine du dépôt, donc jamais exécuté — ni barrière d'accès, ni
+  rafraîchissement de session. Rien ne le signalait, et c'est ce qui rend le
+  défaut si durable : il compilait, se typait, passait ESLint, et les espaces
+  protégés PARAISSAIENT gardés parce que chaque `layout` redirige de son côté.
+  Aucun test de comportement ne pouvait l'attraper — ils importent la fonction
+  et l'appellent, ce qui marche depuis n'importe quel chemin. **Quatrième fois
+  sous une autre forme** : ce qui est écrit dans le dépôt n'est pas ce qui
+  tourne. Corollaire assumé au rebranchement : le `matcher` nomme désormais les
+  chemins un par un au lieu de « tout sauf le statique » — le rebrancher tel
+  quel aurait ajouté d'un coup un appel au serveur d'authentification sur
+  CHAQUE page publique, pour des visiteurs qui n'ont aucun cookie à
+  rafraîchir.
+- **Un `layout` ne garde pas une porte dont il ignore le chemin.** Celui de
+  `/accueil` redirigeait vers `/connexion` sans rien savoir de la page
+  demandée. Or layout et page sont rendus de FRONT : sa redirection aveugle
+  écrasait, au hasard des latences, celle que la page compose avec sa
+  destination — un lien d'invitation y perdait son jeton — et, dans l'autre
+  sens, le `notFound()` de la page pouvait la devancer. La fermeture est donc
+  au middleware, qui connaît le chemin, et chaque page garde son propre seuil.
+- **Le poste ne répond plus `404` à quelqu'un qui est connecté.** Défaut réel,
+  signalé au premier usage réel du module, et le plus coûteux à comprendre :
+  une hôtesse portait sur son téléphone la session d'un compte créé pour un
+  AUTRE événement. En ouvrant le lien de sa soirée, le RLS masquait le sondage,
+  la page appelait `notFound()`, et elle lisait « 404 » — sans aucun moyen de
+  savoir qu'il suffisait de se déconnecter. Le même lien marchait en navigation
+  privée et sur son autre navigateur, ce qui désignait l'application plutôt que
+  le compte. La règle « une ressource que le RLS masque renvoie 404 » vaut pour
+  les ROUTES API, où l'appelant est un programme ; ici l'appelante est debout à
+  une porte. `DeskDenied` dit donc exactement ce que disait le code — RIEN de
+  l'événement, pas même son existence, le même texte que l'affectation manque,
+  qu'elle ait expiré ou que l'adresse ne désigne rien — en y ajoutant la seule
+  information qui manquait : AVEC QUEL COMPTE on est connecté, écrit comme on
+  le tape (`signInLabel`), et la sortie.
+- **La destination après connexion couvre aussi le poste d'un événement.** Un
+  lien de poste suivi sans session menait, après connexion, au poste de la
+  PREMIÈRE affectation — pas à celui du lien. `safeAfterSignIn` accepte donc
+  une seconde forme, `/accueil/<identifiant>`, bornée exactement comme la
+  première : liste fermée, valeur RECONSTRUITE après validation, jamais une
+  URL « qui a l'air interne ». C'est le middleware qui la compose, puisque
+  c'est lui qui connaît le chemin refusé.
 - **Un compte d'accueil n'atteint pas `/admin`.** `isCheckinOnly` l'envoie à
   son poste : il n'y verrait qu'un espace vide, puisque
   `app.is_active_member()` est déjà fausse pour lui. La barrière reste le RLS ;
@@ -1794,6 +1836,19 @@ npm run build       # build de production
       l'ajout d'un invité devient un écran plein et opaque qui bloque le
       défilement. Défaut vu sur iPhone, invisible en jsdom comme sur un
       navigateur de bureau. Aucune migration. 2103 tests.
+- [x] Module « Accueil », lot 9 ter — la porte qui dit non (18 novembre
+      2026) : la série née du premier envoi d'accès à une personne extérieure.
+      **Le middleware n'avait jamais tourné** — fichier à la racine alors que
+      l'application vit dans `src/` — ce que seule une vérification dans un
+      navigateur a montré, et qu'un test de placement fige désormais. **Le
+      poste répondait `404` à une hôtesse connectée** avec le compte d'un
+      autre événement : c'est maintenant un écran qui nomme le compte et
+      propose la sortie, sans rien dire de plus de l'événement que n'en disait
+      le code. **Le `layout` d'accueil ne garde plus la porte** : sa
+      redirection aveugle écrasait celles de ses pages, au hasard des
+      latences. **Un lien de poste ramène au poste visé** après connexion.
+      Aucune migration. 2135 tests, dont 3 sur l'écran de refus et 2 sur le
+      placement du middleware.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

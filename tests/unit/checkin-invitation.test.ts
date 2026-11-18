@@ -105,4 +105,55 @@ describe('la destination après connexion', () => {
     // qu'elle est exactement celle qu'on attend, jeton compris.
     expect(safeAfterSignIn('/accueil/invitation?jeton=court')).toBe('/admin');
   });
+
+  it('ne lève pas sur un pourcentage isolé', () => {
+    // `decodeURIComponent('%zz')` lève. L'écran de connexion est celui qui
+    // doit marcher quand tout le reste est fermé : une adresse malformée est
+    // un retour refusé, jamais une page en panne.
+    expect(() => safeAfterSignIn('/accueil/invitation?jeton=%zz')).not.toThrow();
+    expect(safeAfterSignIn('/accueil/invitation?jeton=%zz')).toBe('/admin');
+  });
+});
+
+describe('le retour au poste après connexion', () => {
+  const id = '6a9ffafd-00b4-4aa0-b432-9220977b1966';
+
+  /*
+   * Deuxième forme de la liste fermée, et elle vient d'un défaut réel : une
+   * hôtesse qui suit le lien de SA soirée sans être connectée se retrouvait,
+   * après connexion, sur le poste de sa première affectation — pas celui du
+   * lien.
+   */
+  it('conserve le poste d’un événement', () => {
+    expect(safeAfterSignIn(`/accueil/${id}`)).toBe(`/accueil/${id}`);
+  });
+
+  it('normalise la casse de l’identifiant', () => {
+    expect(safeAfterSignIn(`/accueil/${id.toUpperCase()}`)).toBe(`/accueil/${id}`);
+  });
+
+  it('REFUSE tout ce qui n’est pas exactement un poste', () => {
+    for (const hostile of [
+      '/accueil',
+      '/accueil/',
+      '/accueil/pas-un-identifiant',
+      `/accueil/${id}/impression`,
+      `/accueil/${id}?essai=1`,
+      `/accueil/${id}#ancre`,
+      `/accueil/${id} `,
+      '/accueil//ailleurs.test',
+      `https://ailleurs.test/accueil/${id}`,
+      `//ailleurs.test/accueil/${id}`,
+    ]) {
+      expect(safeAfterSignIn(hostile)).toBe('/admin');
+    }
+  });
+
+  it('ne rend jamais autre chose que ce qu’il a validé', () => {
+    // La valeur rendue est RECONSTRUITE à partir de l'identifiant : aucune
+    // portion de l'entrée ne peut la traverser telle quelle.
+    const rendu = safeAfterSignIn(`/accueil/${id}`);
+    expect(rendu.startsWith('/accueil/')).toBe(true);
+    expect(/^\/accueil\/[0-9a-f-]{36}$/.test(rendu)).toBe(true);
+  });
 });

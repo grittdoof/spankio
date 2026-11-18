@@ -16,6 +16,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function CheckinHomePage() {
   const context = await resolveRequestContext();
+
+  // Son propre seuil, depuis que le layout ne garde plus la porte : sans
+  // session, `listAssignments` répond un refus, et « Liste indisponible »
+  // enverrait chercher une panne là où il n'y a qu'une connexion à faire.
+  if (!context.userId) redirect('/connexion');
+
   const assignments = await listAssignments(context);
 
   if (!assignments.ok) {
