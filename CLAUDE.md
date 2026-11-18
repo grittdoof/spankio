@@ -768,6 +768,22 @@ changer.
   cadeau ne fait arriver personne, et un dé-pointage ne reprend pas le
   cadeau. Un cadeau remis à quelqu'un que la porte avait oublié est
   enregistré tel quel, sans inventer d'arrivée, et le rapport le dit.
+- **La liste des départs PART des personnes pointées à l'entrée.** Demande du
+  client, et c'est la liste que l'hôtesse a sous les yeux : à la sortie, on
+  remet un cadeau à des gens qui sont dans la salle, et faire défiler ceux qui
+  ne sont jamais venus revient à chercher dans une liste dont la plus grande
+  part ne se présentera pas. Le socle d'un mode (`deskScope`) est donc distinct
+  de la liste entière, et les compteurs des trois puces se lisent DEDANS —
+  un « Tous » qui annoncerait la liste complète pendant que l'écran n'en montre
+  qu'une part serait précisément le chiffre qu'on vient chercher pour savoir où
+  l'on en est. Deux sorties, sans lesquelles la restriction retirerait une
+  possibilité que le module autorise : un cadeau DÉJÀ remis reste affiché même
+  sans arrivée — une rangée qui disparaîtrait après l'appui ferait croire à un
+  geste perdu — et **une recherche traverse le socle**, parce qu'elle NOMME
+  quelqu'un au lieu de parcourir. C'est le seul chemin vers le cadeau sans
+  arrivée, et l'écran l'écrit : la note du mode le dit, et une liste vide dit
+  POURQUOI elle l'est (« personne n'est encore pointé à l'entrée ») plutôt que
+  d'accuser une puce que personne n'a touchée.
 - **`set_checkin` a pris un geste sans couper le poste en service.** Le
   paramètre `p_kind` a une valeur par défaut et `p_arrived` garde son nom
   (il porte désormais la VALEUR du geste) : un appel nommé à cinq arguments

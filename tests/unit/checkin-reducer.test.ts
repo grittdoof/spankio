@@ -9,7 +9,7 @@ import {
   type CheckinState,
   type DeskState,
 } from '@/lib/checkin/reducer';
-import { deskList, deskStatusLabel } from '@/lib/checkin/rows';
+import { deskList, deskScope, deskStatusLabel, deskVisible } from '@/lib/checkin/rows';
 import { expandSeats } from '@/lib/checkin/seats';
 import { freshness, STALE_AFTER_MS } from '@/lib/checkin/freshness';
 import type { GuestRow } from '@/lib/survey/guests';
@@ -277,6 +277,81 @@ describe('le statut est ÉCRIT, jamais seulement coloré', () => {
     expect(rows.map(deskStatusLabel)).toEqual(['Attendu', 'A décliné', 'Sans réponse']);
     expect(deskStatusLabel(listOf([guest({ id: 'r1' })], tap(EMPTY_DESK, 'r1', true)).rows[0]!))
       .toBe('Arrivé — envoi en cours');
+  });
+});
+
+
+describe('le socle du mode « Départs »', () => {
+  /* Trois inscrits : un arrivé, un resté dehors, un oublié de la porte à qui
+     le cadeau a tout de même été remis — les trois cas que la sortie doit
+     savoir distinguer. */
+  const GUESTS = [
+    guest({ id: 'r1', name: 'Élodie Marchand' }),
+    guest({ id: 'r2', name: 'Karim Benali' }),
+    guest({ id: 'r3', name: 'Sophie Nguyen' }),
+  ];
+
+  const HYDRATED = deskReducer(EMPTY_DESK, {
+    type: 'hydrate',
+    states: [
+      serverState({ responseId: 'r1', arrivedAt: '2026-11-18T19:05:00.000Z' }),
+      serverState({ responseId: 'r3', giftAt: '2026-11-18T23:40:00.000Z' }),
+    ],
+    at: 1000,
+  });
+
+  const rows = () => listOf(GUESTS, HYDRATED).rows;
+
+  it('part des personnes POINTÉES à l’entrée, pas de la liste entière', () => {
+    expect(deskScope(rows(), 'departures').map((row) => row.name)).toEqual([
+      'Élodie Marchand',
+      // Karim n'est jamais entré : il n'a rien à faire dans une file de sortie.
+      'Sophie Nguyen',
+    ]);
+  });
+
+  it('garde le cadeau déjà remis à quelqu’un que la porte avait oublié', () => {
+    // Sophie n'est pas arrivée mais porte un cadeau : la faire disparaître
+    // après l'appui ferait croire à un geste perdu.
+    const sophie = deskScope(rows(), 'departures').find((row) => row.name === 'Sophie Nguyen');
+    expect(sophie?.arrived).toBe(false);
+    expect(sophie?.gift).toBe(true);
+  });
+
+  it('ne restreint RIEN en mode « Arrivées » : on y cherche qui n’est pas entré', () => {
+    expect(deskScope(rows(), 'arrivals')).toHaveLength(3);
+  });
+
+  it('une recherche traverse le socle : elle NOMME quelqu’un', () => {
+    // Le seul chemin vers un cadeau sans arrivée. Sans lui, restreindre la
+    // liste retirerait une possibilité que le rapport sait déjà dire.
+    expect(deskVisible(rows(), 'departures', 'all', 'karim').map((row) => row.name)).toEqual([
+      'Karim Benali',
+    ]);
+    expect(deskVisible(rows(), 'departures', 'all', '').map((row) => row.name)).toEqual([
+      'Élodie Marchand',
+      'Sophie Nguyen',
+    ]);
+  });
+
+  it('les puces se lisent DANS le socle, pas dans la liste entière', () => {
+    expect(deskVisible(rows(), 'departures', 'awaited', '').map((row) => row.name)).toEqual([
+      // Arrivée, cadeau non remis : c'est elle qu'il reste à servir.
+      'Élodie Marchand',
+    ]);
+    expect(deskVisible(rows(), 'departures', 'arrived', '').map((row) => row.name)).toEqual([
+      'Sophie Nguyen',
+    ]);
+  });
+
+  it('à l’entrée, les mêmes puces continuent de parler d’arrivées', () => {
+    expect(deskVisible(rows(), 'arrivals', 'arrived', '').map((row) => row.name)).toEqual([
+      'Élodie Marchand',
+    ]);
+    expect(deskVisible(rows(), 'arrivals', 'awaited', '').map((row) => row.name)).toEqual([
+      'Karim Benali',
+      'Sophie Nguyen',
+    ]);
   });
 });
 
