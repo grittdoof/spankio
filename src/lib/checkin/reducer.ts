@@ -130,6 +130,31 @@ export function indexStates(
   return map;
 }
 
+/**
+ * Les inscriptions qui portent DÉJÀ un fait de porte — une arrivée ou un
+ * cadeau, sur n'importe lequel de leurs sièges.
+ *
+ * Elle sert à ne pas faire disparaître quelqu'un de l'écran. Une rangée
+ * retirée de la liste pour une bonne raison — un refus annoncé — reste
+ * affichée dès lors que la porte a déjà enregistré quelque chose sur elle :
+ * un présent qui s'efface tout seul en plein service est précisément la
+ * panne que ce module existe pour éviter, et le compteur de salle le suivrait
+ * dans sa chute.
+ *
+ * Une ligne d'état sans aucun fait ne compte pas : `set_checkin` en laisse
+ * une derrière chaque dé-pointage, et la lire comme une présence garderait à
+ * l'écran quelqu'un dont on vient justement de dire qu'il n'est pas là.
+ */
+export function touchedResponses(
+  states: readonly CheckinState[],
+): ReadonlySet<string> {
+  const touched = new Set<string>();
+  for (const one of states) {
+    if (one.arrivedAt !== null || one.giftAt !== null) touched.add(one.responseId);
+  }
+  return touched;
+}
+
 /** Plus grand `updated_at` connu : le curseur du prochain delta. */
 export function cursorOf(
   current: string | null,

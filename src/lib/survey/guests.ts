@@ -220,3 +220,39 @@ export function guestList(
 
   return { rows, counts, hidden: counts.all - rows.length };
 }
+
+/**
+ * Les rangées que la PORTE a à connaître : tout le monde sauf ceux qui ont
+ * annoncé ne pas venir.
+ *
+ * Une personne qui a décliné n'est pas attendue ; la laisser dans la liste
+ * ajoutait ici quarante rangées à faire défiler, debout, entre deux invités
+ * réels. Elle reste évidemment dans les réponses, les statistiques et
+ * l'export — elle a répondu, et ce refus est une information.
+ *
+ * Le filtre porte sur `declined` et NON sur « garder `attending` » : un
+ * invité ajouté à l'entrée n'a pas de réponse de présence, donc le statut
+ * « sans réponse ». Ne garder que les présents annoncés ferait disparaître
+ * de l'écran toute personne inscrite à la porte — c'est-à-dire exactement
+ * celles qu'on vient d'ajouter, et sous les yeux de qui les a ajoutées.
+ *
+ * Conséquence assumée : quelqu'un qui avait décliné et se présente quand
+ * même n'est plus dans la liste. Il s'ajoute par le (+) comme n'importe quel
+ * invité de dernière minute, et le rapport le comptera « venu sans l'avoir
+ * annoncé » — ce qu'il est.
+ *
+ * Une exception, et elle n'est pas négociable : une rangée que la porte a
+ * DÉJÀ touchée reste affichée, refus annoncé ou non. Le cas existe pour de
+ * bon — quelqu'un décline, vient quand même, et une hôtesse le pointe ; au
+ * rafraîchissement suivant il disparaîtrait de l'écran ET du compteur de
+ * salle, pendant que le rapport continuerait de le compter. Un présent qui
+ * s'efface tout seul en plein service est la pire panne d'une porte, et
+ * c'est le même raisonnement que le cadeau déjà remis à quelqu'un qui n'a
+ * pas été pointé : on ne retire jamais de l'écran un geste qui a eu lieu.
+ */
+export function deskRows(
+  rows: readonly GuestRow[],
+  touched: ReadonlySet<string> = new Set(),
+): readonly GuestRow[] {
+  return rows.filter((row) => row.status !== 'declined' || touched.has(row.id));
+}
