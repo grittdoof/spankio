@@ -13,7 +13,15 @@ import {
   type CheckinState,
   type DeskState,
 } from '@/lib/checkin/reducer';
-import { deskList, deskStatusLabel, giftStatusLabel, type DeskRow } from '@/lib/checkin/rows';
+import {
+  deskList,
+  deskScope,
+  deskStatusLabel,
+  deskVisible,
+  giftStatusLabel,
+  type DeskFilter,
+  type DeskRow,
+} from '@/lib/checkin/rows';
 import {
   DESK_ORDERS,
   expandSeats,
@@ -33,7 +41,7 @@ import {
 import { WalkinSheet, type WalkinStatus } from './WalkinSheet';
 import { freshness, POLL_INTERVAL_MS } from '@/lib/checkin/freshness';
 import { loadQueue, saveQueue } from '@/lib/checkin/storage';
-import { normaliseSearch, type GuestRow } from '@/lib/survey/guests';
+import type { GuestRow } from '@/lib/survey/guests';
 import { checkinErrorMessage } from '@/lib/i18n/fr';
 
 /**
@@ -84,18 +92,19 @@ export interface DeskProps {
   readonly initialMode?: DeskMode;
 }
 
-type Filter = 'all' | 'awaited' | 'arrived';
-
-const FILTER_LABELS: Readonly<Record<DeskMode, Readonly<Record<Filter, string>>>> = {
+const FILTER_LABELS: Readonly<Record<DeskMode, Readonly<Record<DeskFilter, string>>>> = {
   arrivals: { all: 'Tous', awaited: 'À venir', arrived: 'Arrivés' },
   // Courts : les trois puces tiennent sur une ligne à 375 px, comme à l'entrée.
-  departures: { all: 'Tous', awaited: 'À offrir', arrived: 'Remis' },
+  // « Tous » mentirait à la sortie, où la liste part des personnes pointées :
+  // la puce NOMME donc le socle plutôt que de promettre la liste entière.
+  departures: { all: 'Pointés', awaited: 'À offrir', arrived: 'Remis' },
 };
 
 /** Ce qu'un appui signifie, selon le mode : c'est la ligne la plus lue du poste. */
 const MODE_NOTES: Readonly<Record<DeskMode, string>> = {
   arrivals: 'Un appui sur une rangée pointe l’arrivée.',
-  departures: 'Mode départs : un appui sur une rangée enregistre la remise du cadeau.',
+  departures:
+    'Mode départs : la liste part des personnes pointées à l’entrée, et un appui sur une rangée enregistre la remise du cadeau. Cherchez un nom pour atteindre quelqu’un que la porte a oublié.',
 };
 
 /**
@@ -135,7 +144,7 @@ export function Desk(props: DeskProps) {
   } = props;
   const [state, dispatch] = useReducer(deskReducer, props, initial);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<DeskFilter>('all');
   const [mode, setMode] = useState<DeskMode>(initialMode);
   /* Personnes ajoutées à l'entrée depuis le chargement — ici ou ailleurs. */
   const [extraGuests, setExtraGuests] = useState<readonly GuestRow[]>([]);
@@ -162,18 +171,15 @@ export function Desk(props: DeskProps) {
   const seats = useMemo(() => expandSeats(sortGuests(allGuests, order)), [allGuests, order]);
   const list = useMemo(() => deskList(seats, state), [seats, state]);
 
-  const visible = useMemo(() => {
-    const needle = normaliseSearch(search);
-    return list.rows.filter((row) => {
-      // Le filtre suit le MODE : à la sortie, « fait » veut dire « cadeau remis ».
-      const done = mode === 'departures' ? row.gift : row.arrived;
-      if (filter === 'arrived' && !done) return false;
-      if (filter === 'awaited' && done) return false;
-      if (needle === '') return true;
-      const haystack = normaliseSearch(`${row.name ?? ''} ${row.detail ?? ''}`);
-      return haystack.includes(needle);
-    });
-  }, [list.rows, search, filter, mode]);
+  // Le socle du mode : à la sortie, les personnes pointées à l'entrée. Il
+  // sert AUSSI aux compteurs des puces — un « Tous » qui annoncerait la liste
+  // entière pendant que l'écran n'en montre qu'une part serait un chiffre
+  // faux, et c'est exactement celui qu'on lirait pour savoir où on en est.
+  const scope = useMemo(() => deskScope(list.rows, mode), [list.rows, mode]);
+  const visible = useMemo(
+    () => deskVisible(list.rows, mode, filter, search),
+    [list.rows, mode, filter, search],
+  );
 
   // --- Reprise de la file laissée par une session précédente -----------------
   const restored = useRef(false);
@@ -714,10 +720,10 @@ export function Desk(props: DeskProps) {
               {FILTER_LABELS[mode][key]}
               <span className="sp-chip__count">
                 {key === 'all'
-                  ? list.rows.length
+                  ? scope.length
                   : key === 'arrived'
                     ? done
-                    : list.rows.length - done}
+                    : scope.length - done}
               </span>
             </button>
           ))}
@@ -725,10 +731,17 @@ export function Desk(props: DeskProps) {
       </div>
 
       {visible.length === 0 ? (
+        /* Une liste vide DIT pourquoi. « Aucun invité dans ce filtre » serait
+           faux à la sortie tant que personne n'est entré : ce n'est pas la
+           puce qui vide l'écran, c'est le socle du mode — et l'hôtesse qui
+           ouvre son poste à la sortie doit lire la sortie de secours, pas
+           chercher quelle puce défaire. */
         <p className="sp-desk__empty">
           {search
             ? `Aucun invité ne correspond à « ${search} ».`
-            : 'Aucun invité dans ce filtre.'}
+            : mode === 'departures' && scope.length === 0
+              ? 'Personne n’est encore pointé à l’entrée, et la liste des départs part de là. Cherchez un nom pour remettre un cadeau malgré tout.'
+              : 'Aucun invité dans ce filtre.'}
         </p>
       ) : (
         <ul className="sp-desk__list">
@@ -812,7 +825,7 @@ export function Desk(props: DeskProps) {
       <footer className="sp-desk__foot">
         <span className="sp-muted">
           {mode === 'departures'
-            ? `${totals.gifts} cadeau${totals.gifts > 1 ? 'x' : ''} remis sur ${list.rows.length}`
+            ? `${totals.gifts} cadeau${totals.gifts > 1 ? 'x' : ''} remis sur ${scope.length} pointé${scope.length > 1 ? 's' : ''}`
             : `${totals.inRoom} arrivé${totals.inRoom > 1 ? 's' : ''} sur ${list.rows.length}`}
         </span>
       </footer>

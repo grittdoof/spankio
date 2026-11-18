@@ -393,6 +393,9 @@ describe('mode « Départs »', () => {
     });
 
     renderFullDesk({ initialMode: 'departures' });
+    // Personne n'est pointé : c'est la recherche qui ramène Élodie, le seul
+    // chemin vers un cadeau remis à quelqu'un que la porte a oublié.
+    await userEvent.type(screen.getByLabelText('Rechercher un invité'), 'Élodie');
     await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
 
     const row = screen.getByRole('button', { name: /^Élodie Marchand/ });
@@ -401,6 +404,34 @@ describe('mode « Départs »', () => {
     // La personne n'avait pas été pointée à l'entrée : la sortie le dit.
     expect(within(row).getByText(/non pointé à l’entrée/)).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Élodie Marchand — cadeau remis');
+  });
+
+  it('part de la liste des personnes pointées à l’entrée', async () => {
+    const { container } = renderFullDesk({ rehearsal: true });
+    // Pointée à l'entrée, et elle seule : les quatre autres rangées ne sont
+    // pas dans la salle, elles n'ont rien à faire dans une file de sortie.
+    await userEvent.click(screen.getByRole('button', { name: /^Élodie Marchand/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Départs · cadeau' }));
+
+    expect(screen.getByRole('button', { name: /^Élodie Marchand/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Karim Benali/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Jacqueline Marchand/ })).not.toBeInTheDocument();
+    // La note du mode le dit — le même texte passe aussi par la zone
+    // d'annonce, d'où la lecture ciblée.
+    expect(container.querySelector('.sp-desk__note')).toHaveTextContent(
+      /la liste part des personnes pointées à l’entrée/,
+    );
+
+    // Une recherche NOMME quelqu'un : elle traverse le socle.
+    await userEvent.type(screen.getByLabelText('Rechercher un invité'), 'Karim');
+    expect(screen.getByRole('button', { name: /^Karim Benali/ })).toBeInTheDocument();
+  });
+
+  it('dit POURQUOI la liste est vide tant que personne n’est entré', () => {
+    renderFullDesk({ initialMode: 'departures' });
+    // « Aucun invité dans ce filtre » serait faux : ce n'est pas la puce qui
+    // vide l'écran, et l'hôtesse chercherait laquelle défaire.
+    expect(screen.getByText(/Personne n’est encore pointé à l’entrée/)).toBeInTheDocument();
   });
 
   it('basculer de mode le dit, et réécrit l’URL sans perdre l’essai à blanc', async () => {

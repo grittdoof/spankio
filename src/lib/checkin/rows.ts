@@ -1,4 +1,6 @@
 import type { AttendanceStatus } from '@/lib/survey/attendance';
+import { normaliseSearch } from '@/lib/survey/guests';
+import type { DeskMode } from './mode';
 import type { CheckinKind, DeskState, PendingOp } from './reducer';
 import { seatKey, type SeatRow } from './seats';
 
@@ -184,4 +186,59 @@ export function deskStatusLabel(row: DeskRow): string {
 export function giftStatusLabel(row: DeskRow): string {
   if (row.gift) return row.giftPending ? 'Cadeau remis — envoi en cours' : 'Cadeau remis';
   return 'Sans cadeau';
+}
+
+/** Les trois puces de filtrage, communes aux deux modes. */
+export type DeskFilter = 'all' | 'awaited' | 'arrived';
+
+/**
+ * Le SOCLE d'un mode : ce que la liste montre avant tout filtre et toute
+ * recherche.
+ *
+ * En « Arrivées », c'est toute la liste — on y cherche quelqu'un qui n'est
+ * par définition pas encore entré. En « Départs », on part des personnes
+ * POINTÉES À L'ENTRÉE : à la sortie, on remet un cadeau à des gens qui sont
+ * dans la salle, et faire défiler ceux qui ne sont jamais venus revient à
+ * chercher dans une liste dont la plus grande part ne se présentera pas.
+ * Demande du client, et c'est aussi la liste que l'hôtesse a sous les yeux.
+ *
+ * Un cadeau DÉJÀ remis reste affiché même sans arrivée : c'est le cas que le
+ * lot 9 autorise — la porte avait oublié quelqu'un — et une rangée qui
+ * disparaîtrait après l'appui ferait croire à un geste perdu.
+ */
+export function deskScope(
+  rows: readonly DeskRow[],
+  mode: DeskMode,
+): readonly DeskRow[] {
+  if (mode !== 'departures') return rows;
+  return rows.filter((row) => row.arrived || row.gift);
+}
+
+/**
+ * Ce que l'écran affiche : le socle du mode, puis la puce, puis la recherche.
+ *
+ * **Une recherche NOMME quelqu'un, elle ne parcourt pas.** Elle traverse donc
+ * le socle : taper le nom d'une personne que la porte a oublié la ramène, et
+ * c'est le seul chemin vers le cadeau sans arrivée que le module autorise.
+ * Sans cette sortie, restreindre la liste reviendrait à retirer une
+ * possibilité que le rapport sait déjà dire — et à l'écrire en dur dans un
+ * écran tenu debout, là où on ne peut rien contourner.
+ */
+export function deskVisible(
+  rows: readonly DeskRow[],
+  mode: DeskMode,
+  filter: DeskFilter,
+  search: string,
+): readonly DeskRow[] {
+  const needle = normaliseSearch(search);
+  const base = needle === '' ? deskScope(rows, mode) : rows;
+  return base.filter((row) => {
+    // Le filtre suit le MODE : à la sortie, « fait » veut dire « cadeau remis ».
+    const done = mode === 'departures' ? row.gift : row.arrived;
+    if (filter === 'arrived' && !done) return false;
+    if (filter === 'awaited' && done) return false;
+    if (needle === '') return true;
+    const haystack = normaliseSearch(`${row.name ?? ''} ${row.detail ?? ''}`);
+    return haystack.includes(needle);
+  });
 }
