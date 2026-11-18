@@ -14,7 +14,7 @@ import {
   parseSurveySchema,
 } from '@/lib/services/surveys';
 import { identityFieldsOf } from '@/lib/survey/attendance';
-import { answerText } from '@/lib/survey/answer-text';
+import { composeName } from '@/lib/survey/name-case';
 import { validateSurveySettings } from '@/lib/survey/settings';
 import { ResponseEditorClient } from './ResponseEditorClient';
 
@@ -65,12 +65,11 @@ export default async function CorrectResponsePage({
   // Arnoult » se lit mieux qu'un identifiant.
   const settings = validateSurveySettings(survey.value.settings);
   const attendance = settings.ok ? (settings.settings.attendance ?? {}) : {};
-  // La MÊME composition que la liste d'accueil : « Corriger la réponse de
-  // Marie Dupont » doit nommer la personne comme l'écran d'où l'on vient.
-  const parts = identityFieldsOf(schema.value, attendance)
-    .map((field) => answerText(field, response.data))
-    .filter((part): part is string => part !== null && part !== '');
-  const name = parts.length > 0 ? parts.join(' ') : null;
+  // La MÊME composition que la liste d'accueil, la même fonction : « Corriger
+  // la réponse de Marie Dupont » doit nommer la personne comme l'écran d'où
+  // l'on vient, casse désignée comprise. Elle était recopiée ici, et les deux
+  // ont divergé dès le premier réglage ajouté à l'autre.
+  const name = composeName(identityFieldsOf(schema.value, attendance), response.data, attendance);
 
   return (
     <div className="sp-stack" style={{ '--sp-stack-gap': '1.5rem' } as React.CSSProperties}>

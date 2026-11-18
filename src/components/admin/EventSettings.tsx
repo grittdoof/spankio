@@ -11,6 +11,7 @@ import {
   detailCandidates,
   identityCandidates,
   companionFieldsOf,
+  fieldById,
   identityFieldIds,
   partyCandidates,
   effectivePartyMode,
@@ -18,9 +19,16 @@ import {
   presenceCandidates,
   presenceValues,
   type AttendanceSettings,
+  type NameCase,
   type PartyMode,
 } from '@/lib/survey/attendance';
-import type { SurveySchema } from '@/lib/survey/schema';
+import {
+  NAME_CASES,
+  NAME_CASE_LABELS,
+  acceptsNameCase,
+  nameCaseOf,
+} from '@/lib/survey/name-case';
+import type { SurveyField, SurveySchema } from '@/lib/survey/schema';
 import { BannerUpload } from './BannerUpload';
 import { LocationPicker, type LatLng } from './LocationPicker';
 
@@ -236,6 +244,27 @@ export function EventSettings({
         companionFields: list.length > 0 ? list : undefined,
       },
     });
+  }
+
+  /**
+   * Les questions qui NOMMENT et dont la casse se règle, sans doublon.
+   *
+   * L'invité et l'accompagnant partagent souvent la même question : la régler
+   * deux fois donnerait deux réponses à la même question, et c'est la plus
+   * discrète qui finirait par mentir. Les adresses électroniques et les
+   * téléphones sont écartés — leur imposer une casse en ferait une valeur
+   * fausse à l'œil.
+   */
+  const casedFields: SurveyField[] = [];
+  for (const id of [...identityIds, ...companionIds]) {
+    if (casedFields.some((field) => field.id === id)) continue;
+    const field = fieldById(schema, id);
+    if (acceptsNameCase(field) && field) casedFields.push(field);
+  }
+
+  function setNameCase(fieldId: string, value: NameCase): void {
+    const next = { ...(draft.attendance.nameCase ?? {}), [fieldId]: value };
+    patch({ attendance: { ...draft.attendance, nameCase: next } });
   }
 
   function setIdentity(primary: string, secondary: string): void {
@@ -864,6 +893,52 @@ export function EventSettings({
                 </select>
               )}
             </Field>
+
+            {/* À une porte, l'œil cherche une FORME avant de lire un mot : une
+                liste où « jean dupont », « JEAN DUPONT » et « Jean DUPONT »
+                se succèdent selon l'humeur de chaque répondant se parcourt
+                mal. La casse est désignée question par question, parce que la
+                plateforme ne sait pas laquelle porte le nom de famille. Rien
+                n'est réécrit : l'export garde la saisie telle quelle. */}
+            {casedFields.length > 0 ? (
+              <>
+                <h3 className="sp-card__title">Casse des noms affichés</h3>
+                <p className="sp-muted">
+                  Uniformise l’écran d’accueil et le listing papier, quelle que soit la
+                  façon dont chacun a rempli le formulaire. L’export, lui, garde
+                  exactement ce qui a été saisi.
+                </p>
+                {casedFields.map((field) => (
+                  <Field
+                    hint={
+                      nameCaseOf(draft.attendance, field) === 'capital'
+                        ? 'Choisissez « tel que saisi » si cette question porte un sigle : « SNCF » deviendrait « Sncf ».'
+                        : undefined
+                    }
+                    id={`evt-casse-${field.id}`}
+                    key={field.id}
+                    label={`Casse de « ${field.label} »`}
+                  >
+                    {(attributes) => (
+                      <select
+                        {...attributes}
+                        className="sp-select"
+                        onChange={(event) =>
+                          setNameCase(field.id, event.target.value as NameCase)
+                        }
+                        value={nameCaseOf(draft.attendance, field)}
+                      >
+                        {NAME_CASES.map((nameCase) => (
+                          <option key={nameCase} value={nameCase}>
+                            {NAME_CASE_LABELS[nameCase]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </Field>
+                ))}
+              </>
+            ) : null}
           </>
         )}
       </section>

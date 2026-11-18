@@ -318,6 +318,31 @@ changer.
   existants, puisqu'il vit dans un `jsonb`. Une seule lecture pour toute
   l'application (`identityFieldIds`), sinon le prénom finirait par s'afficher
   à l'accueil et pas sur le listing papier.
+- **La CASSE d'un nom affiché est désignée, et rien n'est réécrit.** À une
+  porte, l'œil cherche une forme avant de lire un mot : une liste où
+  « jean dupont », « JEAN DUPONT » et « Jean DUPONT » se succèdent selon
+  l'humeur de chaque répondant se parcourt mal. `attendance.nameCase` dit, pour
+  chaque question qui nomme, si elle s'affiche en MAJUSCULES, en initiale
+  majuscule, ou telle quelle. Trois décisions tiennent ensemble. La casse est
+  DÉSIGNÉE, parce que la plateforme ne sait pas laquelle des questions porte le
+  nom de famille — le deviner d'après l'intitulé serait la même faute que
+  deviner la question de présence. Elle est rangée par QUESTION et non par rang
+  dans `identityFields` : changer l'ordre de lecture (« Dupont Marie » plutôt
+  que « Marie Dupont ») ne doit pas faire passer le prénom en capitales, et une
+  question qui nomme à la fois l'invité et son accompagnant ne se règle pas
+  deux fois. Et c'est le TYPE qui décide si une casse s'applique, comme pour
+  les lectures d'effectif : une adresse électronique désignée comme nom —
+  l'écran le propose — deviendrait « Jean.dupont@exemple.fr » en initiale
+  majuscule, c'est-à-dire fausse à l'œil. Sans désignation, une saisie libre
+  prend l'initiale majuscule : la liste est uniforme dès la première soirée,
+  au prix assumé et DIT à l'écran qu'un sigle (« SNCF ») ressort « Sncf ».
+  Enfin, c'est un AFFICHAGE : `data` n'est jamais réécrite — `submitted_at`
+  date l'acte du répondant et `consent_text` prouve ce qui lui a été montré —
+  et l'export garde la saisie telle quelle, puisqu'il sert de pièce et nourrit
+  des traitements en aval. Une seule composition pour l'écran, le papier, la
+  rangée de l'accompagnant et le titre de l'écran de correction
+  (`composeName`) : elle était déjà recopiée à deux endroits, qui ont divergé
+  au premier réglage ajouté ici.
 - **Les invités se suppriment par SÉLECTION, jamais rangée par rangée.**
   Demande du client. Toutes les cases portent le même nom (`responseId`), le
   navigateur envoie la sélection entière et `getAll` la relit : l'écran continue
@@ -1837,7 +1862,17 @@ npm run build       # build de production
       l'ajout d'un invité devient un écran plein et opaque qui bloque le
       défilement. Défaut vu sur iPhone, invisible en jsdom comme sur un
       navigateur de bureau. Aucune migration. 2103 tests.
-- [x] Module « Accueil », lot 9 ter — la porte qui dit non (18 novembre
+- [x] Module « Accueil », lot 9 ter — la casse des noms (18 novembre 2026) :
+      `attendance.nameCase`, module pur `src/lib/survey/name-case.ts` et une
+      composition unique (`composeName`) partagée par la liste d'accueil, le
+      listing papier, la rangée de l'accompagnant et le titre de l'écran de
+      correction — elle était recopiée dans ce dernier. Aucune migration : le
+      réglage vit dans le `jsonb`, et aucune réponse n'est réécrite. 2149
+      tests, dont 19 sur le module pur et 8 qui prouvent que la LISTE appelle
+      bien la fonction : la suite entière est restée verte à l'ajout du
+      réglage, ce qui ne prouvait rien tant qu'aucun test n'exerçait le
+      branchement.
+- [x] Module « Accueil », lot 9 quater — la porte qui dit non (18 novembre
       2026) : la série née du premier envoi d'accès à une personne extérieure.
       **Le middleware n'avait jamais tourné** — fichier à la racine alors que
       l'application vit dans `src/` — ce que seule une vérification dans un
@@ -1848,7 +1883,7 @@ npm run build       # build de production
       le code. **Le `layout` d'accueil ne garde plus la porte** : sa
       redirection aveugle écrasait celles de ses pages, au hasard des
       latences. **Un lien de poste ramène au poste visé** après connexion.
-      Aucune migration. 2135 tests, dont 3 sur l'écran de refus et 2 sur le
+      Aucune migration. 2164 tests, dont 3 sur l'écran de refus et 2 sur le
       placement du middleware.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
