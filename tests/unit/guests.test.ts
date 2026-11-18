@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { touchedResponses, type CheckinState } from '@/lib/checkin/reducer';
 import {
   answerText,
+  deskRows,
   guestList,
   initialsOf,
   normaliseSearch,
@@ -289,5 +291,106 @@ describe('nom composé sur plusieurs questions', () => {
     // Même règle que partout : muet plutôt que faux.
     const orphan: AttendanceSettings = { ...SETTINGS, identityFields: ['nom', 'disparue'] };
     expect(nameFor(orphan, { nom: 'Dupont' })).toBe('Dupont');
+  });
+});
+
+/**
+ * Ce que la PORTE a à connaître.
+ *
+ * Le pointage ne concerne que les gens qui viennent : une personne qui a
+ * annoncé ne pas venir n'a rien à faire dans une liste qu'on parcourt debout,
+ * d'une main, entre deux invités réels.
+ *
+ * Le piège est à l'autre bout, et c'est lui que ces tests gardent : le filtre
+ * doit RETIRER les refus, surtout pas « ne garder que les présents annoncés ».
+ * Un invité ajouté à l'entrée n'a pas répondu à la question de présence — son
+ * statut est « sans réponse » — et le garder dehors ferait disparaître de
+ * l'écran la personne qu'on vient tout juste d'y inscrire.
+ */
+describe('rangées du poste', () => {
+  const responses = [
+    response('1', { presence: 'oui', nom: 'Camille Arnoult' }),
+    response('2', { presence: 'non', nom: 'Karim Zebiri' }),
+    response('3', { nom: 'Thomas Reverdy' }),
+    response('4', { presence: 'oui', nom: 'Sofia Nunes' }),
+  ];
+
+  it('retire ceux qui ont annoncé ne pas venir', () => {
+    const rows = deskRows(guestList(schema, SETTINGS, responses).rows);
+    expect(rows.map((row) => row.name)).not.toContain('Karim Zebiri');
+  });
+
+  it('GARDE une rangée sans réponse : c’est celle d’un ajout à l’entrée', () => {
+    const rows = deskRows(guestList(schema, SETTINGS, responses).rows);
+    expect(rows.map((row) => row.name)).toContain('Thomas Reverdy');
+    expect(rows.map((row) => row.id)).toEqual(['1', '3', '4']);
+  });
+
+  it('ne touche ni à l’ordre ni au contenu des rangées conservées', () => {
+    const list = guestList(schema, SETTINGS, responses);
+    const rows = deskRows(list.rows);
+    expect(rows[0]).toBe(list.rows[0]);
+    expect(rows).toHaveLength(3);
+  });
+
+  it('rend une liste vide plutôt que tout, quand personne ne vient', () => {
+    const refus = [response('9', { presence: 'non', nom: 'Karim Zebiri' })];
+    expect(deskRows(guestList(schema, SETTINGS, refus).rows)).toHaveLength(0);
+  });
+
+  /*
+   * L'exception, et c'est elle qui compte le soir même : quelqu'un décline,
+   * vient quand même, une hôtesse le pointe. Le retirer au rafraîchissement
+   * suivant l'effacerait de l'écran ET du compteur de salle, pendant que le
+   * rapport continuerait de le compter.
+   */
+  it('GARDE une rangée déclinée que la porte a déjà touchée', () => {
+    const rows = deskRows(guestList(schema, SETTINGS, responses).rows, new Set(['2']));
+    expect(rows.map((row) => row.id)).toEqual(['1', '2', '3', '4']);
+  });
+
+  it('ne garde pas les autres refus pour autant', () => {
+    const avec = [...responses, response('5', { presence: 'non', nom: 'Léa Fabre' })];
+    const rows = deskRows(guestList(schema, SETTINGS, avec).rows, new Set(['2']));
+    expect(rows.map((row) => row.name)).not.toContain('Léa Fabre');
+  });
+});
+
+/**
+ * Ce qui compte comme « touché par la porte ».
+ *
+ * Une ligne d'état existe dès qu'un geste a eu lieu, et elle SURVIT au
+ * dé-pointage — `set_checkin` repasse `arrived_at` à nul sans supprimer la
+ * ligne. Lire la présence de la ligne plutôt que son contenu garderait donc à
+ * l'écran quelqu'un dont on vient justement de dire qu'il n'est pas là.
+ */
+describe('inscriptions déjà touchées par la porte', () => {
+  const state = (partial: Partial<CheckinState> & { responseId: string }): CheckinState => ({
+    seat: 0,
+    arrivedAt: null,
+    giftAt: null,
+    version: 1,
+    updatedAt: '2026-11-18T19:00:00.000Z',
+    ...partial,
+  });
+
+  it('retient une arrivée, et un cadeau même sans arrivée', () => {
+    const touched = touchedResponses([
+      state({ responseId: 'r1', arrivedAt: '2026-11-18T19:05:00.000Z' }),
+      state({ responseId: 'r2', giftAt: '2026-11-18T23:40:00.000Z' }),
+    ]);
+    expect([...touched].sort()).toEqual(['r1', 'r2']);
+  });
+
+  it('ne retient PAS une ligne laissée par un dé-pointage', () => {
+    expect(touchedResponses([state({ responseId: 'r3' })]).has('r3')).toBe(false);
+  });
+
+  it('suffit qu’UN siège porte le geste : la rangée est celle de l’inscription', () => {
+    const touched = touchedResponses([
+      state({ responseId: 'r4', seat: 0 }),
+      state({ responseId: 'r4', seat: 1, arrivedAt: '2026-11-18T19:10:00.000Z' }),
+    ]);
+    expect(touched.has('r4')).toBe(true);
   });
 });

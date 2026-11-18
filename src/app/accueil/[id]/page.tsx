@@ -2,9 +2,10 @@ import { notFound } from 'next/navigation';
 import { Desk } from '@/components/checkin/Desk';
 import { resolveRequestContext } from '@/lib/data/context';
 import { deskBrand, loadDesk, touchStaff } from '@/lib/services/checkin';
-import { guestList } from '@/lib/survey/guests';
+import { deskRows, guestList } from '@/lib/survey/guests';
 import { isAttendanceConfigured } from '@/lib/survey/attendance';
 import { parseDeskMode } from '@/lib/checkin/mode';
+import { touchedResponses } from '@/lib/checkin/reducer';
 import { walkinFields } from '@/lib/checkin/walkin';
 
 /**
@@ -48,7 +49,11 @@ export default async function CheckinDeskPage({
   await touchStaff(context, id);
 
   const { survey, schema, attendance, responses, states } = desk.value;
+  // Les personnes ayant décliné sont retirées de la PORTE, pas de la base —
+  // sauf si la porte a déjà enregistré quelque chose sur elles, auquel cas
+  // les retirer effacerait de l'écran une personne qui est dans la salle.
   const list = guestList(schema, attendance, responses);
+  const guests = deskRows(list.rows, touchedResponses(states));
 
   // La marque de l'organisation sur le poste : une hôtesse engagée pour une
   // soirée tient parfois deux événements dans la semaine, et l'écran doit
@@ -59,7 +64,7 @@ export default async function CheckinDeskPage({
   return (
     <Desk
       counting={isAttendanceConfigured(attendance)}
-      guests={list.rows}
+      guests={guests}
       initialMode={parseDeskMode(query['mode'])}
       initialStates={states}
       logoUrl={brand?.logoUrl ?? null}

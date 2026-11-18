@@ -843,6 +843,28 @@ changer.
   couleur ne fait que le redire, pour qui parcourt deux cents rangées des
   yeux. Même règle que les graphiques, et un anneau renforce la différence
   pour qui ne sépare pas les deux teintes.
+- **Un refus annoncé n'est pas à la porte.** `deskRows` retire du poste — et
+  du listing papier, qui doit dire la même chose que l'écran — les personnes
+  ayant déclaré ne pas venir : elles ajoutaient des dizaines de rangées à
+  faire défiler, debout, entre deux invités réels. Elles restent dans les
+  réponses, les statistiques et l'export, où ce refus est une information. Le
+  filtre porte sur `declined` et NON sur « garder `attending` » : un invité
+  ajouté à l'entrée n'a pas répondu à la question de présence, et ne garder
+  que les présents annoncés ferait disparaître de l'écran la personne qu'on
+  vient d'y inscrire, sous les yeux de qui l'a inscrite. **Exception non
+  négociable : une rangée que la porte a DÉJÀ touchée reste affichée**
+  (`touchedResponses` : une arrivée ou un cadeau, sur n'importe quel siège).
+  Le cas est réel — quelqu'un décline, vient quand même, une hôtesse le
+  pointe ; sans cette exception il disparaîtrait au rafraîchissement suivant,
+  de l'écran comme du compteur de salle, pendant que le rapport continuerait
+  de le compter. C'est le raisonnement du cadeau déjà remis à quelqu'un que
+  la porte avait oublié : on ne retire jamais de l'écran un geste qui a eu
+  lieu. Une ligne d'état sans aucun fait ne compte pas — `set_checkin` en
+  laisse une derrière chaque dé-pointage, et la lire comme une présence
+  garderait quelqu'un dont on vient de dire qu'il n'est pas là. Conséquence
+  assumée : celui qui avait décliné et se présente sans avoir jamais été
+  pointé s'ajoute par le (+), et le rapport le comptera « venu sans l'avoir
+  annoncé » — ce qu'il est.
 - **La liste d'accueil est classée A → Z par défaut, et l'ordre se change.**
   Elle arrivait dans l'ordre reçu, ce qui obligeait à parcourir deux cents
   rangées à l'œil : à une porte on cherche un NOM, et l'ordre d'inscription

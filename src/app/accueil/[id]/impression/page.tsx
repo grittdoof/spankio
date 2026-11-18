@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation';
 import { resolveRequestContext } from '@/lib/data/context';
 import { deskBrand, loadDesk } from '@/lib/services/checkin';
-import { guestList } from '@/lib/survey/guests';
+import { deskRows, guestList } from '@/lib/survey/guests';
 import { ATTENDANCE_STATUS_LABELS, isAttendanceConfigured } from '@/lib/survey/attendance';
 import { parsePrintSort, printList } from '@/lib/checkin/print';
+import { touchedResponses } from '@/lib/checkin/reducer';
 import { eventWhen } from '@/lib/event/display';
 
 /**
@@ -47,14 +48,23 @@ export default async function CheckinPrintPage({
   const desk = await loadDesk(context, id);
   if (!desk.ok) notFound();
 
-  const { survey, schema, attendance, responses } = desk.value;
+  const { survey, schema, attendance, responses, states } = desk.value;
   const counting = isAttendanceConfigured(attendance);
   const list = guestList(schema, attendance, responses);
   const brand = await deskBrand(context, survey.organisation_id);
 
   const raw = query['tri'];
   const sortBy = parsePrintSort(typeof raw === 'string' ? raw : undefined, schema, attendance);
-  const printed = printList(schema, attendance, list.rows, responses, sortBy);
+  // Le papier dit la même chose que l'écran : ceux qui ont décliné n'y sont
+  // pas davantage. Une liste de secours qui ne correspondrait pas au poste
+  // serait pire que pas de liste du tout.
+  const printed = printList(
+    schema,
+    attendance,
+    deskRows(list.rows, touchedResponses(states)),
+    responses,
+    sortBy,
+  );
 
   // Mise en forme dans le fuseau DE L'ÉVÉNEMENT, par la même fonction que la
   // page publique et le courriel : trois compositions auraient divergé.
