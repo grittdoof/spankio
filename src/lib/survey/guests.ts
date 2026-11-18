@@ -8,6 +8,7 @@ import {
   type AttendanceStatus,
 } from './attendance';
 import { answerText } from './answer-text';
+import { composeName } from './name-case';
 import { otherKey, type SurveySchema } from './schema';
 
 /**
@@ -193,17 +194,13 @@ export function guestList(
       continue;
     }
 
-    // Les réponses vides sont SAUTÉES, pas rendues par un blanc : un invité
-    // qui n'a pas donné son prénom doit s'appeler « Dupont », jamais « Dupont ».
-    const parts = identityFields
-      .map((field) => answerText(field, response.data))
-      .filter((part): part is string => part !== null && part !== '');
-    const name = parts.length > 0 ? parts.join(' ') : null;
-
-    const companionParts = companionFields
-      .map((field) => answerText(field, response.data))
-      .filter((part): part is string => part !== null && part !== '');
-    const companion = companionParts.length > 0 ? companionParts.join(' ') : null;
+    // Une seule composition pour toute l'application (`composeName`) : elle
+    // saute les réponses vides — un invité qui n'a pas donné son prénom
+    // s'appelle « Dupont », jamais « Dupont » — et applique la casse DÉSIGNÉE
+    // de chaque question, pour qu'une porte lise une liste uniforme quelle que
+    // soit la façon dont chacun a rempli le formulaire.
+    const name = composeName(identityFields, response.data, settings);
+    const companion = composeName(companionFields, response.data, settings);
     rows.push({
       id: response.id,
       submittedAt: response.submitted_at,

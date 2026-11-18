@@ -25,6 +25,15 @@ import {
  * est signalée comme telle et sortie du total, jamais arbitrée en silence.
  */
 
+/**
+ * Casse d'affichage d'une question qui nomme. Déclarée à part pour que le
+ * type exporté et le schéma ne puissent pas diverger.
+ */
+const nameCaseSchema = z.enum(['upper', 'capital', 'raw']);
+
+/** Casse d'affichage retenue pour une question qui nomme. */
+export type NameCase = z.infer<typeof nameCaseSchema>;
+
 export const attendanceSettingsSchema = z.object({
   /** Question dont la réponse dit si la personne vient. */
   presenceField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
@@ -104,6 +113,28 @@ export const attendanceSettingsSchema = z.object({
     .array(z.string().trim().max(MAX_LENGTHS.identifier))
     .max(3)
     .optional(),
+  /**
+   * Casse d'affichage de chaque question qui NOMME, par identifiant de
+   * question : `upper` pour un nom de famille, `capital` pour un prénom,
+   * `raw` pour n'y pas toucher.
+   *
+   * Une liste d'accueil où l'on lit « jean dupont », « JEAN DUPONT » et
+   * « Jean DUPONT » selon l'humeur de chaque répondant se parcourt mal : à une
+   * porte, l'œil cherche une forme. La casse est DÉSIGNÉE parce que la
+   * plateforme ne sait pas laquelle des questions porte le nom de famille —
+   * le deviner d'après l'intitulé serait la même faute que deviner la question
+   * de présence.
+   *
+   * Rangée par QUESTION et non par rang dans `identityFields` : changer
+   * l'ordre d'affichage (« Dupont Marie » plutôt que « Marie Dupont ») ne doit
+   * pas faire passer le prénom en capitales, et une question qui nomme à la
+   * fois l'invité et l'accompagnant n'a pas à être réglée deux fois.
+   *
+   * Absente, une question à saisie libre prend `capital` : la liste est alors
+   * uniforme sans réglage, ce qui est le besoin. Toute la lecture est dans
+   * `src/lib/survey/name-case.ts`, et rien n'est jamais réécrit en base.
+   */
+  nameCase: z.record(z.string().max(MAX_LENGTHS.identifier), nameCaseSchema).optional(),
   /** Seconde question affichée sous le nom dans la liste (société, e-mail…). */
   detailField: z.string().trim().max(MAX_LENGTHS.identifier).optional(),
 });
