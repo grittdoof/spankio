@@ -8,6 +8,7 @@ import {
   isStaffLabelShape,
   mayManageStaffAccount,
   resolveSignInIdentifier,
+  signInLabel,
   slugifyLabel,
   staffIdentifier,
   staffIdentifierHost,
@@ -298,5 +299,31 @@ describe('mayManageStaffAccount', () => {
   it('refuse un compte sans adresse', () => {
     // Fail-closed : on ne peut pas prouver qu'il est fabriqué, donc non.
     expect(mayManageStaffAccount({ ...fabricated, email: null }, ORG, HOST).ok).toBe(false);
+  });
+});
+
+describe('nommer le compte connecté', () => {
+  const HOST = 'accueil.spankio.example';
+
+  /*
+   * L'écran de refus du poste dit « vous êtes connecté avec X ». C'est son
+   * seul contenu utile, et il doit dire ce qu'on TAPE : quelqu'un à qui l'on a
+   * dicté « veronique » et qui lirait l'adresse complète croirait qu'il s'agit
+   * d'un autre compte — l'inverse exact de ce que cet écran lève.
+   */
+  it('raccourcit un identifiant fabriqué', () => {
+    expect(signInLabel(`veronique@${HOST}`, HOST)).toBe('veronique');
+    expect(signInLabel(`test3.hm3g@${HOST}`, HOST)).toBe('test3.hm3g');
+  });
+
+  it('laisse entière une vraie adresse', () => {
+    // Elle n'a pas été fabriquée : la raccourcir donnerait un identifiant qui
+    // n'ouvre rien.
+    expect(signInLabel('marie@exemple.fr', HOST)).toBe('marie@exemple.fr');
+  });
+
+  it('ne rend rien plutôt qu’un vide', () => {
+    expect(signInLabel(null, HOST)).toBeNull();
+    expect(signInLabel('   ', HOST)).toBeNull();
   });
 });

@@ -991,6 +991,48 @@ changer.
   besoin était formulé en vert et rouge : tel quel, c'est inutilisable pour une
   partie des gens et muet pour un lecteur d'écran. Même règle que « un
   graphique est un renfort ». Et UNE seule zone d'annonce pour tout l'écran.
+- **Le middleware vit dans `src/`, et un test fige son emplacement.** Avec un
+  répertoire `src/`, Next ne lit QUE `src/middleware.ts` : le fichier a vécu
+  des mois à la racine du dépôt, donc jamais exécuté — ni barrière d'accès, ni
+  rafraîchissement de session. Rien ne le signalait, et c'est ce qui rend le
+  défaut si durable : il compilait, se typait, passait ESLint, et les espaces
+  protégés PARAISSAIENT gardés parce que chaque `layout` redirige de son côté.
+  Aucun test de comportement ne pouvait l'attraper — ils importent la fonction
+  et l'appellent, ce qui marche depuis n'importe quel chemin. **Quatrième fois
+  sous une autre forme** : ce qui est écrit dans le dépôt n'est pas ce qui
+  tourne. Corollaire assumé au rebranchement : le `matcher` nomme désormais les
+  chemins un par un au lieu de « tout sauf le statique » — le rebrancher tel
+  quel aurait ajouté d'un coup un appel au serveur d'authentification sur
+  CHAQUE page publique, pour des visiteurs qui n'ont aucun cookie à
+  rafraîchir.
+- **Un `layout` ne garde pas une porte dont il ignore le chemin.** Celui de
+  `/accueil` redirigeait vers `/connexion` sans rien savoir de la page
+  demandée. Or layout et page sont rendus de FRONT : sa redirection aveugle
+  écrasait, au hasard des latences, celle que la page compose avec sa
+  destination — un lien d'invitation y perdait son jeton — et, dans l'autre
+  sens, le `notFound()` de la page pouvait la devancer. La fermeture est donc
+  au middleware, qui connaît le chemin, et chaque page garde son propre seuil.
+- **Le poste ne répond plus `404` à quelqu'un qui est connecté.** Défaut réel,
+  signalé au premier usage réel du module, et le plus coûteux à comprendre :
+  une hôtesse portait sur son téléphone la session d'un compte créé pour un
+  AUTRE événement. En ouvrant le lien de sa soirée, le RLS masquait le sondage,
+  la page appelait `notFound()`, et elle lisait « 404 » — sans aucun moyen de
+  savoir qu'il suffisait de se déconnecter. Le même lien marchait en navigation
+  privée et sur son autre navigateur, ce qui désignait l'application plutôt que
+  le compte. La règle « une ressource que le RLS masque renvoie 404 » vaut pour
+  les ROUTES API, où l'appelant est un programme ; ici l'appelante est debout à
+  une porte. `DeskDenied` dit donc exactement ce que disait le code — RIEN de
+  l'événement, pas même son existence, le même texte que l'affectation manque,
+  qu'elle ait expiré ou que l'adresse ne désigne rien — en y ajoutant la seule
+  information qui manquait : AVEC QUEL COMPTE on est connecté, écrit comme on
+  le tape (`signInLabel`), et la sortie.
+- **La destination après connexion couvre aussi le poste d'un événement.** Un
+  lien de poste suivi sans session menait, après connexion, au poste de la
+  PREMIÈRE affectation — pas à celui du lien. `safeAfterSignIn` accepte donc
+  une seconde forme, `/accueil/<identifiant>`, bornée exactement comme la
+  première : liste fermée, valeur RECONSTRUITE après validation, jamais une
+  URL « qui a l'air interne ». C'est le middleware qui la compose, puisque
+  c'est lui qui connaît le chemin refusé.
 - **Un compte d'accueil n'atteint pas `/admin`.** `isCheckinOnly` l'envoie à
   son poste : il n'y verrait qu'un espace vide, puisque
   `app.is_active_member()` est déjà fausse pour lui. La barrière reste le RLS ;
@@ -1553,6 +1595,7 @@ figure, avec sa raison et sa condition de lever.
 | R14 | ~~**`zod` reste en 3.25.76**~~ — **levé**. L'avis GHSA-mrhx-c7xc-m3w5 (épuisement mémoire sur une collection contrainte surdimensionnée) couvre toute la branche 3 et n'a pas de correctif en 3.x : la seule issue était la 4. Les trois points de rupture annoncés ont été vérifiés un par un, en rejouant **269 formes d'entrée à travers les deux moteurs** plutôt qu'en relisant les tests : les 1632 tests passaient sans une ligne modifiée, ce qui ne prouvait rien, puisqu'aucun n'interrogeait un point de rupture. Quatre divergences portent un verdict, **toutes dans le sens du resserrement** — aucune entrée refusée par zod 3 n'est acceptée par zod 4. | — | Levé le 28 octobre 2026. |
 | R15 | **Pas de *service worker*.** Le module d'accueil est installable (manifeste, icônes, plein écran, `scope` limité à `/accueil`), mais sans service worker : la coquille ne se charge donc pas hors ligne, et l'install sur Android peut être refusée par Chrome, qui l'exige encore. « Ajouter à l'écran d'accueil » fonctionne sur iOS avec le seul manifeste. | Un service worker s'installe à la racine et SURVIT aux déploiements : un défaut y est global et collant, sur toute la plateforme, pages publiques comprises. Pour un bénéfice modeste — un écran « hors ligne » au lieu du dinosaure — c'est le plus mauvais rapport de la série, et la protection qui compte vraiment (la file locale) n'en a pas besoin. | Si l'install Android devient un besoin réel : un worker strictement *network-only*, à portée `/accueil/`, sans aucune mise en cache de donnée d'invité. |
 | R16 | **Le `service role` dans un chemin déclenché par un administrateur de tenant**, pour créer les comptes de pointage. C'est l'exception la plus lourde de la base de code, et elle contredit la décision du lot 4b, qui avait conçu l'invitation pour l'éviter. Bornée en TypeScript faute de moteur : rôle `host` imposé, organisation lue du profil de l'appelant, reprise en main d'un compte refusée hors des comptes fabriqués, audit systématique — tout cela dans `src/lib/services/checkin-accounts.ts`, le seul fichier à relire pour juger le risque. Les mots de passe ne sont jamais stockés ni relus. | Créer un utilisateur n'existe QUE dans l'API d'administration de Supabase : il n'y a aucun chemin sous RLS, donc aucune alternative. Demande explicite du client, qui a pesé le risque pour un événement d'un soir : faire créer un compte depuis un téléphone, à des hôtesses engagées à la journée, ne se fait pas. | Si la plateforme est revendue à un client dont la politique interdit la création de comptes par un tenant : retirer l'écran, les invitations du lot 4b couvrent alors le besoin, au prix d'une inscription par la personne elle-même. |
+| R17 | **L'audit de dépendances ne porte plus que sur la PRODUCTION** (`npm audit --audit-level=high --omit=dev`). Une faille dans la chaîne de BUILD n'est donc plus bloquante — et c'est un vecteur réel, pas théorique : R7 a précisément traité `postcss` au nom du build. Portée exacte du trou : les 19 dépendances de développement et leur arbre (vitest, vite, eslint, typescript). Ce qui RESTE couvert : les 7 dépendances d'exécution et tout ce qu'elles tirent — dont `postcss`, qui vient de `next` et non des outils, si bien que l'override de R7 est toujours exercé par la CI. | GHSA-fc5q-39xc-vjpf (picomatch, « high », ReDoS) est publié SANS aucune version corrigée — vulnérable `<= 4.0.7` quand 4.0.7 est la dernière publiée. Aucun `overrides` n'a de cible saine, et `npm audit fix --force` ne proposait qu'une rétrogradation de vitest qui ne corrigeait rien et cassait la suite de tests. La CI de `main` était rouge sans rien à y faire, et un garde-fou toujours rouge cesse d'être lu. **Décision du client du 18 novembre 2026, prise contre l'avis donné**, qui recommandait une exception nommée et datée pour ce seul avis plutôt qu'un élargissement permanent. | Dès qu'un `picomatch` corrigé est publié : revenir à `npm audit --audit-level=high` sur l'arbre entier, et traiter les avis d'outils comme R6, R7 et R14 — un par un, avec leur raison. À relire aussi avant toute revente à un client qui exige une analyse de chaîne d'approvisionnement : l'audit ne dit alors plus rien de l'outillage. |
 
 ## 7. Commandes
 
@@ -1829,6 +1872,19 @@ npm run build       # build de production
       bien la fonction : la suite entière est restée verte à l'ajout du
       réglage, ce qui ne prouvait rien tant qu'aucun test n'exerçait le
       branchement.
+- [x] Module « Accueil », lot 9 quater — la porte qui dit non (18 novembre
+      2026) : la série née du premier envoi d'accès à une personne extérieure.
+      **Le middleware n'avait jamais tourné** — fichier à la racine alors que
+      l'application vit dans `src/` — ce que seule une vérification dans un
+      navigateur a montré, et qu'un test de placement fige désormais. **Le
+      poste répondait `404` à une hôtesse connectée** avec le compte d'un
+      autre événement : c'est maintenant un écran qui nomme le compte et
+      propose la sortie, sans rien dire de plus de l'événement que n'en disait
+      le code. **Le `layout` d'accueil ne garde plus la porte** : sa
+      redirection aveugle écrasait celles de ses pages, au hasard des
+      latences. **Un lien de poste ramène au poste visé** après connexion.
+      Aucune migration. 2164 tests, dont 3 sur l'écran de refus et 2 sur le
+      placement du middleware.
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

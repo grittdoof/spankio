@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { redirect } from 'next/navigation';
-import { resolveRequestContext } from '@/lib/data/context';
 import { signOut } from '@/app/(auth)/actions';
 import { fr } from '@/lib/i18n/fr';
 
@@ -14,7 +12,17 @@ import { fr } from '@/lib/i18n/fr';
  * celle qui manque à la liste.
  *
  * La barrière reste le RLS : un compte d'accueil ne voit les invités que des
- * événements où il est affecté. La redirection n'évite qu'un écran vide.
+ * événements où il est affecté.
+ *
+ * **Ce layout ne garde plus la porte, et c'est un correctif.** Il redirigeait
+ * vers `/connexion` dès qu'il n'y avait pas de session — sans rien savoir de
+ * la page demandée. Or layout et page sont rendus de FRONT : sa redirection
+ * aveugle écrasait, au hasard des latences, celle que la page compose avec sa
+ * destination. Un lien d'invitation y perdait son jeton ; et dans l'autre
+ * sens, le `notFound()` du poste pouvait devancer ce départ et afficher
+ * « 404 » à quelqu'un qui n'avait qu'à se connecter — défaut réel, signalé au
+ * premier usage. La fermeture est donc remontée au middleware, qui connaît le
+ * chemin, et chaque page garde son propre seuil.
  */
 
 export const dynamic = 'force-dynamic';
@@ -49,10 +57,7 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
 };
 
-export default async function CheckinLayout({ children }: { children: React.ReactNode }) {
-  const context = await resolveRequestContext();
-  if (!context.userId) redirect('/connexion');
-
+export default function CheckinLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="sp-deskshell">
       <header className="sp-deskshell__bar">
