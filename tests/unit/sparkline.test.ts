@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sparkline } from '@/lib/design/sparkline';
+import { sparkline, TICK_ANGLE } from '@/lib/design/sparkline';
 
 /**
  * Géométrie d'une courbe.
@@ -63,5 +63,93 @@ describe('chemins', () => {
       ['p0', 3],
       ['p1', 5],
     ]);
+  });
+});
+
+/**
+ * Les étiquettes d'axe.
+ *
+ * Défaut réel : les seize tranches d'une soirée écrivaient leurs seize
+ * horaires sous une courbe large de 300 unités — « 18:4018:5019:00 ». La
+ * réponse est l'INCLINAISON d'abord, le silence ensuite : deux étiquettes
+ * penchées sont parallèles, donc leur longueur ne les fait plus se rencontrer.
+ */
+
+/** Les seize tranches de dix minutes d'une vraie soirée. */
+const SOIREE = Array.from({ length: 16 }, (_, index) => {
+  const minutes = 18 * 60 + 40 + index * 10;
+  const label = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(
+    minutes % 60,
+  ).padStart(2, '0')}`;
+  return { count: index, label };
+});
+
+describe('étiquettes d’axe', () => {
+  it('les écrit toutes quand la place ne manque pas', () => {
+    const chart = sparkline(series([1, 2, 3]));
+    expect(chart.points.map((point) => point.tick)).toEqual(['p0', 'p1', 'p2']);
+  });
+
+  it('écrit les SEIZE horaires d’une soirée dès qu’elles sont penchées', () => {
+    // C'est le cas qui a motivé l'inclinaison : à plat, une heure sur deux
+    // disparaissait alors que l'affluence se lit tranche par tranche.
+    const chart = sparkline(SOIREE, { tickAngle: TICK_ANGLE });
+    expect(chart.points.filter((point) => point.tick !== null)).toHaveLength(16);
+  });
+
+  it('à plat, la même série en perdrait la moitié', () => {
+    const chart = sparkline(SOIREE);
+    expect(chart.points.filter((point) => point.tick !== null).length).toBeLessThan(16);
+  });
+
+  it('garde toujours la PREMIÈRE : un repère sans origine ne sert à rien', () => {
+    for (const length of [2, 7, 16, 31, 60]) {
+      const chart = sparkline(series(Array.from({ length }, () => 1)), {
+        tickAngle: TICK_ANGLE,
+      });
+      expect(chart.points[0]!.tick).not.toBeNull();
+    }
+  });
+
+  it('ne tait JAMAIS une valeur : seul l’axe se raréfie', () => {
+    const chart = sparkline(SOIREE, { tickAngle: TICK_ANGLE, width: 60 });
+    expect(chart.points.map((point) => point.value)).toEqual(SOIREE.map((s) => s.count));
+    expect(chart.points.map((point) => point.label)).toEqual(SOIREE.map((s) => s.label));
+  });
+
+  /*
+   * La propriété qui compte, vérifiée sur toutes les tailles de série plutôt
+   * que sur un cas : deux étiquettes retenues sont séparées d'au moins une
+   * hauteur de ligne, mesurée PERPENDICULAIREMENT à leur inclinaison. C'est
+   * la seule formulation qui vaille aussi bien à plat que penchée.
+   */
+  it('laisse toujours une hauteur de ligne entre deux étiquettes retenues', () => {
+    const LINE_HEIGHT = 9;
+    for (const length of [2, 5, 16, 30, 48, 90]) {
+      for (const angle of [0, TICK_ANGLE]) {
+        const entries = Array.from({ length }, (_, index) => ({
+          count: index,
+          label: `${String(index).padStart(2, '0')}:00`,
+        }));
+        const chart = sparkline(entries, { tickAngle: angle });
+        const kept = chart.points.filter((point) => point.tick !== null);
+        for (let index = 1; index < kept.length; index += 1) {
+          const gap = kept[index]!.x - kept[index - 1]!.x;
+          const clearance =
+            angle === 0 ? gap : gap * Math.sin((angle * Math.PI) / 180);
+          const needed = angle === 0 ? '00:00'.length * 5.4 : LINE_HEIGHT;
+          expect(clearance).toBeGreaterThanOrEqual(needed);
+        }
+      }
+    }
+  });
+
+  it('rend l’inclinaison retenue, et la borne', () => {
+    // Le composant l'applique telle quelle : deux angles, l'un calculé ici et
+    // l'autre écrit dans le JSX, finiraient par diverger.
+    expect(sparkline(series([1, 2]), { tickAngle: TICK_ANGLE }).tickAngle).toBe(TICK_ANGLE);
+    expect(sparkline(series([1, 2]), { tickAngle: -10 }).tickAngle).toBe(0);
+    expect(sparkline(series([1, 2]), { tickAngle: 400 }).tickAngle).toBe(90);
+    expect(sparkline([], { tickAngle: TICK_ANGLE }).tickAngle).toBe(TICK_ANGLE);
   });
 });

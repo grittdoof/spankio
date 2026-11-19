@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { sparkline } from '@/lib/design/sparkline';
+import { SparkChart } from '@/components/ui/SparkChart';
+import { sparkline, TICK_ANGLE } from '@/lib/design/sparkline';
 import type { ArrivalReport } from '@/lib/checkin/report';
 
 /**
@@ -31,6 +32,19 @@ export interface ArrivalsPanelProps {
   /** Le comptage est-il désigné ? Sans lui, pas d'effectif annoncé. */
   counting: boolean;
   preparationHref: string;
+  /**
+   * Ce que l'on emporte après la soirée : la LISTE des personnes d'un côté,
+   * la SYNTHÈSE de l'autre. Deux lectures, donc deux jeux de liens — mêler
+   * « qui est venu » et « combien sont venus » dans un seul bouton obligerait
+   * à ouvrir le fichier pour savoir lequel on a téléchargé.
+   */
+  sheet: {
+    readonly xlsxHref: string;
+    readonly csvHref: string;
+    readonly printHref: string;
+    readonly summaryDocxHref: string;
+    readonly summaryPrintHref: string;
+  };
 }
 
 export function ArrivalsPanel({
@@ -38,6 +52,7 @@ export function ArrivalsPanel({
   facts,
   counting,
   preparationHref,
+  sheet,
 }: ArrivalsPanelProps) {
   if (report.arrived === 0) {
     return (
@@ -55,10 +70,61 @@ export function ArrivalsPanel({
 
   // `ArrivalSlice` porte déjà `count` et `label` : c'est exactement ce que
   // `sparkline` attend, et la géométrie reste une fonction pure testée à part.
-  const chart = sparkline(report.slices);
+  const chart = sparkline(report.slices, { tickAngle: TICK_ANGLE });
 
   return (
     <div className="sp-stack">
+      {/* La feuille de présence : une ligne par PERSONNE, venue ou non.
+          Elle ferme la soirée, et c'est pour cela qu'elle est ici plutôt que
+          dans l'en-tête de l'écran — l'export des réponses, lui, se tire
+          n'importe quand et vit déjà là-haut.
+
+          Trois formats pour une seule composition (`presenceRows`) : le
+          classeur pour qui va trier et filtrer, le texte pour qui reprend les
+          lignes ailleurs, la page mise en forme pour qui imprime ou enregistre
+          un PDF. Ce sont de vrais liens : l'écran fonctionne sans JavaScript,
+          et le PDF sort de la fenêtre d'impression du navigateur. */}
+      <section className="sp-card sp-stack">
+        <h2>Emporter</h2>
+
+        <div className="sp-actions-block">
+          <h3>La liste des personnes</h3>
+          <p className="sp-summary">
+            Qui est venu, qui ne l’est pas : une ligne par personne,
+            accompagnants compris, classée de A à Z. Elle contient des données
+            personnelles — ne la diffusez qu’aux destinataires annoncés dans vos
+            mentions d’information.
+          </p>
+          <div className="sp-actions">
+            <a className="sp-btn sp-btn--outline" href={sheet.xlsxHref}>
+              Classeur (XLSX)
+            </a>
+            <a className="sp-btn sp-btn--ghost" href={sheet.csvHref}>
+              Fichier CSV
+            </a>
+            <Link className="sp-btn sp-btn--ghost" href={sheet.printHref}>
+              Imprimer ou PDF
+            </Link>
+          </div>
+        </div>
+
+        <div className="sp-actions-block">
+          <h3>La synthèse</h3>
+          <p className="sp-summary">
+            Les trois encadrés de cet écran, courbe comprise, dans un document
+            qui se range ou se transmet. Des chiffres, jamais un nom.
+          </p>
+          <div className="sp-actions">
+            <Link className="sp-btn sp-btn--outline" href={sheet.summaryPrintHref}>
+              Imprimer ou PDF
+            </Link>
+            <a className="sp-btn sp-btn--ghost" href={sheet.summaryDocxHref}>
+              Document Word
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="sp-card">
         <h2>Ce qui s’est passé</h2>
 
@@ -128,34 +194,7 @@ export function ArrivalsPanel({
           )}
         </p>
 
-        {/* Décoratif : les mêmes chiffres sont énumérés juste en dessous. */}
-        <svg aria-hidden="true" className="sp-spark" viewBox="0 0 320 118">
-          <line className="sp-spark__rule" x1="0" x2="320" y1="8" y2="8" />
-          <line className="sp-spark__rule" x1="0" x2="320" y1="50" y2="50" />
-          <line className="sp-spark__rule" x1="0" x2="320" y1="92" y2="92" />
-          {chart.line ? (
-            <>
-              <path className="sp-spark__area" d={chart.area} />
-              <path className="sp-spark__line" d={chart.line} />
-            </>
-          ) : null}
-          {chart.points.map((point) => (
-            <g key={point.label}>
-              <circle className="sp-spark__dot" cx={point.x} cy={point.y} r="3.4" />
-              <text
-                className="sp-spark__value"
-                textAnchor="middle"
-                x={point.x}
-                y={Math.max(9, point.y - 8)}
-              >
-                {point.value === 0 ? '' : point.value}
-              </text>
-              <text className="sp-spark__tick" textAnchor="middle" x={point.x} y="112">
-                {point.label}
-              </text>
-            </g>
-          ))}
-        </svg>
+        <SparkChart chart={chart} />
 
         <dl className="sp-visually-hidden">
           {report.slices.map((slice) => (

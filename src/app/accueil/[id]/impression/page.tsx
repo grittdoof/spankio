@@ -94,6 +94,10 @@ export default async function CheckinPrintPage({
     timeZone: survey.event_timezone,
   });
 
+  // Arrivé, Nom et Précision sont toujours là ; le classement et le statut
+  // s'ajoutent selon les réglages.
+  const columns = 3 + (printed.sortColumn ? 1 : 0) + (counting ? 1 : 0);
+
   return (
     <div className="sp-print">
       <header className="sp-print__head">
@@ -136,6 +140,9 @@ export default async function CheckinPrintPage({
         quoi le rapport de la soirée sera faux.
       </p>
 
+      {/* Le pied s'étend sur toute la largeur : le nombre de colonnes dépend
+          du classement choisi et du comptage, donc il se compte ici plutôt que
+          de se deviner. */}
       <table className="sp-print__table">
         <thead>
           <tr>
@@ -164,12 +171,21 @@ export default async function CheckinPrintPage({
             </tr>
           ))}
         </tbody>
-      </table>
 
-      <p className="sp-print__foot">
-        {brand ? `${brand.name} — ` : ''}
-        {survey.title} · Imprimée le {PRINTED.format(new Date())}
-      </p>
+        {/* Le pied appartient au TABLEAU, et c'est ce qui le rend lisible :
+            un groupe de pied reste dans le flux, donc le moteur lui réserve
+            sa place avant de couper la page. Fixé en bas de la feuille, il se
+            superposait aux dernières rangées de chaque page — exactement là
+            où l'on cherche un nom. */}
+        <tfoot>
+          <tr>
+            <td className="sp-print__foot" colSpan={columns}>
+              {brand ? `${brand.name} — ` : ''}
+              {survey.title} · Imprimée le {PRINTED.format(new Date())}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
