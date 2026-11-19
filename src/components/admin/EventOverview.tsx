@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { Callout } from '@/components/ui/Callout';
 import { Donut } from '@/components/ui/Donut';
 import { statisticsUrl } from '@/lib/admin/statistics-view';
-import { sparkline } from '@/lib/design/sparkline';
+import { SparkChart } from '@/components/ui/SparkChart';
+import { sparkline, TICK_ANGLE } from '@/lib/design/sparkline';
 import type { AttendanceTotals } from '@/lib/survey/attendance';
 import type { Insight } from '@/lib/survey/insights';
 import { PACE_WINDOWS, PACE_WINDOW_LABELS, type Pace } from '@/lib/survey/pace';
@@ -326,7 +327,7 @@ function StatusCard({
 // ---------------------------------------------------------------------------
 
 function PaceCard({ pace, surveyId }: { pace: Pace; surveyId: string }) {
-  const chart = sparkline(pace.buckets);
+  const chart = sparkline(pace.buckets, { tickAngle: TICK_ANGLE });
 
   return (
     <section className="sp-card sp-stack">
@@ -354,39 +355,7 @@ function PaceCard({ pace, surveyId }: { pace: Pace; surveyId: string }) {
         {PACE_WINDOW_LABELS[pace.window]}
       </p>
 
-      {/* Le graphique est décoratif : les mêmes chiffres sont énumérés juste
-          en dessous, à destination des lecteurs d'écran. */}
-      <svg
-        aria-hidden="true"
-        className="sp-spark"
-        viewBox="0 0 320 118"
-      >
-        <line className="sp-spark__rule" x1="0" x2="320" y1="8" y2="8" />
-        <line className="sp-spark__rule" x1="0" x2="320" y1="50" y2="50" />
-        <line className="sp-spark__rule" x1="0" x2="320" y1="92" y2="92" />
-        {chart.line ? (
-          <>
-            <path className="sp-spark__area" d={chart.area} />
-            <path className="sp-spark__line" d={chart.line} />
-          </>
-        ) : null}
-        {chart.points.map((point) => (
-          <g key={point.label}>
-            <circle className="sp-spark__dot" cx={point.x} cy={point.y} r="3.4" />
-            <text
-              className="sp-spark__value"
-              textAnchor="middle"
-              x={point.x}
-              y={Math.max(9, point.y - 8)}
-            >
-              {point.value === 0 ? '' : point.value}
-            </text>
-            <text className="sp-spark__tick" textAnchor="middle" x={point.x} y="112">
-              {point.label}
-            </text>
-          </g>
-        ))}
-      </svg>
+      <SparkChart chart={chart} />
 
       <dl className="sp-visually-hidden">
         {pace.buckets.map((bucket) => (

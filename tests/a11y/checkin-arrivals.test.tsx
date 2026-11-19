@@ -37,6 +37,15 @@ const ROWS: ArrivalRow[] = [
 
 const REPORT = arrivalReport(ROWS, TZ);
 
+/** Les trois sorties de la feuille de présence : classeur, texte, papier. */
+const SHEET = {
+  xlsxHref: '/api/admin/surveys/abc/presence?format=xlsx',
+  csvHref: '/api/admin/surveys/abc/presence?format=csv',
+  printHref: '/admin/sondages/abc/presence',
+  summaryDocxHref: '/api/admin/surveys/abc/synthese?format=docx',
+  summaryPrintHref: '/admin/sondages/abc/synthese',
+};
+
 function renderPanel() {
   return render(
     <ArrivalsPanel
@@ -44,6 +53,7 @@ function renderPanel() {
       facts={arrivalFacts(REPORT, TZ)}
       preparationHref="/admin/sondages/abc/accueil"
       report={REPORT}
+      sheet={SHEET}
     />,
   );
 }
@@ -89,6 +99,28 @@ describe('vue « Arrivées »', () => {
     );
   });
 
+  it('offre les trois sorties de la feuille de présence', () => {
+    // Trois vrais liens, donc un écran qui fonctionne sans JavaScript — et le
+    // PDF sort de la fenêtre d'impression du navigateur, sans dépendance.
+    renderPanel();
+    expect(screen.getByRole('link', { name: /Classeur \(XLSX\)/ })).toHaveAttribute(
+      'href',
+      SHEET.xlsxHref,
+    );
+    expect(screen.getByRole('link', { name: /Fichier CSV/ })).toHaveAttribute(
+      'href',
+      SHEET.csvHref,
+    );
+    expect(screen.getAllByRole('link', { name: /Imprimer ou PDF/ })[0]).toHaveAttribute(
+      'href',
+      SHEET.printHref,
+    );
+    expect(screen.getByRole('link', { name: /Document Word/ })).toHaveAttribute(
+      'href',
+      SHEET.summaryDocxHref,
+    );
+  });
+
   it('propose la préparation plutôt qu’un écran vide, avant la soirée', () => {
     const vide = arrivalReport([row({ id: 'a' })], TZ);
     render(
@@ -97,6 +129,7 @@ describe('vue « Arrivées »', () => {
         facts={arrivalFacts(vide, TZ)}
         preparationHref="/admin/sondages/abc/accueil"
         report={vide}
+        sheet={SHEET}
       />,
     );
     // Cette vue est légitimement vide pendant les trois semaines qui

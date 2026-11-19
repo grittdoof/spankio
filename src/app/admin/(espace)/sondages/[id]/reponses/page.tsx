@@ -259,6 +259,18 @@ export default async function SurveyStatisticsPage({
   const exportCsvHref = `/api/admin/surveys/${survey.value.id}/export?format=csv`;
   const exportJsonHref = `/api/admin/surveys/${survey.value.id}/export?format=json`;
 
+  // La feuille de présence est une lecture À PART de l'export des réponses :
+  // une ligne par PERSONNE avec un seul mot en face, là où l'export donne une
+  // ligne par inscription avec toutes ses colonnes. Elle vit donc dans la vue
+  // « Arrivées », qui est l'écran d'après la soirée.
+  const presenceHrefs = {
+    xlsxHref: `/api/admin/surveys/${survey.value.id}/presence?format=xlsx`,
+    csvHref: `/api/admin/surveys/${survey.value.id}/presence?format=csv`,
+    printHref: `/admin/sondages/${survey.value.id}/presence`,
+    summaryDocxHref: `/api/admin/surveys/${survey.value.id}/synthese?format=docx`,
+    summaryPrintHref: `/admin/sondages/${survey.value.id}/synthese`,
+  };
+
   const when = eventWhen(survey.value.event_starts_at, timeZone, survey.value.event_all_day);
 
   return (
@@ -363,6 +375,7 @@ export default async function SurveyStatisticsPage({
                 facts={facts}
                 preparationHref={`/admin/sondages/${survey.value.id}/accueil`}
                 report={report}
+                sheet={presenceHrefs}
               />
             ) : null}
 

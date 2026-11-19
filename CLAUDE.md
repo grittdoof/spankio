@@ -1189,6 +1189,121 @@ changer.
   détachée du paquet reste identifiable. Même raisonnement que `BrandMark` pour
   la contrainte — un logo est presque toujours plus large que haut, et
   l'enfermer dans un carré le réduirait à un timbre illisible.
+- **Le pied d'une page imprimée appartient au TABLEAU, jamais à la page.**
+  Défaut réel signalé à l'usage : il était `position: fixed; bottom: 0`. Un
+  élément fixé est positionné par rapport à la ZONE DE PAGE — l'intérieur des
+  marges — et il y est redessiné sur CHAQUE feuille pendant que le tableau
+  continue de s'écouler dessous. Mesuré en imprimant 120 rangées dans un
+  navigateur réel : le pied tombait à 739,7 pt sur un format qui en compte
+  792, c'est-à-dire exactement sur la dernière rangée de chaque page — quatre
+  noms barrés sur six pages. Aucune marge ne pouvait le corriger, puisque le
+  contenu occupe toute la zone de page par définition, et réserver de la place
+  en bas de chaque page est hors de portée d'un élément hors flux. Le GROUPE
+  DE PIED (`<tfoot>`), lui, reste dans le flux : le moteur lui réserve sa
+  place avant de couper, et le navigateur le répète — la promesse d'origine
+  est donc tenue sans la superposition. `@page` fixe en outre une marge
+  physique explicite plutôt que celle du navigateur. **Leçon, et c'est encore
+  la même** : jsdom n'a ni moteur de rendu ni pagination, donc aucun des tests
+  existants ne pouvait voir ce défaut ; il s'est vu en produisant un PDF.
+- **La feuille de présence sort en trois formats, pour UNE composition.** Une
+  fois les portes fermées, ce qu'on extrait n'est pas l'export des réponses —
+  une ligne par inscription et douze colonnes, qui sert de pièce — mais la
+  liste nominative des PERSONNES avec un seul mot en face : venu, pas venu.
+  `presenceRows` (`src/lib/export/presence.ts`) la compose une fois ; le CSV
+  l'échappe, le classeur l'écrit telle quelle, la page imprimable la rend en
+  rangées. Trois compositions auraient divergé, et le papier aurait fini par
+  contredire le tableur ouvert à côté. Elle garde les REFUS, que le poste
+  retire de l'écran : on ne tient pas une porte avec des gens qui ont dit ne
+  pas venir, mais une feuille de présence est faite pour dire qui manque.
+  Seule différence entre les sorties, et elle est argumentée : le fichier
+  porte toujours la colonne du cadeau — les colonnes d'un export dépendent du
+  sondage, jamais des réponses — tandis que le papier la retire quand aucun
+  cadeau n'a été remis, une colonne vide y prenant la place d'un nom.
+- **Le PDF est une page mise en forme pour l'impression, pas une
+  bibliothèque.** `/admin/sondages/[id]/presence` vit dans le groupe de routes
+  `(impression)`, donc sans la barre latérale : une navigation masquée par une
+  règle `@media print` reste dans le document et réapparaît si la feuille de
+  style n'arrive pas — c'est la raison d'être du groupe `(parcours)`. Le
+  navigateur fait le reste, pagination, polices et accents compris. Fabriquer
+  le PDF côté serveur aurait demandé une dépendance de plus pour un résultat
+  inférieur.
+- **Les étiquettes d'un axe se PENCHENT avant de se taire.** Défaut réel
+  signalé à l'écran : les seize tranches d'une soirée écrivaient leurs seize
+  horaires sous une courbe large de 300 unités, soit moins de 19 par étiquette
+  là où « 18:40 » en demande vingt-cinq — « 18:4018:5019:00 », illisible au
+  moment précis où l'on vient lire l'affluence. Deux étiquettes inclinées sont
+  PARALLÈLES : leur longueur ne les fait plus se rencontrer, seule leur hauteur
+  de ligne compte, et les seize horaires tiennent. L'espacement
+  (`tick === null`) ne reprend la main que lorsque même cela ne suffit plus —
+  trente jours de rythme d'inscription. Taire un repère est le dernier recours,
+  jamais le premier, et une VALEUR n'est jamais tue : elle est l'information,
+  l'axe n'est qu'un repère. Le calcul vit dans `sparkline`, avec la géométrie
+  et pour la même raison — un espacement décidé dans du JSX ne se vérifie qu'à
+  l'œil, et une étiquette tue par erreur ne se voit pas. Conséquence : le cadre
+  déborde du repère, parce qu'un `viewBox` clippe ce qui en sort et que
+  l'étiquette du premier point descend en biais à sa gauche.
+- **Une seule courbe pour toute l'application** (`SparkChart`). Elle était
+  recopiée dans le rythme des réponses et dans les arrivées ; la synthèse
+  imprimable en aurait fait une troisième, et c'est le moment où deux d'entre
+  elles commencent à diverger — exactement ce qui est arrivé à la composition
+  d'un nom.
+- **La synthèse d'une soirée sort en PDF et en Word, pour UN modèle.**
+  `arrivalSummary` (`src/lib/checkin/summary.ts`) décide ce qui se dit, dans
+  quel ordre et avec quels mots ; l'écran, la page imprimable et le document
+  Word le rendent chacun à leur façon. Le PDF vient de l'impression de la page
+  (`/admin/sondages/[id]/synthese`), qui réemploie les CARTES de l'écran —
+  c'est tout l'intérêt de ne pas redessiner la page dans une bibliothèque de
+  PDF, qui aurait fini par en montrer une autre. La phrase d'affluence voyage
+  en FRAGMENTS dont certains portent l'accent : l'écran en fait un `<strong>`,
+  Word un passage en gras, et personne ne recompose la phrase de son côté. Une
+  synthèse ne nomme d'ailleurs PERSONNE — que des chiffres — et c'est ce qui
+  permet de la transmettre là où la liste nominative ne peut pas aller.
+- **Le document Word porte la VRAIE courbe, dessinée en vectoriel natif.**
+  Premier réflexe écarté : la remplacer par un tableau de valeurs, défendable
+  au nom de « un graphique est un renfort » — mais ce n'était pas ce qui avait
+  été demandé, et un document censé être la copie de l'écran ne peut pas
+  montrer autre chose. Deuxième écarté : une image, qui aurait exigé un
+  rastériseur, donc une dépendance, pour un dessin qui ne se redimensionne pas
+  et que personne ne peut retoucher. Reste le dessin vectoriel que Word
+  comprend depuis toujours — chemins, ellipses et zones de texte groupés en un
+  objet (`src/lib/export/drawing.ts`). **La géométrie n'est pas recalculée** :
+  elle vient de `sparkline`, la fonction pure qui alimente déjà le SVG ; ce
+  module ne fait que la traduire. Les heures y sont penchées du même angle, et
+  comme Word fait tourner une forme autour de son CENTRE là où le SVG la fait
+  tourner autour de son ancre, le décalage est calculé — sans lui, chaque
+  heure part à côté de sa colonne.
+- **Un seul tableau par carte, jamais de tableau imbriqué.** La grille des
+  chiffres était d'abord un tableau DANS la carte ; le rendu l'a refusée —
+  tuiles empilées en une colonne, fonds disparus. Les colonnes de la grille
+  appartiennent donc au tableau de la carte, et le titre traverse ses colonnes
+  par une fusion. Le cadre, lui, est EXTÉRIEUR : sans retrait explicite des
+  traits intérieurs, le tableau dessine une ligne entre chaque tuile et sous
+  le titre, ce qui transforme une grille de chiffres en grille de tableur. Les
+  coins arrondis de `sp-card`, eux, n'existent pas en traitement de texte : ce
+  n'est pas un choix, c'est la limite du format.
+- **Deux défauts invisibles aux tests, trouvés en REGARDANT le document.**
+  L'opacité de DrawingML se compte en millièmes de POURCENT : l'aplat sous la
+  courbe, écrit en millièmes, sortait à 0,14 % au lieu de 14 % — invisible, et
+  aucun test ne pouvait le dire puisque la balise était bien là. Et la grille
+  des chiffres, correcte au XML près, s'empilait en une colonne. C'est la
+  sixième fois que « vérifié » voulait dire « vérifié là où le défaut ne se
+  produit pas » : le document a donc été ouvert dans un vrai traitement de
+  texte, et c'est là que les deux se sont vus.
+- **Le classeur XLSX est écrit à la main, et c'est le bon arbitrage.** Un
+  classeur est une archive ZIP de six fichiers XML ; les parties nécessaires
+  tiennent dans `src/lib/export/xlsx.ts`, qui est pur — pas d'horloge, pas
+  d'aléa, donc un test fige le fichier à l'octet près. En face, la moindre
+  bibliothèque de tableur tire des dizaines de paquets transitifs dans un
+  projet qui en compte sept à l'exécution, alors que R17 vient de réduire la
+  portée de l'audit de dépendances. Les entrées sont STOCKÉES sans
+  compression : écrire un compresseur serait la seule alternative sans
+  dépendance, pour quelques dizaines de kilo-octets. Corollaire qui mérite
+  d'être dit : les cellules sont des chaînes EN LIGNE, qu'un tableur n'évalue
+  pas — la neutralisation par apostrophe du CSV n'est donc PAS reprise ici,
+  elle ajouterait un caractère visible dans une cellule qui ne risque rien.
+  Vérifié hors de nos propres tests : l'archive passe `unzip -t`, et un
+  lecteur tiers (`openpyxl`) relit l'onglet, les accents, l'en-tête en gras,
+  le volet figé et les largeurs.
 - **Le jeton seul ne suffit jamais : l'adresse doit concorder.** Un lien se
   transfère, s'oublie dans une boîte partagée, se retrouve dans l'historique
   d'un navigateur prêté. `claim_checkin_invitation` compare donc l'adresse de
@@ -1885,6 +2000,33 @@ npm run build       # build de production
       latences. **Un lien de poste ramène au poste visé** après connexion.
       Aucune migration. 2164 tests, dont 3 sur l'écran de refus et 2 sur le
       placement du middleware.
+- [x] Module « Accueil », lot 10 — ce qu'on emporte après la soirée (19 novembre
+      2026) : ce qu'on extrait une fois la soirée finie. Une ligne par
+      PERSONNE, venue ou non, classée de A à Z, accompagnants et invités de
+      dernière minute compris — en classeur XLSX, en CSV, ou par la page
+      `/admin/sondages/[id]/presence`, mise en forme pour l'impression et donc
+      pour le PDF. Deux modules purs (`export/presence.ts`,
+      `export/xlsx.ts`), une route, aucune dépendance et aucune migration :
+      tout se calcule depuis `event_checkins` et la liste d'invités. **Le pied
+      des pages imprimées est corrigé au passage** — fixé en bas de feuille,
+      il barrait la dernière rangée de chaque page ; il appartient désormais
+      au tableau. Défaut invisible en jsdom : reproduit, puis vérifié, en
+      imprimant 120 rangées dans un navigateur réel et en mesurant les
+      positions dans le PDF obtenu — quatre noms barrés avant, aucun après, et
+      le pied répété sur les sept pages. 2201 tests, dont 10 sur le classeur
+      (archive relue entrée par entrée, somme de contrôle comparée à la valeur
+      de référence), 12 sur la composition de la feuille, 8 d'intégration de
+      bout en bout — arrivées pointées par la vraie route du poste, relues
+      sous les vraies policies — et 5 qui figent la place du pied.
+      **La SYNTHÈSE s'emporte elle aussi** : les trois encadrés de la vue
+      « Arrivées » en PDF (page imprimable qui réemploie les cartes) et en
+      document Word (`export/docx.ts`, bâti sur la même archive ZIP que le
+      classeur), pour un seul modèle partagé (`checkin/summary.ts`). Le Word
+      porte la vraie COURBE, en vectoriel natif dessiné depuis la même
+      géométrie que le SVG — pas un tableau de substitution. **Les
+      heures de l'axe se penchent** au passage : elles se touchaient dès que la
+      soirée comptait plus d'une dizaine de tranches. 2237 tests, et la courbe
+      n'a plus qu'une implémentation (`SparkChart`).
 - [x] Étape 4 — `src/lib` pur, sans aucun accès réseau : schéma de sondage
       (11 types de champs, conditions bornées), validation serveur des
       soumissions en liste blanche, évaluation des conditions partagée entre

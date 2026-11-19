@@ -5048,25 +5048,71 @@ summary.sp-btn::-webkit-details-marker {
   font-weight: 600;
 }
 
+/* Le pied du listing, répété au bas de chaque page par le GROUPE DE PIED du
+   tableau — `<tfoot>` — et non par `position: fixed`.
+
+   Défaut réel signalé à l'usage : un élément fixé est positionné par rapport
+   à la ZONE DE PAGE, c'est-à-dire l'intérieur des marges, et il y est redessiné
+   sur chaque feuille PENDANT que le tableau continue de s'écouler dessous. Le
+   pied se superposait donc aux dernières rangées de chaque page, et c'est
+   précisément là qu'on lit un nom. Aucune marge ne pouvait le corriger : le
+   contenu occupe toute la zone de page par définition, et réserver de la place
+   en bas de CHAQUE page est hors de portée d'un élément hors flux.
+
+   Le groupe de pied, lui, reste dans le flux du tableau : le moteur lui réserve
+   sa place avant de couper la page. Rien ne peut donc le recouvrir, qu'il soit
+   répété par le navigateur ou rendu une seule fois à la fin. */
 .sp-print__foot {
-  margin-top: var(--sp-space-4);
   padding-top: var(--sp-space-3);
   border-top: 1px solid var(--sp-border);
+  border-bottom: 0;
   font-size: var(--sp-text-xs);
+  font-weight: 400;
   color: var(--sp-text-muted);
 }
 
 @media print {
+  /* Une marge physique explicite plutôt que celle du navigateur : une liste
+     nominative se range dans un classeur, et le pied a besoin d'air sous lui. */
+  @page {
+    margin: 14mm 12mm;
+  }
+
   /* Le logo part en noir et blanc sur la plupart des imprimantes de bureau ;
      on ne compte donc jamais sur lui pour distinguer quoi que ce soit. */
   .sp-print__head {
     border-bottom-width: 1pt;
   }
 
-  /* Répété en bas de chaque page : une feuille détachée reste identifiable. */
-  .sp-print__foot {
-    position: fixed;
-    bottom: 0;
+  /* Répété en bas de chaque page : une feuille détachée reste identifiable.
+     C'est le comportement d'un groupe de pied, pas une position imposée. */
+  .sp-print__table tfoot {
+    display: table-footer-group;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   La synthèse imprimée
+   ---------------------------------------------------------------------------
+   Elle réemploie les cartes de l'écran plutôt qu'une mise en page à part :
+   c'est tout l'intérêt de produire le PDF par l'impression du navigateur, et
+   une seconde mise en forme aurait fini par montrer autre chose que l'écran.
+   --------------------------------------------------------------------------- */
+
+@media print {
+  /* Les aplats d'une carte PORTENT ici l'information — ils séparent les trois
+     sections d'un document qu'on garde. Sans cette ligne, le navigateur les
+     retire par défaut et la synthèse sort en texte au fil de l'eau. */
+  .sp-print--doc {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Une carte coupée en deux pages perd ce qu'elle a de lisible : son cadre.
+     L'ombre, elle, ne veut rien dire sur du papier. */
+  .sp-print--doc .sp-card {
+    break-inside: avoid;
+    box-shadow: none;
   }
 }
 
