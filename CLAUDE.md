@@ -9,9 +9,9 @@ son branding ; la plateforme est revendable.
 
 | Domaine        | Choix                                                      |
 | -------------- | ---------------------------------------------------------- |
-| Framework      | Next.js 15.5.25 (App Router), TypeScript strict            |
+| Framework      | Next.js 15.5.28 (App Router), TypeScript strict            |
 | Base / auth    | Supabase (PostgreSQL, Auth, Storage, RLS)                  |
-| Hébergement    | Vercel (UE)                                                |
+| Hébergement    | Vercel, région `cdg1` (Paris) fixée par `vercel.json`      |
 | Emails         | API REST Resend via `fetch` (aucun SDK)                    |
 | Rate-limit     | Vercel KV / Upstash Redis via REST (aucun SDK)             |
 | Tests          | Vitest — projets `unit`, `integration`, `rls`, `a11y`      |
@@ -27,6 +27,19 @@ grand-chose. Attention au couplage : la version de Vercel est un réglage de
 projet, pas une lecture de `.nvmrc` ; changer l'un sans l'autre les fait
 diverger à nouveau. `engines` reste à `>=22.11.0`, qui est le plancher
 réellement supporté (et la version du poste de développement actuel).
+
+**La région d'exécution est VERSIONNÉE, pas réglée dans une interface.** Le
+projet avait gardé le défaut de Vercel, `iad1` (Washington), pendant que ce
+tableau annonçait « UE » : les réponses de sondage — noms, courriels,
+téléphones — traversaient donc des fonctions hébergées aux États-Unis, et
+rien ne le signalait, puisque la base, elle, est bien en `eu-west-2`. C'est
+exactement ce que la règle d'or du §5 interdit : une affirmation de la
+documentation que le code ne tient pas. `vercel.json` fixe `cdg1`, et le
+choix se relit dans le dépôt au lieu de vivre dans un écran que personne
+n'ouvre — même raisonnement que la version de Node, à ceci près que la leçon
+a coûté moins cher : ici l'écart se lisait dans l'API de déploiement, il
+suffisait de regarder. Contrepartie assumée : un aller-retour Paris-Londres
+par requête vers la base, quelques dizaines de millisecondes.
 
 ## 2. Principe fondateur : schéma flexible
 
